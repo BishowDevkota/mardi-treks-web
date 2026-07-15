@@ -1,0 +1,162 @@
+import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+import { createBookingSchema } from "@/lib/validations";
+import { bookingRateLimit, checkRateLimit } from "@/lib/rate-limit";
+
+export async function POST(request: NextRequest) {
+  try {
+    // Rate limiting by IP
+    const ip = request.headers.get("x-forwarded-for") || "unknown";
+    const rateCheck = await checkRateLimit(bookingRateLimit, ip);
+    if (!rateCheck.success) {
+      return NextResponse.json(
+        { error: "Too many requests. Please try again later." },
+        {
+          status: 429,
+          headers: {
+            "Retry-After": String(rateCheck.reset),
+            "X-RateLimit-Remaining": String(rateCheck.remaining),
+          },
+        }
+      );
+    }
+
+    // Auth check — require login for booking
+    const session = await auth();
+    if (!session?.user?.id) {
+      return NextResponse.json(
+        { error: "You must be signed in to make a booking" },
+        { status: 401 }
+      );
+    }
+
+    const body = await request.json();
+
+    // Validate input with Zod
+    const validated = createBookingSchema.safeParse(body);
+    if (!validated.success) {
+      return NextResponse.json(
+        {
+          error: "Invalid booking data",
+          details: validated.error.flatten().fieldErrors,
+        },
+        { status: 400 }
+      );
+    }
+
+    const {
+      trekSlug,
+      trekTitle,
+      trekPrice,
+      trekDuration,
+      startDate,
+      groupSize,
+      specialRequests,
+      travelers,
+    } = validated.data;
+
+    const totalPrice = trekPrice * groupSize;
+
+    // Check availability (Prisma read, could also check Payload CMS date)
+    // Check TrekAvailability table
+    const availability = await prisma.trekAvailability.findUnique({
+      where: {
+        trekSlug_startDate: {
+          trekSlug,
+          startDate: new Date(startDate),
+        },
+      },
+    });
+
+    if (availability) {
+      const seatsAvailable = availability.seatsTotal - availability.seatsBooked;
+      if (seatsAvailable < groupSize) {
+        return NextResponse.json(
+          {
+            error: `Only ${seatsAvailable} seat(s) available for this date`,
+          },
+          { status: 409 }
+        );
+      }
+    }
+
+    // Create booking and travelers in a transaction
+    const booking = await prisma.$transaction(async (tx) => {
+      // Create the booking
+      const newBooking = await tx.booking.create({
+        data: {
+          userId: session.user.id,
+          trekSlug,
+          trekTitle,
+          trekPrice,
+          trekDuration,
+          startDate: new Date(startDate),
+          groupSize,
+          totalPrice,
+          specialRequests: specialRequests || null,
+          status: "PENDING_REVIEW",
+          travelerDetails: {
+            create: travelers.map((t) => ({
+              fullName: t.fullName,
+              email: t.email,
+              phone: t.phone,
+              nationality: t.nationality,
+              passportNumber: t.passportNumber || null,
+              age: t.age || null,
+            })),
+          },
+        },
+        include: {
+          travelerDetails: true,
+        },
+      });
+
+      // Update or create availability counter
+      if (availability) {
+        await tx.trekAvailability.update({
+          where: { id: availability.id },
+          data: {
+            seatsBooked: availability.seatsBooked + groupSize,
+          },
+        });
+      }
+
+      return newBooking;
+    });
+
+    return NextResponse.json(
+      {
+        booking: {
+          id: booking.id,
+          status: booking.status,
+          totalPrice: booking.totalPrice,
+          startDate: booking.startDate,
+          groupSize: booking.groupSize,
+        },
+      },
+      { status: 201 }
+    );
+  } catch (error) {
+    console.error("Booking error:", error);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function GET(request: NextRequest) {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const bookings = await prisma.booking.findMany({
+    where: { userId: session.user.id },
+    include: { payment: true },
+    orderBy: { createdAt: "desc" },
+  });
+
+  return NextResponse.json({ bookings });
+}

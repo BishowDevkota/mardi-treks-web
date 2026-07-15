@@ -1,0 +1,52 @@
+@import "tailwindcss";
+
+@theme inline {
+  --color-background: #ffffff;
+  --color-foreground: #0f172a;
+  --color-primary: #0f766e;
+  --color-primary-dark: #0d5e56;
+  --color-primary-light: #14b8a6;
+  --color-accent: #d97706;
+  --color-accent-dark: #b45309;
+  --color-surface: #f8fafc;
+  --color-surface-alt: #f1f5f9;
+  --color-border: #e2e8f0;
+  --color-text: #334155;
+  --color-text-muted: #64748b;
+  --color-success: #16a34a;
+  --color-error: #dc2626;
+  --color-warning: #f59e0b;
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--color-background);
+  color: var(--color-foreground);
+  font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+/* Rich text content styles */
+.rich-text h1 { @apply text-3xl font-bold mt-8 mb-4; }
+.rich-text h2 { @apply text-2xl font-semibold mt-6 mb-3; }
+.rich-text h3 { @apply text-xl font-semibold mt-5 mb-2; }
+.rich-text p { @apply mb-4 leading-relaxed text-slate-600; }
+.rich-text ul { @apply list-disc pl-6 mb-4 space-y-1; }
+.rich-text ol { @apply list-decimal pl-6 mb-4 space-y-1; }
+.rich-text a { @apply text-primary underline hover:text-primary-dark; }
+.rich-text blockquote {
+  @apply border-l-4 border-primary pl-4 italic my-4 text-slate-600;
+}
+
+/* Mapbox overrides */
+.mapboxgl-ctrl-logo { display: none !important; }
+.mapbox-improve-map { display: none; }
+
+/* Scrollbar styling */
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-track { background: var(--color-surface-alt); }
+::-webkit-scrollbar-thumb {
+  background: var(--color-text-muted);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover { background: var(--color-text); }
