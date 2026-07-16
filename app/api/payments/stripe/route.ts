@@ -99,34 +99,39 @@ export async function PUT(request: NextRequest) {
     if (event.type === "payment_intent.succeeded") {
       const paymentIntent = event.data.object as any;
 
-      await prisma.$transaction(async (tx) => {
-        // Update payment record
-        await tx.payment.update({
-          where: { stripePaymentIntentId: paymentIntent.id },
-          data: { status: "SUCCEEDED" },
-        });
+      // Find payment by stripePaymentIntentId (not unique, so use findFirst)
+      const payment = await prisma.payment.findFirst({
+        where: { stripePaymentIntentId: paymentIntent.id },
+      });
 
-        // Update booking status
-        const payment = await tx.payment.findUnique({
-          where: { stripePaymentIntentId: paymentIntent.id },
-        });
+      if (payment) {
+        await prisma.$transaction(async (tx) => {
+          await tx.payment.update({
+            where: { id: payment.id },
+            data: { status: "SUCCEEDED" },
+          });
 
-        if (payment) {
           await tx.booking.update({
             where: { id: payment.bookingId },
             data: { status: "CONFIRMED" },
           });
-        }
-      });
+        });
+      }
     }
 
     if (event.type === "payment_intent.payment_failed") {
       const paymentIntent = event.data.object as any;
 
-      await prisma.payment.update({
+      const payment = await prisma.payment.findFirst({
         where: { stripePaymentIntentId: paymentIntent.id },
-        data: { status: "FAILED" },
       });
+
+      if (payment) {
+        await prisma.payment.update({
+          where: { id: payment.id },
+          data: { status: "FAILED" },
+        });
+      }
     }
 
     return NextResponse.json({ received: true });

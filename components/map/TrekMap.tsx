@@ -22,13 +22,15 @@ const MapWithNoSSR = dynamic(
 
 interface TrekMapProps {
   geoJsonUrl?: string;
-  waypoints?: Array<{ lng: number; lat: number; label: string }>;
+  geoJsonData?: string | null;
+  waypoints?: Array<{ lng: number; lat: number; label: string; description?: string }>;
   itinerary?: Array<{ dayNumber: number; title: string; elevation?: string }>;
   staticFallbackImage?: string;
 }
 
 export function TrekMap({
   geoJsonUrl,
+  geoJsonData,
   waypoints,
   itinerary,
   staticFallbackImage,
@@ -76,6 +78,7 @@ export function TrekMap({
       <div className={isExpanded ? "h-full" : "aspect-[21/9]"}>
         <MapWithNoSSR
           geoJsonUrl={geoJsonUrl}
+          geoJsonData={geoJsonData}
           waypoints={waypoints}
           itinerary={itinerary}
         />

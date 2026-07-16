@@ -81,12 +81,14 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    const userId = session.user.id!;
+
     // Create booking and travelers in a transaction
     const booking = await prisma.$transaction(async (tx) => {
       // Create the booking
       const newBooking = await tx.booking.create({
         data: {
-          userId: session.user.id,
+          userId,
           trekSlug,
           trekTitle,
           trekPrice,

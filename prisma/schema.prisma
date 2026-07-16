@@ -1,17 +1,15 @@
-// This is the Prisma schema for TRANSACTIONAL data only.
-// Content (treks, blog posts, pages) is managed by Payload CMS in the same database.
-// Bookings, users, payments, and seat availability live here.
-
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
-// ---- Users (for auth & customer accounts) ----
+// ==============================
+// AUTH & USERS
+// ==============================
+
 model User {
   id            String    @id @default(cuid())
   name          String?
@@ -22,18 +20,17 @@ model User {
   phone         String?
   nationality   String?
   passportNumber String?
-  role          String    @default("customer") // "customer" | "admin"
+  role          String    @default("customer")
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  accounts  Account[]
-  sessions  Session[]
-  bookings  Booking[]
+  accounts Account[]
+  sessions Session[]
+  bookings Booking[]
 
   @@map("users")
 }
 
-// ---- NextAuth models ----
 model Account {
   id                String  @id @default(cuid())
   userId            String
@@ -73,18 +70,250 @@ model VerificationToken {
   @@map("verification_tokens")
 }
 
-// ---- Bookings ----
+// ==============================
+// CONTENT: TREKS
+// ==============================
+
+model Trek {
+  id            String   @id @default(cuid())
+  title         String
+  slug          String   @unique
+  subtitle      String?
+  price         Float
+  duration      Int
+  difficulty    String   // easy | moderate | challenging | difficult | extreme
+  region        String
+  maxGroupSize  Int      @default(12)
+  overview      String   // rich text HTML
+  inclusions    String   // JSON array
+  exclusions    String   // JSON array
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  heroImage     String?  // Cloudinary public ID
+  heroSubtitle  String?
+  heroBadge     String?
+
+  // Relationships
+  highlights   TrekHighlight[]
+  itinerary    ItineraryDay[]
+  pricingTiers PricingTier[]
+  availableDates AvailableDate[]
+  galleryImages TrekGalleryImage[]
+  faqs         TrekFaq[]
+  reviews      TrekReview[]
+
+  // SEO
+  metaTitle       String?
+  metaDescription String?
+  ogImage         String?
+
+  // Map
+  geoJsonUrl      String?
+  geoJsonData     String?   // Raw GeoJSON content (stored server-side)
+  staticMapImage  String?
+  waypoints       String?  // JSON array
+  centerLat       Float?
+  centerLng       Float?
+  zoom            Float?
+  pitch           Float?
+
+  // Custom sections (user-defined heading + rich text sections)
+  customSections  String?  // JSON array of TrekSection objects
+
+  // Status
+  status    String   @default("draft") // draft | published | archived
+  publishedAt DateTime?
+
+  @@map("treks")
+}
+
+model TrekHighlight {
+  id     String @id @default(cuid())
+  trekId String
+  icon   String
+  text   String
+  sort   Int    @default(0)
+
+  trek Trek @relation(fields: [trekId], references: [id], onDelete: Cascade)
+
+  @@map("trek_highlights")
+}
+
+model ItineraryDay {
+  id            String  @id @default(cuid())
+  trekId        String
+  dayNumber     Int
+  title         String
+  description   String
+  elevation     String?
+  accommodation String?
+
+  trek Trek @relation(fields: [trekId], references: [id], onDelete: Cascade)
+
+  @@map("trek_itinerary")
+}
+
+model PricingTier {
+  id             String @id @default(cuid())
+  trekId         String
+  groupSize      String
+  pricePerPerson Float
+
+  trek Trek @relation(fields: [trekId], references: [id], onDelete: Cascade)
+
+  @@map("trek_pricing_tiers")
+}
+
+model AvailableDate {
+  id        String   @id @default(cuid())
+  trekId    String
+  startDate DateTime
+  seatsLeft Int      @default(12)
+
+  trek Trek @relation(fields: [trekId], references: [id], onDelete: Cascade)
+
+  @@map("trek_available_dates")
+}
+
+model TrekGalleryImage {
+  id      String @id @default(cuid())
+  trekId  String
+  imageId String // Cloudinary public ID
+  alt     String?
+
+  trek Trek @relation(fields: [trekId], references: [id], onDelete: Cascade)
+
+  @@map("trek_gallery")
+}
+
+model TrekFaq {
+  id       String @id @default(cuid())
+  trekId   String
+  question String
+  answer   String
+
+  trek Trek @relation(fields: [trekId], references: [id], onDelete: Cascade)
+
+  @@map("trek_faqs")
+}
+
+model TrekReview {
+  id       String  @id @default(cuid())
+  trekId   String
+  author   String
+  rating   Int
+  text     String
+  approved Boolean @default(false)
+
+  trek Trek @relation(fields: [trekId], references: [id], onDelete: Cascade)
+
+  @@map("trek_reviews")
+}
+
+// ==============================
+// CONTENT: BLOG
+// ==============================
+
+model BlogPost {
+  id            String   @id @default(cuid())
+  title         String
+  slug          String   @unique
+  author        String
+  publishedDate DateTime
+  heroImage     String?  // Cloudinary public ID
+  excerpt       String
+  content       String   // rich text HTML
+  tags          String   // JSON array
+  metaTitle     String?
+  metaDescription String?
+  ogImage       String?
+  status        String   @default("draft") // draft | published
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@map("blog_posts")
+}
+
+// ==============================
+// CONTENT: PAGES
+// ==============================
+
+model Page {
+  id            String   @id @default(cuid())
+  title         String
+  slug          String   @unique
+  content       String   // rich text HTML
+  heroImage     String?  // Cloudinary public ID
+  metaTitle     String?
+  metaDescription String?
+  ogImage       String?
+  status        String   @default("draft") // draft | published
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@map("pages")
+}
+
+// ==============================
+// CONTENT: SITE SETTINGS
+// ==============================
+
+model SiteSetting {
+  id            String @id @default("site-settings")
+  siteName      String @default("Mardi Treks")
+  tagline       String?
+  logo          String? // Cloudinary public ID
+  description   String?
+  email         String?
+  phone         String?
+  address       String?
+  socialLinks   String? // JSON array
+  navigation    String? // JSON array
+  defaultMetaTitle String?
+  defaultMetaDescription String?
+  defaultOgImage String?
+  updatedAt     DateTime @updatedAt
+
+  @@map("site_settings")
+}
+
+// ==============================
+// MEDIA
+// ==============================
+
+model Media {
+  id                String   @id @default(cuid())
+  filename          String
+  mimeType          String
+  filesize          Int?
+  width             Int?
+  height            Int?
+  alt               String?
+  caption           String?
+  cloudinaryPublicId String?
+  url               String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@map("media")
+}
+
+// ==============================
+// BOOKINGS & PAYMENTS
+// ==============================
+
 model Booking {
   id            String   @id @default(cuid())
   userId        String
-  trekSlug      String   // References Payload CMS trek by slug
-  trekTitle     String   // Denormalized for easy display
+  trekSlug      String
+  trekTitle     String
   trekPrice     Float
   trekDuration  Int
   startDate     DateTime
   groupSize     Int
   totalPrice    Float
-  status        BookingStatus @default(PENDING_REVIEW)
+  status        String   @default("PENDING_REVIEW")
   travelerDetails TravelerDetail[]
   specialRequests String?
   createdAt     DateTime @default(now())
@@ -96,69 +325,47 @@ model Booking {
   @@map("bookings")
 }
 
-enum BookingStatus {
-  PENDING_REVIEW
-  AWAITING_PAYMENT
-  CONFIRMED
-  CANCELLED
-  COMPLETED
-
-  @@map("booking_status")
-}
-
 model TravelerDetail {
-  id          String @id @default(cuid())
-  bookingId   String
-  fullName    String
-  email       String
-  phone       String
-  nationality String
-  passportNumber String?
-  age         Int?
+  id              String  @id @default(cuid())
+  bookingId       String
+  fullName        String
+  email           String
+  phone           String
+  nationality     String
+  passportNumber  String?
+  age             Int?
 
   booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
 
   @@map("traveler_details")
 }
 
-// ---- Payments ----
 model Payment {
-  id            String        @id @default(cuid())
-  bookingId     String        @unique
-  amount        Float
-  currency      String        @default("USD")
-  method        String        // "stripe" | "esewa" | "khalti"
-  status        PaymentStatus @default(PENDING)
-  stripePaymentIntentId String?
-  esewaTransactionId     String?
-  khaltiTransactionId    String?
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  id                      String   @id @default(cuid())
+  bookingId               String   @unique
+  amount                  Float
+  currency                String   @default("USD")
+  method                  String
+  status                  String   @default("PENDING")
+  stripePaymentIntentId   String?
+  esewaTransactionId      String?
+  khaltiTransactionId     String?
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
 
   booking Booking @relation(fields: [bookingId], references: [id])
 
   @@map("payments")
 }
 
-enum PaymentStatus {
-  PENDING
-  PROCESSING
-  SUCCEEDED
-  FAILED
-  REFUNDED
-
-  @@map("payment_status")
-}
-
-// ---- Seat Availability ----
 model TrekAvailability {
-  id        String   @id @default(cuid())
-  trekSlug  String
-  startDate DateTime
-  seatsTotal Int
-  seatsBooked Int    @default(0)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id          String   @id @default(cuid())
+  trekSlug    String
+  startDate   DateTime
+  seatsTotal  Int
+  seatsBooked Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   @@unique([trekSlug, startDate])
   @@map("trek_availability")

@@ -6,12 +6,14 @@ import "mapbox-gl/dist/mapbox-gl.css";
 
 interface MapContentProps {
   geoJsonUrl?: string;
-  waypoints?: Array<{ lng: number; lat: number; label: string }>;
+  geoJsonData?: string | null;
+  waypoints?: Array<{ lng: number; lat: number; label: string; description?: string }>;
   itinerary?: Array<{ dayNumber: number; title: string; elevation?: string }>;
 }
 
 export default function MapContent({
   geoJsonUrl,
+  geoJsonData,
   waypoints,
   itinerary,
 }: MapContentProps) {
@@ -31,20 +33,89 @@ export default function MapContent({
 
     mapboxgl.accessToken = token;
 
+    // Helper to draw a GeoJSON route on the map
+    function drawGeoJsonRoute(m: mapboxgl.Map, data: any) {
+      if (m.getSource("route")) return; // already drawn
+
+      m.addSource("route", { type: "geojson", data });
+
+      m.addLayer({
+        id: "route-glow", type: "line", source: "route",
+        layout: { "line-join": "round", "line-cap": "round" },
+        paint: { "line-color": "#14b8a6", "line-width": 8, "line-opacity": 0.2 },
+      });
+      m.addLayer({
+        id: "route-line", type: "line", source: "route",
+        layout: { "line-join": "round", "line-cap": "round" },
+        paint: { "line-color": "#0f766e", "line-width": 4, "line-opacity": 0.9 },
+      });
+      m.addLayer({
+        id: "route-label", type: "symbol", source: "route",
+        layout: {
+          "symbol-placement": "line-center",
+          "text-field": "Actual Trek Route",
+          "text-font": ["DIN Pro Medium", "Arial Unicode MS Regular"],
+          "text-size": 11, "text-offset": [0, -1.8],
+        },
+        paint: { "text-color": "#0f766e", "text-halo-color": "#ffffff", "text-halo-width": 2 },
+      });
+
+      const bounds = new mapboxgl.LngLatBounds();
+      if (data.type === "FeatureCollection") {
+        data.features?.forEach((f: any) => {
+          if (f.geometry?.type === "LineString") {
+            f.geometry.coordinates.forEach((c: number[]) => bounds.extend(c as [number, number]));
+          }
+        });
+      } else if (data.type === "Feature" && data.geometry?.type === "LineString") {
+        data.geometry.coordinates.forEach((c: number[]) => bounds.extend(c as [number, number]));
+      }
+      if (!bounds.isEmpty()) m.fitBounds(bounds, { padding: 60 });
+    }
+
+    // Helper to draw a dashed straight-line route between waypoints
+    function drawWaypointRoute(m: mapboxgl.Map, wps: Array<{ lng: number; lat: number }>) {
+      const coords = wps.map((wp) => [wp.lng, wp.lat]);
+      const geojson: any = {
+        type: "Feature",
+        geometry: { type: "LineString", coordinates: coords },
+        properties: {},
+      };
+
+      if (m.getSource("route-line")) return; // already drawn
+
+      m.addSource("route-line", { type: "geojson", data: geojson });
+      m.addLayer({
+        id: "route-line-layer", type: "line", source: "route-line",
+        layout: { "line-join": "round", "line-cap": "round" },
+        paint: { "line-color": "#0f766e", "line-width": 3, "line-opacity": 0.7, "line-dasharray": [3, 2] },
+      });
+      m.addLayer({
+        id: "route-label", type: "symbol", source: "route-line",
+        layout: {
+          "symbol-placement": "line-center",
+          "text-field": "Estimated route (straight-line)",
+          "text-font": ["DIN Pro Medium", "Arial Unicode MS Regular"],
+          "text-size": 10, "text-offset": [0, -1.5],
+        },
+        paint: { "text-color": "#64748b", "text-halo-color": "#ffffff", "text-halo-width": 2 },
+      });
+
+      const bounds = new mapboxgl.LngLatBounds();
+      coords.forEach((c) => bounds.extend(c as [number, number]));
+      if (!bounds.isEmpty()) m.fitBounds(bounds, { padding: 60, maxZoom: 14 });
+    }
+
     try {
       // Default to a central Nepal viewpoint
       const newMap = new mapboxgl.Map({
         container: mapContainer.current,
-        style: "mapbox://styles/mapbox/outdoors-v12",
+        style: "mapbox://styles/mapbox/satellite-streets-v12",
         center: [83.9, 28.5], // Central Nepal
-        zoom: 7,
-        pitch: 45,
+        zoom: 9,
+        pitch: 60,
         bearing: 0,
-        terrain: {
-          source: "mapbox-dem",
-          exaggeration: 1.5,
-        },
-      });
+      } as mapboxgl.MapOptions & { terrain?: any });
 
       newMap.on("load", () => {
         // Add DEM source for 3D terrain
@@ -58,7 +129,7 @@ export default function MapContent({
         // Set terrain
         newMap.setTerrain({
           source: "mapbox-dem",
-          exaggeration: 1.5,
+          exaggeration: 2.0,
         });
 
         // Add sky layer for atmosphere
@@ -72,28 +143,71 @@ export default function MapContent({
           },
         });
 
-        // If we have a GeoJSON URL, fetch and add it
-        if (geoJsonUrl) {
-          fetch(geoJsonUrl)
+        // If we have inline GeoJSON data (stored in DB), use it directly
+        if (geoJsonData) {
+          try {
+            const data = JSON.parse(geoJsonData);
+            if (data && data.type) {
+              drawGeoJsonRoute(newMap, data);
+            }
+          } catch {}
+        }
+        // Otherwise fetch from URL via proxy
+        if (!geoJsonData && geoJsonUrl) {
+          fetch(`/api/geojson-proxy?url=${encodeURIComponent(geoJsonUrl)}`)
             .then((res) => res.json())
+            .then((data) => {
+              if (data.error) throw new Error(data.error);
+              return data;
+            })
             .then((data) => {
               newMap.addSource("route", {
                 type: "geojson",
                 data,
               });
 
+              // Glow layer under route
+              newMap.addLayer({
+                id: "route-glow",
+                type: "line",
+                source: "route",
+                layout: { "line-join": "round", "line-cap": "round" },
+                paint: {
+                  "line-color": "#14b8a6",
+                  "line-width": 8,
+                  "line-opacity": 0.2,
+                },
+              });
+
+              // Main route line
               newMap.addLayer({
                 id: "route-line",
                 type: "line",
                 source: "route",
-                layout: {
-                  "line-join": "round",
-                  "line-cap": "round",
-                },
+                layout: { "line-join": "round", "line-cap": "round" },
                 paint: {
                   "line-color": "#0f766e",
                   "line-width": 4,
-                  "line-opacity": 0.8,
+                  "line-opacity": 0.9,
+                },
+              });
+
+              // Route label
+              newMap.addLayer({
+                id: "route-label",
+                type: "symbol",
+                source: "route",
+                layout: {
+                  "symbol-placement": "line-center",
+                  "text-field": "Actual Trek Route",
+                  "text-font": ["DIN Pro Medium", "Arial Unicode MS Regular"],
+                  "text-size": 11,
+                  "text-offset": [0, -1.8],
+                },
+                paint: {
+                  "text-color": "#0f766e",
+                  "text-halo-color": "#ffffff",
+                  "text-halo-width": 2,
                 },
               });
 
@@ -112,25 +226,44 @@ export default function MapContent({
             })
             .catch((err) => {
               console.error("Failed to load GeoJSON:", err);
+              // Fall back to straight-line waypoint route
+              if (waypoints && waypoints.length >= 2) {
+                drawWaypointRoute(newMap, waypoints);
+              }
             });
         }
 
-        // Add waypoint markers from itinerary data
+        // Only draw straight-line route between waypoints when NO GeoJSON route exists
+        if (!geoJsonUrl && waypoints && waypoints.length >= 2) {
+          drawWaypointRoute(newMap, waypoints);
+        }
+
+        // Add waypoint markers
         if (waypoints) {
           waypoints.forEach((wp, i) => {
             const el = document.createElement("div");
             el.className =
-              "flex h-8 w-8 items-center justify-center rounded-full bg-primary text-xs font-bold text-white shadow-md border-2 border-white";
+              "flex h-8 w-8 items-center justify-center rounded-full bg-primary text-xs font-bold text-white shadow-lg border-2 border-white cursor-pointer transition-transform hover:scale-110";
             el.textContent = `${i + 1}`;
+
+            // Build popup HTML with label + description
+            const popupHtml = [
+              `<div class="text-left max-w-[200px]">`,
+              wp.label ? `<strong class="text-sm block">${wp.label}</strong>` : "",
+              wp.description ? `<p class="text-xs text-slate-500 mt-1">${wp.description}</p>` : "",
+              `<span class="text-[10px] text-slate-400 mt-1 block">${wp.lat.toFixed(4)}, ${wp.lng.toFixed(4)}</span>`,
+              `</div>`,
+            ].join("");
+
+            const popup = new mapboxgl.Popup({ offset: 25, closeButton: false, maxWidth: "280px" }).setHTML(popupHtml);
 
             new mapboxgl.Marker({ element: el })
               .setLngLat([wp.lng, wp.lat])
-              .setPopup(
-                new mapboxgl.Popup({ offset: 25 }).setHTML(
-                  `<strong>${wp.label}</strong>`
-                )
-              )
               .addTo(newMap);
+
+            // Show popup on hover, hide on leave
+            el.addEventListener("mouseenter", () => popup.setLngLat([wp.lng, wp.lat]).addTo(newMap));
+            el.addEventListener("mouseleave", () => popup.remove());
           });
         }
 

@@ -7,14 +7,31 @@ import {
   Users,
   MapPin,
   Check,
+  Mountain,
   X as XIcon,
   Star,
   ChevronDown,
   ArrowLeft,
 } from "lucide-react";
+import { prisma } from "@/lib/prisma";
+import { TrekMapWrapper } from "@/components/map/TrekMapWrapper";
 
-// TODO: Fetch from Payload CMS using getPayloadClient()
-// This is a template showing the complete structure
+// ── Fetch trek from database ─────────────────────────────────────────
+async function getTrek(slug: string) {
+  return prisma.trek.findUnique({
+    where: { slug, status: "published" },
+    include: {
+      highlights: { orderBy: { sort: "asc" } },
+      itinerary: { orderBy: { dayNumber: "asc" } },
+      pricingTiers: true,
+      availableDates: true,
+      faqs: true,
+      reviews: { where: { approved: true } },
+    },
+  });
+}
+
+// ── Static data for demo treks (fallback when DB is empty) ───────────
 const trekData: Record<string, any> = {
   "everest-base-camp": {
     title: "Everest Base Camp Trek",
@@ -244,7 +261,22 @@ const trekData: Record<string, any> = {
 };
 
 export async function generateStaticParams() {
-  return Object.keys(trekData).map((slug) => ({ slug }));
+  // Get published treks from DB + static demo treks
+  const dbTreks = await prisma.trek.findMany({
+    where: { status: "published" },
+    select: { slug: true },
+  });
+  const slugs = [
+    ...dbTreks.map((t) => ({ slug: t.slug })),
+    ...Object.keys(trekData).map((slug) => ({ slug })),
+  ];
+  // Deduplicate
+  const seen = new Set<string>();
+  return slugs.filter((s) => {
+    if (seen.has(s.slug)) return false;
+    seen.add(s.slug);
+    return true;
+  });
 }
 
 export async function generateMetadata({
@@ -253,18 +285,14 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
-  const trek = trekData[slug];
+  const dbTrek = await getTrek(slug);
+  const trek = dbTrek || trekData[slug];
   if (!trek) return {};
 
-  return {
-    title: trek.seo?.metaTitle || `${trek.title} | Mardi Treks`,
-    description: trek.seo?.metaDescription || trek.overview?.slice(0, 160),
-    openGraph: {
-      title: trek.seo?.metaTitle || trek.title,
-      description: trek.seo?.metaDescription || trek.overview?.slice(0, 160),
-      type: "article",
-    },
-  };
+  const title = trek.metaTitle || `${trek.title} | Mardi Treks`;
+  const description = trek.metaDescription || trek.overview?.slice(0, 160);
+
+  return { title, description, openGraph: { title, description, type: "article" } };
 }
 
 // Revalidate every 5 minutes, plus on-demand via revalidation API
@@ -276,11 +304,23 @@ export default async function TrekDetailPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const trek = trekData[slug];
+  const dbTrek = await getTrek(slug);
+  const trek = dbTrek || trekData[slug];
 
   if (!trek) {
     notFound();
   }
+
+  // Normalize data: DB returns nested objects, static data has inline arrays
+  const highlights = trek.highlights || trekData[slug]?.highlights || [];
+  const itinerary = trek.itinerary || trekData[slug]?.itinerary || [];
+  const pricingTiers = trek.pricingTiers || trekData[slug]?.pricingTiers || [];
+  const availableDates = trek.availableDates || trekData[slug]?.availableDates || [];
+  const faqs = trek.faqs || trekData[slug]?.faqs || [];
+  const reviews = trek.reviews || trekData[slug]?.reviews || [];
+  const inclusions = (typeof trek.inclusions === "string" ? JSON.parse(trek.inclusions) : trek.inclusions) || [];
+  const exclusions = (typeof trek.exclusions === "string" ? JSON.parse(trek.exclusions) : trek.exclusions) || [];
+  const waypoints = (typeof trek.waypoints === "string" ? JSON.parse(trek.waypoints) : trek.waypoints) || [];
 
   const difficultyColorMap: Record<string, string> = {
     Easy: "bg-green-100 text-green-700",
@@ -310,7 +350,7 @@ export default async function TrekDetailPage({
               priceCurrency: "USD",
               availability: "https://schema.org/InStock",
             },
-            itinerary: trek.itinerary?.map((day: any) => ({
+            itinerary: itinerary?.map((day: any) => ({
               "@type": "Itinerary",
               name: `Day ${day.dayNumber}: ${day.title}`,
               description: day.description?.slice(0, 200),
@@ -379,7 +419,7 @@ export default async function TrekDetailPage({
                   ))}
                 </div>
                 <span className="text-sm text-slate-300">
-                  {trek.reviews?.length || 0} reviews
+                  {reviews?.length || 0} reviews
                 </span>
               </div>
 
@@ -394,7 +434,7 @@ export default async function TrekDetailPage({
               {/* CTA */}
               <div className="mt-6 flex flex-col gap-3 sm:flex-row">
                 <Link
-                  href={`/book/${trek.slug}`}
+                  href={`/book/${slug}`}
                   className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-8 py-3 text-base font-semibold text-white shadow-lg transition-all hover:bg-primary-dark"
                 >
                   Book This Trek
@@ -431,7 +471,7 @@ export default async function TrekDetailPage({
             <section>
               <h2 className="text-2xl font-bold text-foreground">Trip Highlights</h2>
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                {trek.highlights?.map((highlight: any, i: number) => (
+                  {highlights?.map((highlight: any, i: number) => (
                   <div key={i} className="flex items-start gap-3 rounded-lg border border-border bg-surface p-4">
                     <span className="text-xl">{highlight.icon}</span>
                     <span className="text-sm text-text">{highlight.text}</span>
@@ -444,7 +484,7 @@ export default async function TrekDetailPage({
             <section id="itinerary">
               <h2 className="text-2xl font-bold text-foreground">Day-by-Day Itinerary</h2>
               <div className="mt-6 space-y-4">
-                {trek.itinerary?.map((day: any) => (
+                {itinerary?.map((day: any) => (
                   <details
                     key={day.dayNumber}
                     className="group overflow-hidden rounded-lg border border-border"
@@ -479,19 +519,14 @@ export default async function TrekDetailPage({
               <p className="mt-2 text-sm text-text-muted">
                 Explore the 3D terrain map showing the actual trek route.
               </p>
-              <div className="mt-4 overflow-hidden rounded-xl border border-border">
-                {/* Static fallback for SEO / non-JS */}
-                <div className="flex aspect-[21/9] items-center justify-center bg-gradient-to-br from-primary/5 to-primary-light/5">
-                  <div className="text-center">
-                    <MapPin className="mx-auto h-12 w-12 text-primary/40" />
-                    <p className="mt-2 text-sm text-text-muted">
-                      Interactive 3D map loads here
-                    </p>
-                    <p className="text-xs text-text-muted">
-                      Powered by Mapbox GL JS with real terrain elevation
-                    </p>
-                  </div>
-                </div>
+              <div className="mt-4">
+                <TrekMapWrapper
+                  geoJsonUrl={trek.geoJsonUrl || undefined}
+                  geoJsonData={trek.geoJsonData || null}
+                  waypoints={waypoints?.length > 0 ? waypoints : undefined}
+                  itinerary={itinerary?.length > 0 ? itinerary : undefined}
+                  staticFallbackImage={trek.staticMapImage || undefined}
+                />
               </div>
             </section>
 
@@ -500,7 +535,7 @@ export default async function TrekDetailPage({
               <div>
                 <h2 className="text-xl font-bold text-foreground">Inclusions</h2>
                 <ul className="mt-4 space-y-2">
-                  {trek.inclusions?.map((item: string, i: number) => (
+                  {inclusions?.map((item: string, i: number) => (
                     <li key={i} className="flex items-start gap-2 text-sm text-text">
                       <Check className="mt-0.5 h-4 w-4 shrink-0 text-success" />
                       {item}
@@ -511,7 +546,7 @@ export default async function TrekDetailPage({
               <div>
                 <h2 className="text-xl font-bold text-foreground">Exclusions</h2>
                 <ul className="mt-4 space-y-2">
-                  {trek.exclusions?.map((item: string, i: number) => (
+                  {exclusions?.map((item: string, i: number) => (
                     <li key={i} className="flex items-start gap-2 text-sm text-text">
                       <XIcon className="mt-0.5 h-4 w-4 shrink-0 text-error" />
                       {item}
@@ -525,7 +560,7 @@ export default async function TrekDetailPage({
             <section>
               <h2 className="text-2xl font-bold text-foreground">Frequently Asked Questions</h2>
               <div className="mt-6 space-y-3">
-                {trek.faqs?.map((faq: any, i: number) => (
+                {faqs?.map((faq: any, i: number) => (
                   <details key={i} className="group overflow-hidden rounded-lg border border-border">
                     <summary className="flex cursor-pointer items-center justify-between bg-surface px-5 py-4 hover:bg-surface-alt">
                       <span className="text-sm font-semibold text-foreground">{faq.question}</span>
@@ -543,7 +578,7 @@ export default async function TrekDetailPage({
             <section>
               <h2 className="text-2xl font-bold text-foreground">Guest Reviews</h2>
               <div className="mt-6 grid gap-4 sm:grid-cols-2">
-                {trek.reviews
+                {reviews
                   ?.filter((r: any) => r.approved)
                   .map((review: any, i: number) => (
                     <div key={i} className="rounded-lg border border-border bg-surface p-5">
@@ -572,7 +607,7 @@ export default async function TrekDetailPage({
               <div className="rounded-xl border border-border bg-white p-6 shadow-sm">
                 <h3 className="text-lg font-bold text-foreground">Pricing</h3>
                 <div className="mt-4 space-y-3">
-                  {trek.pricingTiers?.map((tier: any, i: number) => (
+                  {pricingTiers?.map((tier: any, i: number) => (
                     <div
                       key={i}
                       className="flex items-center justify-between rounded-lg border border-border px-4 py-3"
@@ -585,7 +620,7 @@ export default async function TrekDetailPage({
                   ))}
                 </div>
                 <Link
-                  href={`/book/${trek.slug}`}
+                  href={`/book/${slug}`}
                   className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-primary-dark"
                 >
                   Book Now
@@ -596,7 +631,7 @@ export default async function TrekDetailPage({
               <div className="rounded-xl border border-border bg-white p-6 shadow-sm">
                 <h3 className="text-lg font-bold text-foreground">Available Dates</h3>
                 <div className="mt-4 space-y-2">
-                  {trek.availableDates?.map((date: any, i: number) => (
+                  {availableDates?.map((date: any, i: number) => (
                     <div
                       key={i}
                       className="flex items-center justify-between rounded-lg border border-border px-4 py-2.5"
