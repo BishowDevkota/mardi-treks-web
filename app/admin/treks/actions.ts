@@ -9,6 +9,8 @@ export async function createTrek(formData: FormData) {
   const session = await auth();
   if (!session || (session.user as any).role !== "admin") throw new Error("Unauthorized");
 
+  const categoryId = (formData.get("categoryId") as string) || null;
+
   const data: any = {
     title: formData.get("title") as string,
     slug: formData.get("slug") as string,
@@ -38,22 +40,29 @@ export async function createTrek(formData: FormData) {
     pitch: parseFloat(formData.get("pitch") as string) || null,
     // Custom sections
     customSections: formData.get("customSections") as string || null,
+    // Add-ons
+    addons: formData.get("addons") as string || "[]",
   };
 
-  const highlights = JSON.parse(formData.get("highlights") as string || "[]");
   const itinerary = JSON.parse(formData.get("itinerary") as string || "[]");
   const pricingTiers = JSON.parse(formData.get("pricingTiers") as string || "[]");
-  const availableDates = JSON.parse(formData.get("availableDates") as string || "[]");
   const faqs = JSON.parse(formData.get("faqs") as string || "[]");
+  const gallery = JSON.parse(formData.get("gallery") as string || "[]");
 
   await prisma.trek.create({
     data: {
       ...data,
-      highlights: { create: highlights.map((h: any, i: number) => ({ ...h, sort: i })) },
+      category: categoryId ? { connect: { id: categoryId } } : undefined,
       itinerary: { create: itinerary },
       pricingTiers: { create: pricingTiers },
-      availableDates: { create: availableDates.map((d: any) => ({ ...d, startDate: new Date(d.startDate) })) },
       faqs: { create: faqs },
+      galleryImages: {
+        create: gallery.map((g: any) => ({
+          imageId: g.imageId,
+          alt: g.alt || "",
+          caption: g.caption || "",
+        })),
+      },
     },
   });
 
@@ -65,6 +74,8 @@ export async function updateTrek(id: string, formData: FormData) {
   const session = await auth();
   if (!session || (session.user as any).role !== "admin") throw new Error("Unauthorized");
 
+  const categoryId = (formData.get("categoryId") as string) || null;
+
   const data: any = {
     title: formData.get("title") as string,
     slug: formData.get("slug") as string,
@@ -94,30 +105,36 @@ export async function updateTrek(id: string, formData: FormData) {
     pitch: parseFloat(formData.get("pitch") as string) || null,
     // Custom sections
     customSections: formData.get("customSections") as string || null,
+    // Add-ons
+    addons: formData.get("addons") as string || "[]",
   };
 
-  const highlights = JSON.parse(formData.get("highlights") as string || "[]");
   const itinerary = JSON.parse(formData.get("itinerary") as string || "[]");
   const pricingTiers = JSON.parse(formData.get("pricingTiers") as string || "[]");
-  const availableDates = JSON.parse(formData.get("availableDates") as string || "[]");
   const faqs = JSON.parse(formData.get("faqs") as string || "[]");
+  const gallery = JSON.parse(formData.get("gallery") as string || "[]");
 
   await prisma.$transaction(async (tx) => {
-    await tx.trekHighlight.deleteMany({ where: { trekId: id } });
     await tx.itineraryDay.deleteMany({ where: { trekId: id } });
     await tx.pricingTier.deleteMany({ where: { trekId: id } });
-    await tx.availableDate.deleteMany({ where: { trekId: id } });
     await tx.trekFaq.deleteMany({ where: { trekId: id } });
+    await tx.trekGalleryImage.deleteMany({ where: { trekId: id } });
 
     await tx.trek.update({
       where: { id },
       data: {
         ...data,
-        highlights: { create: highlights.map((h: any, i: number) => ({ ...h, sort: i })) },
+        category: categoryId ? { connect: { id: categoryId } } : undefined,
         itinerary: { create: itinerary },
         pricingTiers: { create: pricingTiers },
-        availableDates: { create: availableDates.map((d: any) => ({ ...d, startDate: new Date(d.startDate) })) },
         faqs: { create: faqs },
+        galleryImages: {
+          create: gallery.map((g: any) => ({
+            imageId: g.imageId,
+            alt: g.alt || "",
+            caption: g.caption || "",
+          })),
+        },
       },
     });
   });

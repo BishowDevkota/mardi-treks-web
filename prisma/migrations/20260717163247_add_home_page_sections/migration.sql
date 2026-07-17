@@ -1,0 +1,16 @@
+-- AlterTable
+ALTER TABLE "home_page_settings" ADD COLUMN     "bestSellingTreksDescription" TEXT DEFAULT 'Most popular treks chosen by our adventurers',
+ADD COLUMN     "bestSellingTreksHeading" TEXT DEFAULT 'Best Selling Treks',
+ADD COLUMN     "blogDescription" TEXT DEFAULT 'Trekking tips, destination guides, and stories from the Himalayas',
+ADD COLUMN     "blogHeading" TEXT DEFAULT 'Latest from Our Blog',
+ADD COLUMN     "featuredTreksDescription" TEXT DEFAULT 'Handpicked adventures for every type of traveler',
+ADD COLUMN     "featuredTreksHeading" TEXT DEFAULT 'Featured Treks',
+ADD COLUMN     "reviewsDescription" TEXT DEFAULT 'Real experiences shared by our happy trekkers.',
+ADD COLUMN     "reviewsHeading" TEXT DEFAULT 'What Our Trekkers Say',
+ADD COLUMN     "topRatedTreksDescription" TEXT DEFAULT 'Highest rated treks by our guests',
+ADD COLUMN     "topRatedTreksHeading" TEXT DEFAULT 'Top Rated Treks',
+ADD COLUMN     "whyChooseUsBgImage" TEXT,
+ADD COLUMN     "whyChooseUsEnabled" BOOLEAN NOT NULL DEFAULT true,
+ADD COLUMN     "whyChooseUsHeading" TEXT DEFAULT 'Why Trek With Us?',
+ADD COLUMN     "whyChooseUsItems" TEXT,
+ADD COLUMN     "whyChooseUsSubtitle" TEXT DEFAULT 'Discover the Difference';

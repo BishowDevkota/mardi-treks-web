@@ -2,52 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Calendar, Clock, ArrowLeft, User } from "lucide-react";
+import { prisma } from "@/lib/prisma";
 
-// TODO: Fetch from Payload CMS
-const blogPosts: Record<string, any> = {
-  "everest-base-camp-packing-list": {
-    title: "Ultimate Everest Base Camp Packing List",
-    content: `
-      <p>Packing for Everest Base Camp can feel overwhelming. With temperatures ranging from 15°C in the sunny valleys to -15°C at Gorak Shep, and everything in between, you need a system — not just a list.</p>
-      <p>After guiding over 50 EBC treks, here's exactly what I pack and recommend to every trekker.</p>
-      <h2>The Layering System</h2>
-      <p>The key to high-altitude trekking comfort is layers. You'll be hot while climbing, cold while resting, and freezing at sunrise.</p>
-      <ul>
-        <li><strong>Base layer</strong>: Merino wool or synthetic long-sleeve (2-3 pairs)</li>
-        <li><strong>Mid layer</strong>: Fleece jacket or lightweight puffy</li>
-        <li><strong>Outer shell</strong>: Waterproof and windproof jacket</li>
-        <li><strong>Trekking pants</strong>: Convertible zip-off pants (2 pairs)</li>
-        <li><strong>Insulated pants</strong>: For cold mornings and evenings</li>
-      </ul>
-      <h2>Footwear</h2>
-      <p>Your boots are your most important piece of gear. Don't skimp here.</p>
-      <ul>
-        <li>Waterproof trekking boots (broken in!)</li>
-        <li>Camp shoes / sandals for evenings</li>
-        <li>5-6 pairs of merino wool trekking socks</li>
-        <li>Gaiters (optional but recommended in spring)</li>
-      </ul>
-      <h2>Essential Gear</h2>
-      <ul>
-        <li>Sleeping bag rated to -15°C (or rent in Kathmandu)</li>
-        <li>Trekking poles — save your knees on the descents</li>
-        <li>Headlamp with extra batteries</li>
-        <li>Water bottles (2x 1L) + hydration tablets</li>
-        <li>UV-protection sunglasses (category 4)</li>
-        <li>Sunscreen SPF 50+ and lip balm with SPF</li>
-      </ul>
-    `,
-    author: "Rajesh Gurung",
-    date: "2026-06-15",
-    readTime: "8 min read",
-    tags: ["Packing Lists"],
-    excerpt: "Everything you need to pack for your Everest Base Camp trek.",
-  },
-};
-
-export async function generateStaticParams() {
-  return Object.keys(blogPosts).map((slug) => ({ slug }));
-}
+export const dynamic = "force-dynamic";
 
 export async function generateMetadata({
   params,
@@ -55,12 +12,15 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
-  const post = blogPosts[slug];
+  const post = await prisma.blogPost.findUnique({
+    where: { slug },
+    select: { title: true, excerpt: true, metaTitle: true, metaDescription: true },
+  });
   if (!post) return {};
 
   return {
-    title: post.title,
-    description: post.excerpt,
+    title: post.metaTitle || post.title,
+    description: post.metaDescription || post.excerpt,
   };
 }
 
@@ -70,7 +30,9 @@ export default async function BlogPostPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const post = blogPosts[slug];
+  const post = await prisma.blogPost.findUnique({
+    where: { slug, status: "published" },
+  });
 
   if (!post) notFound();
 
@@ -88,7 +50,7 @@ export default async function BlogPostPage({
           <div className="flex flex-wrap items-center gap-3 text-xs text-slate-400">
             <span className="flex items-center gap-1">
               <Calendar className="h-3.5 w-3.5" />
-              {new Date(post.date).toLocaleDateString("en-US", {
+              {new Date(post.publishedDate).toLocaleDateString("en-US", {
                 month: "long",
                 day: "numeric",
                 year: "numeric",
@@ -96,7 +58,7 @@ export default async function BlogPostPage({
             </span>
             <span className="flex items-center gap-1">
               <Clock className="h-3.5 w-3.5" />
-              {post.readTime}
+              {Math.max(1, Math.round((post.content?.split(/\s+/).length || 0) / 200))} min read
             </span>
             <span className="flex items-center gap-1">
               <User className="h-3.5 w-3.5" />

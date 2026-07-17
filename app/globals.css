@@ -1,24 +1,48 @@
 @import "tailwindcss";
 
 @theme inline {
-  --color-background: #ffffff;
-  --color-foreground: #0f172a;
-  --color-primary: #0f766e;
-  --color-primary-dark: #0d5e56;
-  --color-primary-light: #14b8a6;
-  --color-accent: #d97706;
-  --color-accent-dark: #b45309;
-  --color-surface: #f8fafc;
-  --color-surface-alt: #f1f5f9;
-  --color-border: #e2e8f0;
+  /* Background Colors */
+  --color-background: #f9f7f2;
+  --color-foreground: #1f2937;
+
+  /* Primary (Vibrant Orange) */
+  --color-primary: #fe4100;
+  --color-primary-dark: #e53900;
+  --color-primary-light: #ff6a33;
+
+  /* Secondary (Warm Slate) */
+  --color-secondary: #46576a;
+  --color-secondary-dark: #374151;
+  --color-secondary-light: #64748b;
+
+  /* Accent (Golden Beige) */
+  --color-accent: #e9d5b4;
+  --color-accent-dark: #d6bfa0;
+  --color-accent-light: #f4e6cf;
+
+  /* Surface Colors */
+  --color-surface: #ffffff;
+  --color-surface-alt: #f4f1ea;
+  --color-border: #e5e7eb;
+
+  /* Text Colors */
   --color-text: #334155;
   --color-text-muted: #64748b;
-  --color-success: #16a34a;
+
+  /* Status Colors */
+  --color-success: #22c55e;
   --color-error: #dc2626;
   --color-warning: #f59e0b;
+
+  /* Footer Colors */
+  --color-footer: #2d2d2d;
+  --color-footer-text: #f9f7f2;
+
+  /* Fonts */
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
+
 
 body {
   background: var(--color-background);

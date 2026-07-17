@@ -3,14 +3,23 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useSession, signOut } from "next-auth/react";
-import { Mountain, Menu, X, User, LogOut, LayoutDashboard } from "lucide-react";
+import { Mountain, Menu, X, User, LogOut, LayoutDashboard, ChevronDown } from "lucide-react";
 
-export function Header() {
+interface CategoryNav {
+  name: string;
+  slug: string;
+  icon: string | null;
+}
+
+export function Header({ categories }: { categories?: CategoryNav[] }) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
   const { data: session } = useSession();
 
   const navigation = [
-    { label: "Treks", href: "/treks" },
+    ...(categories && categories.length > 0
+      ? categories.map((cat) => ({ label: cat.name, href: `/${cat.slug}` }))
+      : [{ label: "Treks", href: "/treks" }]),
     { label: "Blog", href: "/blog" },
     { label: "About", href: "/about" },
     { label: "Contact", href: "/contact" },

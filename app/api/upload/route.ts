@@ -4,6 +4,8 @@ import { writeFile, mkdir } from "fs/promises";
 import path from "path";
 import os from "os";
 import { v2 as cloudinary } from "cloudinary";
+import { DOMParser } from "@xmldom/xmldom";
+import { kml } from "@tmcw/togeojson";
 
 cloudinary.config({
   cloud_name: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME,
@@ -28,38 +30,68 @@ export async function POST(req: Request) {
 
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
+    const fileName = file.name.toLowerCase();
 
-    const tmpDir = path.join(os.tmpdir(), "mardi-uploads");
-    await mkdir(tmpDir, { recursive: true });
-    const tmpPath = path.join(tmpDir, file.name);
-    await writeFile(tmpPath, buffer);
+    // Detect file types
+    const isJson = fileName.endsWith(".json") || fileName.endsWith(".geojson");
+    const isKml = fileName.endsWith(".kml");
 
-    // Detect JSON/GeoJSON files — upload as raw so the URL serves raw content
-    const isJson = file.name.endsWith(".json") || file.name.endsWith(".geojson");
-    const resourceType = isJson ? "raw" : "auto";
+    // Process content: for KML, convert to GeoJSON
+    let content: string | null = null;
+    if (isKml) {
+      try {
+        const kmlText = buffer.toString("utf-8");
+        const dom = new DOMParser().parseFromString(kmlText, "text/xml");
+        const geoJson = kml(dom);
+        content = JSON.stringify(geoJson);
+      } catch (parseErr: any) {
+        console.error("KML parse error:", parseErr);
+        return NextResponse.json({ error: `Failed to parse KML: ${parseErr.message}` }, { status: 400 });
+      }
+    } else if (isJson) {
+      try {
+        content = buffer.toString("utf-8");
+        JSON.parse(content); // validate it's valid JSON
+      } catch {
+        return NextResponse.json({ error: "Invalid GeoJSON/JSON file" }, { status: 400 });
+      }
+    }
 
-    const result = await cloudinary.uploader.upload(tmpPath, {
-      folder,
-      resource_type: resourceType,
-    });
-
-    // Cleanup
-    try { await import("fs/promises").then((f) => f.unlink(tmpPath)); } catch {}
-
-    // For raw uploads, Cloudinary returns the wrong URL format — fix it
-    let url = result.secure_url;
-    if (isJson && url) {
-      url = url.replace("/image/upload/", "/raw/upload/");
+    // Upload to Cloudinary (raw for route files, auto for images)
+    let result: any = null;
+    let url = "";
+    let publicId = "";
+    try {
+      const resourceType = isJson || isKml ? "raw" : "auto";
+      const tmpDir = path.join(os.tmpdir(), "mardi-uploads");
+      await mkdir(tmpDir, { recursive: true });
+      const tmpPath = path.join(tmpDir, file.name);
+      await writeFile(tmpPath, buffer);
+      result = await cloudinary.uploader.upload(tmpPath, {
+        folder,
+        resource_type: resourceType,
+      });
+      try { await import("fs/promises").then((f) => f.unlink(tmpPath)); } catch {}
+      url = result.secure_url;
+      publicId = result.public_id;
+      if ((isJson || isKml) && url) {
+        url = url.replace("/image/upload/", "/raw/upload/");
+      }
+    } catch (cloudErr: any) {
+      console.error("Cloudinary upload error:", cloudErr);
+      // If Cloudinary fails, still return the parsed content for inline use
+      // so the map can still display the route even without cloud storage
     }
 
     return NextResponse.json({
-      publicId: result.public_id,
+      publicId,
       url,
-      content: isJson ? buffer.toString("utf-8") : null,
-      width: result.width,
-      height: result.height,
+      content, // will be GeoJSON whether input was .json, .geojson, or .kml
+      width: result?.width,
+      height: result?.height,
     });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    console.error("Upload error:", err);
+    return NextResponse.json({ error: err.message || "Upload failed" }, { status: 500 });
   }
 }

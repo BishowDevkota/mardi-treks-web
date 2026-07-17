@@ -9,6 +9,7 @@ export default async function AdminTreksPage() {
     orderBy: { createdAt: "desc" },
     include: {
       _count: { select: { reviews: true } },
+      category: { select: { name: true, slug: true, icon: true } },
     },
   });
 
@@ -25,14 +26,14 @@ export default async function AdminTreksPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Treks</h1>
-          <p className="mt-1 text-sm text-slate-500">{treks.length} trek packages</p>
+          <h1 className="text-2xl font-bold text-slate-900">Products</h1>
+          <p className="mt-1 text-sm text-slate-500">{treks.length} products across all categories</p>
         </div>
         <Link
           href="/admin/treks/new"
           className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-teal-500 to-teal-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:from-teal-600 hover:to-teal-700 hover:shadow-md"
         >
-          <Plus className="h-4 w-4" /> New Trek
+          <Plus className="h-4 w-4" /> New Product
         </Link>
       </div>
 

@@ -83,6 +83,16 @@ export async function POST(request: NextRequest) {
 
     const userId = session.user.id!;
 
+    // Verify the user exists before booking
+    const userExists = await prisma.user.findUnique({ where: { id: userId } });
+    if (!userExists) {
+      console.error(`Booking FK error: userId ${userId} not found in users table`);
+      return NextResponse.json(
+        { error: "User account not found. Please sign out and sign in again." },
+        { status: 400 }
+      );
+    }
+
     // Create booking and travelers in a transaction
     const booking = await prisma.$transaction(async (tx) => {
       // Create the booking
@@ -148,17 +158,55 @@ export async function POST(request: NextRequest) {
   }
 }
 
+// GET — fetch booking(s) for the current user
 export async function GET(request: NextRequest) {
+  const { searchParams } = new URL(request.url);
+  const bookingId = searchParams.get("id");
+
   const session = await auth();
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const bookings = await prisma.booking.findMany({
-    where: { userId: session.user.id },
-    include: { payment: true },
-    orderBy: { createdAt: "desc" },
-  });
+  try {
+    // Single booking by ID (for payment page)
+    if (bookingId) {
+      const booking = await prisma.booking.findUnique({
+        where: { id: bookingId },
+        select: {
+          id: true,
+          trekTitle: true,
+          trekPrice: true,
+          totalPrice: true,
+          startDate: true,
+          groupSize: true,
+          status: true,
+          userId: true,
+          payment: { select: { status: true, method: true } },
+        },
+      });
 
-  return NextResponse.json({ bookings });
+      if (!booking) {
+        return NextResponse.json({ error: "Booking not found" }, { status: 404 });
+      }
+
+      if (booking.userId !== session.user.id) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+      }
+
+      return NextResponse.json({ booking });
+    }
+
+    // All bookings for the current user (dashboard)
+    const bookings = await prisma.booking.findMany({
+      where: { userId: session.user.id },
+      include: { payment: true },
+      orderBy: { createdAt: "desc" },
+    });
+
+    return NextResponse.json({ bookings });
+  } catch (error) {
+    console.error("Booking GET error:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
 }

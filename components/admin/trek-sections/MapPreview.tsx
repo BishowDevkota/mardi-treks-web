@@ -23,37 +23,36 @@ export function MapPreview({ centerLat, centerLng, zoom, pitch }: MapPreviewProp
       if (!containerRef.current) return;
 
       try {
-        const mapboxgl = await import("mapbox-gl");
-        const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
-        if (!token) {
-          setError("Mapbox token not configured");
-          setLoading(false);
-          return;
-        }
+        const maplibregl = await import("maplibre-gl");
 
-        mapboxgl.default.accessToken = token;
+        const style: any = {
+          version: 8,
+          sources: {
+            satellite: {
+              type: "raster",
+              tiles: [
+                "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+              ],
+              tileSize: 256,
+              attribution: "&copy; Esri, Maxar, Earthstar Geographics",
+            },
+          },
+          layers: [
+            { id: "satellite", type: "raster", source: "satellite" },
+          ],
+        };
 
-        map = new mapboxgl.default.Map({
+        map = new maplibregl.default.Map({
           container: containerRef.current,
-          style: "mapbox://styles/mapbox/satellite-streets-v12",
+          style,
           center: [centerLng, centerLat],
           zoom,
-          pitch,
+          pitch: 0,
           interactive: false,
-        } as any);
+        });
 
         map.on("load", () => {
-          if (!mounted) return;
-          try {
-            map.addSource("mapbox-dem", {
-              type: "raster-dem",
-              url: "mapbox://mapbox.mapbox-terrain-dem-v1",
-              tileSize: 512,
-              maxzoom: 14,
-            } as any);
-            map.setTerrain({ source: "mapbox-dem", exaggeration: 2.0 });
-          } catch {}
-          setLoading(false);
+          if (mounted) setLoading(false);
         });
 
         map.on("error", () => {

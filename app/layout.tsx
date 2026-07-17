@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { Analytics } from "@vercel/analytics/react";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { SessionProvider } from "@/components/layout/SessionProvider";
+import { prisma } from "@/lib/prisma";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -52,11 +54,17 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const categories = await prisma.category.findMany({
+    where: { status: "published" },
+    orderBy: { sort: "asc" },
+    select: { name: true, slug: true, icon: true },
+  });
+
   return (
     <html
       lang="en"
@@ -64,9 +72,10 @@ export default function RootLayout({
     >
       <body className="flex min-h-full flex-col">
         <SessionProvider>
-          <Header />
+          <Header categories={categories} />
           <main className="flex-1">{children}</main>
           <Footer />
+          <Analytics />
         </SessionProvider>
       </body>
     </html>

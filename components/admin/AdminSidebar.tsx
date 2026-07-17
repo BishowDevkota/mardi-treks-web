@@ -4,12 +4,14 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Mountain, LogOut, LayoutDashboard, List, FileText,
-  ShoppingCart, Users, ImageIcon, Calendar, Settings
+  ShoppingCart, Users, ImageIcon, Calendar, Settings, FolderKanban,
+  Home
 } from "lucide-react";
 
 const iconMap: Record<string, any> = {
   LayoutDashboard, List, FileText, ShoppingCart,
-  Users, ImageIcon, Calendar, Settings,
+  Users, ImageIcon, Calendar, Settings, FolderKanban,
+  Home,
 };
 
 interface NavItem {

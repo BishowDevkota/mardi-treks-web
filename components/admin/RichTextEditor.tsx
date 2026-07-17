@@ -11,9 +11,9 @@ import TextAlign from "@tiptap/extension-text-align";
 import {
   Bold, Italic, Heading1, Heading2, Heading3, List, ListOrdered,
   Quote, Undo, Redo, Code, Strikethrough, Underline as UnderlineIcon,
-  Link, Image, AlignLeft, AlignCenter, AlignRight, Minus, Pilcrow
+  Link, Image, AlignLeft, AlignCenter, AlignRight, Minus, Pilcrow, Loader2
 } from "lucide-react";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 
 interface RichTextEditorProps {
   content: string;
@@ -49,11 +49,39 @@ export function RichTextEditor({ content, onChange, placeholder }: RichTextEdito
     },
   });
 
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const handleImageUpload = useCallback(() => {
-    const url = prompt("Enter image URL:");
-    if (url && editor) {
-      editor.chain().focus().setImage({ src: url }).run();
+    fileInputRef.current?.click();
+  }, []);
+
+  const handleFileSelected = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !editor) return;
+
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.set("file", file);
+      fd.set("folder", "mardi-treks/content");
+
+      const res = await fetch("/api/upload", { method: "POST", body: fd });
+      const data = await res.json();
+
+      const imageUrl = data.publicId
+        ? `https://res.cloudinary.com/dk7ggjvlw/image/upload/${data.publicId}`
+        : data.url;
+
+      if (imageUrl) {
+        editor.chain().focus().setImage({ src: imageUrl }).run();
+      }
+    } catch (err) {
+      console.error("Image upload failed", err);
     }
+    setUploading(false);
+    // Reset input so same file can be selected again
+    if (fileInputRef.current) fileInputRef.current.value = "";
   }, [editor]);
 
   const handleSetLink = useCallback(() => {
@@ -208,9 +236,18 @@ export function RichTextEditor({ content, onChange, placeholder }: RichTextEdito
           )}
         </div>
 
-        <ToolButton onClick={handleImageUpload} active={false} title="Image">
-          <Image className="h-4 w-4" />
+        <ToolButton onClick={handleImageUpload} active={false} title={uploading ? "Uploading..." : "Upload Image"}>
+          {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Image className="h-4 w-4" />}
         </ToolButton>
+
+        {/* Hidden file input for image upload */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={handleFileSelected}
+        />
 
         <div className="ml-auto flex items-center gap-0.5">
           <Divider />

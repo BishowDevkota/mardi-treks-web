@@ -10,17 +10,16 @@ import { Plus, Save, Loader2, ArrowUp, ArrowDown } from "lucide-react";
 
 // ─── Predefined section types the user can add ──────────────────────
 const ADDABLE_SECTION_TYPES: { type: TrekSection["type"]; label: string; icon: string }[] = [
-  { type: "highlights", label: "Highlights", icon: "⭐" },
   { type: "itinerary", label: "Itinerary", icon: "🗺️" },
-  { type: "inclusions", label: "Inclusions", icon: "✅" },
-  { type: "exclusions", label: "Exclusions", icon: "❌" },
+  { type: "inEx", label: "Inclusions & Exclusions", icon: "✅" },
   { type: "pricing", label: "Pricing Tiers", icon: "💰" },
-  { type: "dates", label: "Available Dates", icon: "📅" },
+  { type: "addons", label: "Add-ons", icon: "➕" },
   { type: "faqs", label: "FAQs", icon: "❓" },
+  { type: "gallery", label: "Gallery", icon: "🖼️" },
   { type: "custom", label: "Custom Section", icon: "📄" },
 ];
 
-export function TrekForm({ mode, trek }: { mode: "create" | "edit"; trek?: any }) {
+export function TrekForm({ mode, trek, categories }: { mode: "create" | "edit"; trek?: any; categories?: any[] }) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -35,20 +34,19 @@ export function TrekForm({ mode, trek }: { mode: "create" | "edit"; trek?: any }
     // Restore non-default sections from trek data if editing
     if (trek) {
       const extras: TrekSection["type"][] = [
-        "highlights", "itinerary", "inclusions", "exclusions",
-        "pricing", "dates", "faqs",
+        "itinerary", "inEx",
+        "pricing", "addons", "faqs", "gallery",
       ];
       for (const t of extras) {
         const def = createDefaultSection(t, trek);
         const hasData = (arr: any[]) => arr.length > 0;
         let shouldInclude = false;
-        if (t === "highlights") shouldInclude = hasData(def.data.items);
-        else if (t === "itinerary") shouldInclude = hasData(def.data.items);
-        else if (t === "inclusions") shouldInclude = hasData(def.data.items);
-        else if (t === "exclusions") shouldInclude = hasData(def.data.items);
+        if (t === "itinerary") shouldInclude = hasData(def.data.items);
+        else if (t === "inEx") shouldInclude = hasData(def.data.items);
         else if (t === "pricing") shouldInclude = hasData(def.data.items);
-        else if (t === "dates") shouldInclude = hasData(def.data.items);
+        else if (t === "addons") shouldInclude = hasData(def.data.items);
         else if (t === "faqs") shouldInclude = hasData(def.data.items);
+        else if (t === "gallery") shouldInclude = hasData(def.data.items);
         if (shouldInclude) existing.push(def);
       }
 
@@ -115,13 +113,12 @@ export function TrekForm({ mode, trek }: { mode: "create" | "edit"; trek?: any }
     // Extract data from sections
     const details = sections.find((s) => s.type === "details")?.data || {};
     const overview = sections.find((s) => s.type === "overview")?.data || {};
-    const highlights = sections.find((s) => s.type === "highlights")?.data || { items: [] };
     const itinerary = sections.find((s) => s.type === "itinerary")?.data || { items: [] };
-    const inclusions = sections.find((s) => s.type === "inclusions")?.data || { items: [] };
-    const exclusions = sections.find((s) => s.type === "exclusions")?.data || { items: [] };
+    const inEx = sections.find((s) => s.type === "inEx")?.data || { items: [] };
     const pricing = sections.find((s) => s.type === "pricing")?.data || { items: [] };
-    const dates = sections.find((s) => s.type === "dates")?.data || { items: [] };
+    const addons = sections.find((s) => s.type === "addons")?.data || { items: [] };
     const faqs = sections.find((s) => s.type === "faqs")?.data || { items: [] };
+    const gallery = sections.find((s) => s.type === "gallery")?.data || { items: [] };
     const mapData = sections.find((s) => s.type === "map")?.data || {};
     const seo = sections.find((s) => s.type === "seo")?.data || {};
 
@@ -131,6 +128,7 @@ export function TrekForm({ mode, trek }: { mode: "create" | "edit"; trek?: any }
     const fd = new FormData();
     fd.set("title", details.title || "");
     fd.set("slug", details.slug || "");
+    fd.set("categoryId", details.categoryId || "");
     fd.set("subtitle", details.subtitle || "");
     fd.set("heroBadge", details.heroBadge || "");
     fd.set("heroSubtitle", details.heroSubtitle || "");
@@ -142,13 +140,15 @@ export function TrekForm({ mode, trek }: { mode: "create" | "edit"; trek?: any }
     fd.set("region", details.region || "annapurna");
     fd.set("status", details.status || "draft");
     fd.set("overview", overview.content || "");
-    fd.set("highlights", JSON.stringify(highlights.items));
     fd.set("itinerary", JSON.stringify(itinerary.items));
-    fd.set("inclusions", JSON.stringify(inclusions.items));
-    fd.set("exclusions", JSON.stringify(exclusions.items));
+    // Inclusions & Exclusions from the merged inEx section
+    const inExItems = inEx.items || [];
+    fd.set("inclusions", JSON.stringify(inExItems.filter((i: any) => i.type === "included").map((i: any) => i.text)));
+    fd.set("exclusions", JSON.stringify(inExItems.filter((i: any) => i.type === "excluded").map((i: any) => i.text)));
     fd.set("pricingTiers", JSON.stringify(pricing.items));
-    fd.set("availableDates", JSON.stringify(dates.items));
+    fd.set("addons", JSON.stringify(addons.items));
     fd.set("faqs", JSON.stringify(faqs.items));
+    fd.set("gallery", JSON.stringify(gallery.items));
     fd.set("metaTitle", seo.metaTitle || "");
     fd.set("metaDescription", seo.metaDescription || "");
     fd.set("ogImage", seo.ogImage || "");
@@ -215,6 +215,7 @@ export function TrekForm({ mode, trek }: { mode: "create" | "edit"; trek?: any }
             onRemove={removeSection}
             onMoveUp={moveUp}
             onMoveDown={moveDown}
+            categories={categories}
           />
         ))}
       </div>

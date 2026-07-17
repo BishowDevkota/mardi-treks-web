@@ -4,10 +4,13 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createPost, updatePost, deletePost } from "./actions";
 import { RichTextEditor } from "@/components/admin/RichTextEditor";
+import { ImageUpload } from "@/components/admin/trek-sections/ImageUpload";
 
 export function BlogForm({ mode, post }: { mode: "create" | "edit"; post?: any }) {
   const router = useRouter();
   const [content, setContent] = useState(post?.content || "");
+  const [heroImage, setHeroImage] = useState(post?.heroImage || "");
+  const [ogImage, setOgImage] = useState(post?.ogImage || "");
   const [saving, setSaving] = useState(false);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -15,6 +18,8 @@ export function BlogForm({ mode, post }: { mode: "create" | "edit"; post?: any }
     setSaving(true);
     const fd = new FormData(e.currentTarget);
     fd.set("content", content);
+    fd.set("heroImage", heroImage);
+    fd.set("ogImage", ogImage);
     try {
       if (mode === "create") await createPost(fd);
       else if (post) await updatePost(post.id, fd);
@@ -54,8 +59,7 @@ export function BlogForm({ mode, post }: { mode: "create" | "edit"; post?: any }
                 <textarea name="excerpt" rows={2} defaultValue={post?.excerpt || ""} placeholder="Brief summary of the post..." className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:border-teal-300 focus:outline-none focus:ring-2 focus:ring-teal-100" />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-500 mb-1.5">Hero Image (Cloudinary Public ID)</label>
-                <input name="heroImage" defaultValue={post?.heroImage || ""} placeholder="e.g. mardi-treks/blog-hero" className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-mono focus:border-teal-300 focus:outline-none focus:ring-2 focus:ring-teal-100" />
+                <ImageUpload value={heroImage} onChange={setHeroImage} label="Hero Image" folder="mardi-treks/blog" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-500 mb-1.5">Body</label>
@@ -106,6 +110,9 @@ export function BlogForm({ mode, post }: { mode: "create" | "edit"; post?: any }
               <div>
                 <label className="block text-xs font-medium text-slate-500 mb-1.5">Meta Description</label>
                 <textarea name="metaDescription" rows={3} defaultValue={post?.metaDescription || ""} className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:border-teal-300 focus:outline-none focus:ring-2 focus:ring-teal-100" />
+              </div>
+              <div>
+                <ImageUpload value={ogImage} onChange={setOgImage} label="OG Image (social share)" folder="mardi-treks/blog" />
               </div>
             </div>
           </section>

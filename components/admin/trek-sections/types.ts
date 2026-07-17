@@ -1,14 +1,12 @@
-// ─── All possible section types ─────────────────────────────────────
 export type SectionType =
   | "details"
   | "overview"
-  | "highlights"
   | "itinerary"
-  | "inclusions"
-  | "exclusions"
+  | "inEx"
   | "pricing"
-  | "dates"
+  | "addons"
   | "faqs"
+  | "gallery"
   | "map"
   | "seo"
   | "custom";
@@ -27,14 +25,11 @@ export interface DetailsData {
   difficulty: string;
   region: string;
   status: string;
+  categoryId: string;
 }
 
 export interface OverviewData {
   content: string; // rich text HTML
-}
-
-export interface HighlightsData {
-  items: { icon: string; text: string }[];
 }
 
 export interface ItineraryData {
@@ -44,19 +39,16 @@ export interface ItineraryData {
     description: string;
     elevation: string;
     accommodation: string;
+    placeDescription?: string;
   }[];
 }
 
 export interface InExData {
-  items: string[];
+  items: { type: "included" | "excluded"; text: string }[];
 }
 
 export interface PricingData {
   items: { groupSize: string; pricePerPerson: number }[];
-}
-
-export interface DatesData {
-  items: { startDate: string; seatsLeft: number }[];
 }
 
 export interface FaqsData {
@@ -73,6 +65,14 @@ export interface MapData {
   waypoints: { lng: number; lat: number; label: string; description?: string }[];
 }
 
+export interface AddonData {
+  items: { title: string; description: string; unit: string; pricePerUnit: number }[];
+}
+
+export interface GalleryData {
+  items: { imageId: string; alt: string; caption: string }[];
+}
+
 export interface SeoData {
   metaTitle: string;
   metaDescription: string;
@@ -82,6 +82,8 @@ export interface SeoData {
 export interface CustomData {
   heading: string;
   content: string; // rich text HTML
+  imageId?: string;
+  imageAlt?: string;
 }
 
 // ─── A single section ───────────────────────────────────────────────
@@ -116,6 +118,7 @@ export function createDefaultSection(type: SectionType, trek?: any): TrekSection
           difficulty: trek?.difficulty || "moderate",
           region: trek?.region || "annapurna",
           status: trek?.status || "draft",
+          categoryId: (trek as any)?.categoryId || "",
         } as DetailsData,
       };
     case "overview":
@@ -123,14 +126,6 @@ export function createDefaultSection(type: SectionType, trek?: any): TrekSection
         ...base,
         label: "Overview",
         data: { content: trek?.overview || "" } as OverviewData,
-      };
-    case "highlights":
-      return {
-        ...base,
-        label: "Highlights",
-        data: {
-          items: (trek?.highlights || []).map((h: any) => ({ icon: h.icon || "", text: h.text || "" })),
-        } as HighlightsData,
       };
     case "itinerary":
       return {
@@ -143,21 +138,19 @@ export function createDefaultSection(type: SectionType, trek?: any): TrekSection
             description: d.description || "",
             elevation: d.elevation || "",
             accommodation: d.accommodation || "",
+            placeDescription: d.placeDescription || "",
           })),
         } as ItineraryData,
       };
-    case "inclusions":
+    case "inEx": {
+      const incItems = parseStringArray(trek?.inclusions).map((t: string) => ({ type: "included" as const, text: t }));
+      const excItems = parseStringArray(trek?.exclusions).map((t: string) => ({ type: "excluded" as const, text: t }));
       return {
         ...base,
-        label: "Inclusions",
-        data: { items: parseStringArray(trek?.inclusions) } as InExData,
+        label: "Inclusions & Exclusions",
+        data: { items: [...incItems, ...excItems] } as InExData,
       };
-    case "exclusions":
-      return {
-        ...base,
-        label: "Exclusions",
-        data: { items: parseStringArray(trek?.exclusions) } as InExData,
-      };
+    }
     case "pricing":
       return {
         ...base,
@@ -166,16 +159,25 @@ export function createDefaultSection(type: SectionType, trek?: any): TrekSection
           items: (trek?.pricingTiers || []).map((p: any) => ({ groupSize: p.groupSize || "", pricePerPerson: p.pricePerPerson || 0 })),
         } as PricingData,
       };
-    case "dates":
+    case "addons":
       return {
         ...base,
-        label: "Available Dates",
+        label: "Add-ons",
         data: {
-          items: (trek?.availableDates || []).map((d: any) => ({
-            startDate: d.startDate instanceof Date ? d.startDate.toISOString().split("T")[0] : d.startDate || "",
-            seatsLeft: d.seatsLeft || 12,
+          items: parseJsonArray(trek?.addons),
+        } as AddonData,
+      };
+    case "gallery":
+      return {
+        ...base,
+        label: "Gallery",
+        data: {
+          items: (trek?.galleryImages || []).map((g: any) => ({
+            imageId: g.imageId || g.image || "",
+            alt: g.alt || "",
+            caption: g.caption || "",
           })),
-        } as DatesData,
+        } as GalleryData,
       };
     case "faqs":
       return {

@@ -1,7 +1,14 @@
 import Link from "next/link";
+import { prisma } from "@/lib/prisma";
 import { Mountain, Mail, Phone, MapPin } from "lucide-react";
 
-export function Footer() {
+export async function Footer() {
+  const categories = await prisma.category.findMany({
+    where: { status: "published" },
+    orderBy: { sort: "asc" },
+    select: { name: true, slug: true, icon: true },
+  });
+
   return (
     <footer className="border-t border-border bg-slate-900 text-slate-300">
       <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
@@ -17,51 +24,64 @@ export function Footer() {
             </p>
           </div>
 
-          {/* Quick Links */}
+          {/* Categories */}
           <div>
             <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-white">
-              Quick Links
+              Explore
             </h3>
             <ul className="space-y-2">
-              {[
-                { label: "All Treks", href: "/treks" },
-                { label: "Blog", href: "/blog" },
-                { label: "About Us", href: "/about" },
-                { label: "Contact", href: "/contact" },
-              ].map((link) => (
-                <li key={link.href}>
+              {categories.map((cat) => (
+                <li key={cat.slug}>
                   <Link
-                    href={link.href}
+                    href={`/${cat.slug}`}
                     className="text-sm text-slate-400 transition-colors hover:text-white"
                   >
-                    {link.label}
+                    {cat.icon} {cat.name}
                   </Link>
                 </li>
               ))}
+              <li>
+                <Link href="/blog" className="text-sm text-slate-400 transition-colors hover:text-white">
+                  Blog
+                </Link>
+              </li>
+              <li>
+                <Link href="/about" className="text-sm text-slate-400 transition-colors hover:text-white">
+                  About Us
+                </Link>
+              </li>
+              <li>
+                <Link href="/contact" className="text-sm text-slate-400 transition-colors hover:text-white">
+                  Contact
+                </Link>
+              </li>
             </ul>
           </div>
 
-          {/* Trek Regions */}
+          {/* Popular Regions */}
           <div>
             <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-white">
               Popular Regions
             </h3>
             <ul className="space-y-2">
               {[
-                { label: "Everest Region", href: "/treks?region=everest" },
-                { label: "Annapurna Region", href: "/treks?region=annapurna" },
-                { label: "Langtang Region", href: "/treks?region=langtang" },
-                { label: "Mustang Region", href: "/treks?region=mustang" },
-              ].map((link) => (
-                <li key={link.label}>
-                  <Link
-                    href={link.href}
-                    className="text-sm text-slate-400 transition-colors hover:text-white"
-                  >
-                    {link.label}
-                  </Link>
-                </li>
-              ))}
+                { label: "Everest Region", slug: "everest" },
+                { label: "Annapurna Region", slug: "annapurna" },
+                { label: "Langtang Region", slug: "langtang" },
+                { label: "Mustang Region", slug: "mustang" },
+              ].map((region) => {
+                const catSlug = categories[0]?.slug || "treks";
+                return (
+                  <li key={region.label}>
+                    <Link
+                      href={`/${catSlug}?region=${region.slug}`}
+                      className="text-sm text-slate-400 transition-colors hover:text-white"
+                    >
+                      {region.label}
+                    </Link>
+                  </li>
+                );
+              })}
             </ul>
           </div>
 

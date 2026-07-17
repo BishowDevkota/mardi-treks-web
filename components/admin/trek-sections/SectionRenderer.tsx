@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { GripVertical, Trash2, Eye, EyeOff, ChevronUp, ChevronDown, Upload } from "lucide-react";
-import { TrekSection, DetailsData, OverviewData, HighlightsData, ItineraryData, InExData, PricingData, DatesData, FaqsData, MapData, SeoData, CustomData } from "./types";
+import { GripVertical, Trash2, Eye, EyeOff, ChevronUp, ChevronDown, Upload, Check, X } from "lucide-react";
+import { TrekSection, DetailsData, OverviewData, ItineraryData, InExData, PricingData, AddonData, FaqsData, MapData, GalleryData, SeoData, CustomData } from "./types";
 import { ImageUpload } from "./ImageUpload";
 import { MapPreview } from "./MapPreview";
 import dynamic from "next/dynamic";
@@ -22,6 +22,7 @@ interface Props {
   onRemove: (id: string) => void;
   onMoveUp: (index: number) => void;
   onMoveDown: (index: number) => void;
+  categories?: { id: string; name: string; slug: string; icon?: string | null }[];
 }
 
 // ─── Section wrapper with controls ──────────────────────────────────
@@ -85,12 +86,20 @@ function AddBtn({ onClick, label }: { onClick: () => void; label: string }) {
 // ═════════════════════════════════════════════════════════════════════
 
 // ─── Details ────────────────────────────────────────────────────────
-function DetailsSection({ data, onChange }: { data: DetailsData; onChange: (d: DetailsData) => void }) {
+function DetailsSection({ data, onChange, categories }: { data: DetailsData; onChange: (d: DetailsData) => void; categories?: { id: string; name: string; slug: string; icon?: string | null }[] }) {
   const set = (field: keyof DetailsData, value: any) => onChange({ ...data, [field]: value });
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
       <Field label="Title *"><input value={data.title} onChange={(e) => set("title", e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" /></Field>
       <Field label="Slug *"><input value={data.slug} onChange={(e) => set("slug", e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-mono" /></Field>
+      <Field label="Category">
+        <select value={data.categoryId || ""} onChange={(e) => set("categoryId", e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">
+          <option value="">-- No category --</option>
+          {(categories || []).map((cat) => (
+            <option key={cat.id} value={cat.id}>{cat.icon || "📁"} {cat.name}</option>
+          ))}
+        </select>
+      </Field>
       <Field label="Subtitle"><input value={data.subtitle} onChange={(e) => set("subtitle", e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" /></Field>
       <Field label="Hero Badge"><input value={data.heroBadge} onChange={(e) => set("heroBadge", e.target.value)} placeholder="Best Seller" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" /></Field>
       <Field label="Hero Subtitle"><input value={data.heroSubtitle} onChange={(e) => set("heroSubtitle", e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" /></Field>
@@ -127,31 +136,6 @@ function OverviewSection({ data, onChange }: { data: OverviewData; onChange: (d:
   return <RichTextEditor content={data.content} onChange={(html) => onChange({ content: html })} placeholder="Describe the trek..." />;
 }
 
-// ─── Highlights ─────────────────────────────────────────────────────
-function HighlightsSection({ data, onChange }: { data: HighlightsData; onChange: (d: HighlightsData) => void }) {
-  const items = data.items;
-  const update = (i: number, field: string, val: string) => {
-    const next = items.map((item, idx) => idx === i ? { ...item, [field]: val } : item);
-    onChange({ items: next });
-  };
-  const remove = (i: number) => onChange({ items: items.filter((_, idx) => idx !== i) });
-  const add = () => onChange({ items: [...items, { icon: "", text: "" }] });
-
-  return (
-    <div className="space-y-2">
-      {items.length === 0 && <p className="text-xs text-slate-400 text-center py-2">No highlights yet.</p>}
-      {items.map((item, i) => (
-        <div key={i} className="flex items-start gap-2 rounded-lg border border-slate-200 bg-slate-50/50 p-2.5">
-          <input value={item.icon} onChange={(e) => update(i, "icon", e.target.value)} placeholder="Emoji 🏔️" className="w-20 shrink-0 rounded border border-slate-200 px-2 py-1.5 text-sm" />
-          <input value={item.text} onChange={(e) => update(i, "text", e.target.value)} placeholder="Highlight text" className="flex-1 rounded border border-slate-200 px-2 py-1.5 text-sm" />
-          <button type="button" onClick={() => remove(i)} className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-500"><Trash2 className="h-3.5 w-3.5" /></button>
-        </div>
-      ))}
-      <AddBtn onClick={add} label="Add highlight" />
-    </div>
-  );
-}
-
 // ─── Itinerary ──────────────────────────────────────────────────────
 function ItinerarySection({ data, onChange }: { data: ItineraryData; onChange: (d: ItineraryData) => void }) {
   const items = data.items;
@@ -160,7 +144,7 @@ function ItinerarySection({ data, onChange }: { data: ItineraryData; onChange: (
     onChange({ items: next });
   };
   const remove = (i: number) => onChange({ items: items.filter((_, idx) => idx !== i) });
-  const add = () => onChange({ items: [...items, { dayNumber: items.length + 1, title: "", description: "", elevation: "", accommodation: "" }] });
+  const add = () => onChange({ items: [...items, { dayNumber: items.length + 1, title: "", description: "", elevation: "", accommodation: "", placeDescription: "" }] });
 
   return (
     <div className="space-y-3">
@@ -177,6 +161,7 @@ function ItinerarySection({ data, onChange }: { data: ItineraryData; onChange: (
             <textarea rows={2} value={item.description} onChange={(e) => update(i, "description", e.target.value)} placeholder="Description" className="col-span-2 rounded border border-slate-200 px-2 py-1.5 text-sm" />
             <input value={item.elevation} onChange={(e) => update(i, "elevation", e.target.value)} placeholder="Elevation (e.g. 2,800m)" className="rounded border border-slate-200 px-2 py-1.5 text-sm" />
             <input value={item.accommodation} onChange={(e) => update(i, "accommodation", e.target.value)} placeholder="Accommodation" className="rounded border border-slate-200 px-2 py-1.5 text-sm" />
+            <input value={item.placeDescription || ""} onChange={(e) => update(i, "placeDescription", e.target.value)} placeholder="Place description (e.g. Gateway to the Khumbu)" className="col-span-2 rounded border border-slate-200 px-2 py-1.5 text-sm" />
           </div>
         </div>
       ))}
@@ -185,23 +170,51 @@ function ItinerarySection({ data, onChange }: { data: ItineraryData; onChange: (
   );
 }
 
-// ─── Inclusions / Exclusions (shared) ───────────────────────────────
-function InExSection({ data, onChange, prefix }: { data: InExData; onChange: (d: InExData) => void; prefix: string }) {
+// ─── Inclusions & Exclusions (merged) ──────────────────────────────
+function InExSection({ data, onChange }: { data: InExData; onChange: (d: InExData) => void }) {
   const items = data.items;
-  const update = (i: number, v: string) => onChange({ items: items.map((item, idx) => idx === i ? v : item) });
+  const update = (i: number, field: string, val: any) => onChange({ items: items.map((item, idx) => idx === i ? { ...item, [field]: val } : item) });
   const remove = (i: number) => onChange({ items: items.filter((_, idx) => idx !== i) });
-  const add = () => onChange({ items: [...items, ""] });
+  const add = (type: "included" | "excluded") => onChange({ items: [...items, { type, text: "" }] });
+
+  const incItems = items.filter((i) => i.type === "included");
+  const excItems = items.filter((i) => i.type === "excluded");
 
   return (
-    <div className="space-y-1.5">
-      {items.map((item, i) => (
-        <div key={i} className="flex items-center gap-2">
-          <span className="shrink-0 text-xs">{prefix === "inclusions" ? "✓" : "✗"}</span>
-          <input value={item} onChange={(e) => update(i, e.target.value)} placeholder={`Add ${prefix.slice(0, -1)}...`} className="flex-1 rounded border border-slate-200 px-2 py-1.5 text-sm" />
-          <button type="button" onClick={() => remove(i)} className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-500"><Trash2 className="h-3 w-3" /></button>
+    <div className="space-y-4">
+      <div>
+        <label className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-emerald-700"><Check className="h-3 w-3" /> Included</label>
+        <div className="space-y-1.5">
+          {incItems.map((item, i) => {
+            const idx = items.indexOf(item);
+            return (
+              <div key={i} className="flex items-center gap-2">
+                <span className="shrink-0 text-xs text-emerald-500">✓</span>
+                <input value={item.text} onChange={(e) => update(idx, "text", e.target.value)} placeholder="What's included..." className="flex-1 rounded border border-slate-200 px-2 py-1.5 text-sm" />
+                <button type="button" onClick={() => remove(idx)} className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-500"><Trash2 className="h-3 w-3" /></button>
+              </div>
+            );
+          })}
+          <AddBtn onClick={() => add("included")} label="Add inclusion" />
         </div>
-      ))}
-      <AddBtn onClick={add} label={`Add ${prefix.slice(0, -1)}`} />
+      </div>
+      <div className="border-t border-slate-100" />
+      <div>
+        <label className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-red-600"><X className="h-3 w-3" /> Excluded</label>
+        <div className="space-y-1.5">
+          {excItems.map((item, i) => {
+            const idx = items.indexOf(item);
+            return (
+              <div key={i} className="flex items-center gap-2">
+                <span className="shrink-0 text-xs text-red-400">✗</span>
+                <input value={item.text} onChange={(e) => update(idx, "text", e.target.value)} placeholder="What's excluded..." className="flex-1 rounded border border-slate-200 px-2 py-1.5 text-sm" />
+                <button type="button" onClick={() => remove(idx)} className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-500"><Trash2 className="h-3 w-3" /></button>
+              </div>
+            );
+          })}
+          <AddBtn onClick={() => add("excluded")} label="Add exclusion" />
+        </div>
+      </div>
     </div>
   );
 }
@@ -228,23 +241,67 @@ function PricingSection({ data, onChange }: { data: PricingData; onChange: (d: P
   );
 }
 
-// ─── Available Dates ────────────────────────────────────────────────
-function DatesSection({ data, onChange }: { data: DatesData; onChange: (d: DatesData) => void }) {
-  const items = data.items;
+// ─── Add-ons ───────────────────────────────────────────────────────
+function AddonSection({ data, onChange }: { data: AddonData; onChange: (d: AddonData) => void }) {
+  const items = data.items || [];
   const update = (i: number, field: string, val: any) => onChange({ items: items.map((item, idx) => idx === i ? { ...item, [field]: val } : item) });
   const remove = (i: number) => onChange({ items: items.filter((_, idx) => idx !== i) });
-  const add = () => onChange({ items: [...items, { startDate: "", seatsLeft: 12 }] });
+  const add = () => onChange({ items: [...items, { title: "", description: "", unit: "person", pricePerUnit: 0 }] });
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-3">
+      {items.length === 0 && <p className="text-xs text-slate-400 text-center py-2">No add-ons yet.</p>}
       {items.map((item, i) => (
-        <div key={i} className="flex items-start gap-2 rounded-lg border border-slate-200 bg-slate-50/50 p-2.5">
-          <input type="date" value={item.startDate} onChange={(e) => update(i, "startDate", e.target.value)} className="flex-1 rounded border border-slate-200 px-2 py-1.5 text-sm" />
-          <input type="number" value={item.seatsLeft} onChange={(e) => update(i, "seatsLeft", parseInt(e.target.value) || 0)} placeholder="Seats" className="w-24 rounded border border-slate-200 px-2 py-1.5 text-sm" />
-          <button type="button" onClick={() => remove(i)} className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-500"><Trash2 className="h-3.5 w-3.5" /></button>
+        <div key={i} className="rounded-lg border border-slate-200 bg-slate-50/50 p-3">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[11px] font-medium text-slate-400">Add-on {i + 1}</span>
+            <button type="button" onClick={() => remove(i)} className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-500"><Trash2 className="h-3.5 w-3.5" /></button>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <input value={item.title} onChange={(e) => update(i, "title", e.target.value)} placeholder="Title (e.g. Extra Hotel Night)" className="rounded border border-slate-200 px-2 py-1.5 text-sm" />
+            <div className="flex gap-2">
+              <select value={item.unit} onChange={(e) => update(i, "unit", e.target.value)} className="rounded border border-slate-200 px-2 py-1.5 text-sm bg-white">
+                <option value="person">Per Person</option>
+                <option value="room">Per Room</option>
+              </select>
+              <div className="relative flex-1">
+                <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-sm">$</span>
+                <input type="number" value={item.pricePerUnit} onChange={(e) => update(i, "pricePerUnit", parseFloat(e.target.value) || 0)} className="w-full rounded border border-slate-200 py-1.5 pl-5 pr-2 text-sm" placeholder="Price" />
+              </div>
+            </div>
+            <textarea rows={2} value={item.description} onChange={(e) => update(i, "description", e.target.value)} placeholder="Description (e.g. Extra night at teahouse with meals)" className="col-span-2 rounded border border-slate-200 px-2 py-1.5 text-sm" />
+          </div>
         </div>
       ))}
-      <AddBtn onClick={add} label="Add date" />
+      <AddBtn onClick={add} label="Add add-on" />
+    </div>
+  );
+}
+
+// ─── Gallery ───────────────────────────────────────────────────────
+function GallerySection({ data, onChange }: { data: GalleryData; onChange: (d: GalleryData) => void }) {
+  const items = data.items || [];
+  const update = (i: number, field: string, val: any) => onChange({ items: items.map((item, idx) => idx === i ? { ...item, [field]: val } : item) });
+  const remove = (i: number) => onChange({ items: items.filter((_, idx) => idx !== i) });
+  const add = () => onChange({ items: [...items, { imageId: "", alt: "", caption: "" }] });
+
+  return (
+    <div className="space-y-3">
+      {items.length === 0 && <p className="text-xs text-slate-400 text-center py-2">No gallery images yet.</p>}
+      {items.map((item, i) => (
+        <div key={i} className="rounded-lg border border-slate-200 bg-slate-50/50 p-3">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[11px] font-medium text-slate-400">Image {i + 1}</span>
+            <button type="button" onClick={() => remove(i)} className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-500"><Trash2 className="h-3.5 w-3.5" /></button>
+          </div>
+          <div className="space-y-2">
+            <ImageUpload value={item.imageId} onChange={(id) => update(i, "imageId", id)} label="Photo" />
+            <input value={item.alt} onChange={(e) => update(i, "alt", e.target.value)} placeholder="Alt text (descriptive, for accessibility & SEO)" className="w-full rounded border border-slate-200 px-2 py-1.5 text-sm" />
+            <input value={item.caption} onChange={(e) => update(i, "caption", e.target.value)} placeholder="Caption (optional, shown below image)" className="w-full rounded border border-slate-200 px-2 py-1.5 text-sm" />
+          </div>
+        </div>
+      ))}
+      <AddBtn onClick={add} label="Add image" />
     </div>
   );
 }
@@ -312,9 +369,14 @@ function MapSection({ data, onChange }: { data: MapData; onChange: (d: MapData) 
           <label className="text-xs font-medium text-slate-500">Actual Trek Route (GeoJSON)</label>
           <span className="text-[10px] text-slate-400">If empty, a dashed straight line is shown</span>
         </div>
+        <p className="text-xs text-amber-600 mb-1">⚠️ If you see "not valid GeoJSON" on the map, click Remove and re-upload your file.</p>
         <GeoJsonUpload
-          value={data.geoJsonUrl}
-          onChange={(url) => set("geoJsonUrl", url)}
+          value={data.geoJsonUrl || ""}
+          hasData={!!data.geoJsonUrl || !!data.geoJsonData}
+          onChange={(url) => {
+            set("geoJsonUrl", url);
+            if (!url) set("geoJsonData", null);
+          }}
           onContentChange={(content) => set("geoJsonData", content)}
         />
       </div>
@@ -373,19 +435,28 @@ function SeoSection({ data, onChange }: { data: SeoData; onChange: (d: SeoData) 
 
 // ─── Custom Section ─────────────────────────────────────────────────
 function CustomSection({ data, onChange }: { data: CustomData; onChange: (d: CustomData) => void }) {
+  const set = (field: string, val: any) => onChange({ ...data, [field]: val });
   return (
     <div className="space-y-3">
-      <Field label="Heading"><input value={data.heading} onChange={(e) => onChange({ ...data, heading: e.target.value })} placeholder="Section heading" className="w-full rounded border border-slate-200 px-2 py-1.5 text-sm" /></Field>
-      <Field label="Content"><RichTextEditor content={data.content} onChange={(html) => onChange({ ...data, content: html })} placeholder="Write your section content..." /></Field>
+      <Field label="Heading"><input value={data.heading} onChange={(e) => set("heading", e.target.value)} placeholder="Section heading" className="w-full rounded border border-slate-200 px-2 py-1.5 text-sm" /></Field>
+      <Field label="Content"><RichTextEditor content={data.content} onChange={(html) => set("content", html)} placeholder="Write your section content..." /></Field>
+      <div className="border-t border-slate-100 pt-3">
+        <p className="mb-2 text-xs font-semibold text-slate-500">Optional Image</p>
+        <ImageUpload value={data.imageId || ""} onChange={(id) => set("imageId", id)} label="Section Image" />
+        <div className="mt-2">
+          <input value={data.imageAlt || ""} onChange={(e) => set("imageAlt", e.target.value)} placeholder="Image alt text (for accessibility & SEO)" className="w-full rounded border border-slate-200 px-2 py-1.5 text-sm" />
+        </div>
+      </div>
     </div>
   );
 }
 
 // ─── GeoJSON Upload ──────────────────────────────────────────────────
-function GeoJsonUpload({ value, onChange, onContentChange }: {
+function GeoJsonUpload({ value, onChange, onContentChange, hasData }: {
   value: string;
   onChange: (url: string) => void;
   onContentChange: (content: string | null) => void;
+  hasData?: boolean;
 }) {
   const [uploading, setUploading] = useState(false);
 
@@ -407,7 +478,7 @@ function GeoJsonUpload({ value, onChange, onContentChange }: {
 
   return (
     <div className="space-y-2">
-      {value ? (
+      {hasData ? (
         <div className="flex items-center gap-2 rounded-lg bg-teal-50 border border-teal-200 px-3 py-2">
           <span className="text-xs text-teal-700 truncate flex-1">✅ Route loaded</span>
           <button type="button" onClick={() => { onChange(""); onContentChange(null); }}
@@ -416,8 +487,8 @@ function GeoJsonUpload({ value, onChange, onContentChange }: {
       ) : (
         <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border-2 border-dashed border-slate-300 bg-white px-3 py-3 text-xs text-slate-500 hover:border-teal-300 hover:bg-teal-50 hover:text-teal-600">
           <Upload className="h-4 w-4" />
-          {uploading ? "Uploading..." : "Upload .geojson or .json file"}
-          <input type="file" accept=".geojson,.json" className="hidden" onChange={handleFile} disabled={uploading} />
+          {uploading ? "Uploading..." : "Upload .kml, .geojson or .json file"}
+          <input type="file" accept=".kml,.geojson,.json" className="hidden" onChange={handleFile} disabled={uploading} />
         </label>
       )}
       <div className="flex items-center gap-2">
@@ -439,14 +510,13 @@ export function SectionRenderer(props: Props) {
 
   const content = (() => {
     switch (section.type) {
-      case "details":    return <DetailsSection data={section.data} onChange={upd} />;
+      case "details":    return <DetailsSection data={section.data} onChange={upd} categories={props.categories} />;
       case "overview":   return <OverviewSection data={section.data} onChange={upd} />;
-      case "highlights": return <HighlightsSection data={section.data} onChange={upd} />;
       case "itinerary":  return <ItinerarySection data={section.data} onChange={upd} />;
-      case "inclusions": return <InExSection data={section.data} onChange={upd} prefix="inclusions" />;
-      case "exclusions": return <InExSection data={section.data} onChange={upd} prefix="exclusions" />;
+      case "inEx":       return <InExSection data={section.data} onChange={upd} />;
       case "pricing":    return <PricingSection data={section.data} onChange={upd} />;
-      case "dates":      return <DatesSection data={section.data} onChange={upd} />;
+      case "addons":     return <AddonSection data={section.data} onChange={upd} />;
+      case "gallery":    return <GallerySection data={section.data} onChange={upd} />;
       case "faqs":       return <FaqsSection data={section.data} onChange={upd} />;
       case "map":        return <MapSection data={section.data} onChange={upd} />;
       case "seo":        return <SeoSection data={section.data} onChange={upd} />;

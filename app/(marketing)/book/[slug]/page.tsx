@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
@@ -24,30 +24,49 @@ interface TravelerForm {
 
 export default function BookingPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ slug: string }>;
+  searchParams: Promise<{ travelers?: string; addons?: string }>;
 }) {
   const router = useRouter();
   const { data: session } = useSession();
   const [slug, setSlug] = useState<string>("");
   const [startDate, setStartDate] = useState("");
-  const [groupSize, setGroupSize] = useState(1);
   const [specialRequests, setSpecialRequests] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedAddons, setSelectedAddons] = useState<{ title: string; qty: number; pricePerUnit: number }[]>([]);
+  const [travelers, setTravelers] = useState<TravelerForm[]>([]);
 
   // Initialize slug from params
-  params.then((p) => setSlug(p.slug));
+  useEffect(() => {
+    params.then((p) => setSlug(p.slug));
+  }, [params]);
+
+  // Initialize travelers count and addons from search params
+  useEffect(() => {
+    searchParams.then((sp) => {
+      const travelerCount = Math.min(Math.max(parseInt(sp.travelers || "1") || 1, 1), 5);
+      setTravelers(
+        Array.from({ length: travelerCount }, () => ({
+          fullName: "", email: "", phone: "", nationality: "", passportNumber: "", age: "",
+        }))
+      );
+      if (sp.addons) {
+        try {
+          setSelectedAddons(JSON.parse(decodeURIComponent(sp.addons)));
+        } catch {}
+      }
+    });
+  }, [searchParams]);
 
   const trek = trekPrices[slug];
-  const totalPrice = trek ? trek.price * groupSize : 0;
-
-  const [travelers, setTravelers] = useState<TravelerForm[]>([
-    { fullName: "", email: "", phone: "", nationality: "", passportNumber: "", age: "" },
-  ]);
+  const addonsTotal = selectedAddons.reduce((sum, a) => sum + a.qty * a.pricePerUnit, 0);
+  const totalPrice = trek ? trek.price * travelers.length + addonsTotal : 0;
 
   function addTraveler() {
-    if (travelers.length < (trek?.maxGroup || 12)) {
+    if (travelers.length < 5) {
       setTravelers([...travelers, { fullName: "", email: "", phone: "", nationality: "", passportNumber: "", age: "" }]);
     }
   }
@@ -85,7 +104,7 @@ export default function BookingPage({
           trekPrice: trek.price,
           trekDuration: 14, // TODO: get from CMS
           startDate,
-          groupSize,
+          groupSize: travelers.length,
           specialRequests,
           travelers: travelers.map((t) => ({
             ...t,
@@ -102,9 +121,9 @@ export default function BookingPage({
         return;
       }
 
-      router.push(`/dashboard?booking=${data.booking.id}`);
-    } catch {
-      setError("An unexpected error occurred");
+      router.push(`/payment/${data.booking.id}`);
+    } catch (err: any) {
+      setError(err.message || "An unexpected error occurred");
     } finally {
       setIsSubmitting(false);
     }
@@ -157,6 +176,16 @@ export default function BookingPage({
             <span className="text-text">Price per person</span>
             <span className="font-medium text-foreground">${trek.price.toLocaleString()}</span>
           </div>
+          <div className="mt-4 flex items-center justify-between border-b border-border pb-4">
+            <span className="text-text">Travelers</span>
+            <span className="font-medium text-foreground">{travelers.length}</span>
+          </div>
+          {selectedAddons.map((addon, i) => (
+            <div key={i} className="mt-4 flex items-center justify-between border-b border-border pb-4">
+              <span className="text-text">{addon.title} × {addon.qty}</span>
+              <span className="font-medium text-foreground">+${(addon.qty * addon.pricePerUnit).toLocaleString()}</span>
+            </div>
+          ))}
           <div className="mt-4 flex items-center justify-between text-lg font-bold">
             <span className="text-foreground">Total</span>
             <span className="text-primary">${totalPrice.toLocaleString()}</span>
@@ -180,28 +209,11 @@ export default function BookingPage({
                 className="mt-1 w-full rounded-lg border border-border bg-background px-4 py-2.5 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
               />
             </div>
-            <div>
-              <label htmlFor="groupSize" className="block text-sm font-medium text-foreground">
-                Number of Travelers *
-              </label>
-              <select
-                id="groupSize"
-                value={groupSize}
-                onChange={(e) => {
-                  const newSize = parseInt(e.target.value);
-                  setGroupSize(newSize);
-                  if (newSize < travelers.length) {
-                    setTravelers(travelers.slice(0, newSize));
-                  }
-                }}
-                className="mt-1 w-full rounded-lg border border-border bg-background px-4 py-2.5 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-              >
-                {Array.from({ length: trek.maxGroup }, (_, i) => i + 1).map((n) => (
-                  <option key={n} value={n}>
-                    {n} {n === 1 ? "Traveler" : "Travelers"}
-                  </option>
-                ))}
-              </select>
+            <div className="flex items-end">
+              <div className="w-full rounded-lg border border-border bg-surface px-4 py-2.5">
+                <p className="text-xs text-text-muted">Travelers</p>
+                <p className="text-lg font-bold text-foreground">{travelers.length}</p>
+              </div>
             </div>
           </div>
         </div>
@@ -210,7 +222,7 @@ export default function BookingPage({
         <div className="rounded-xl border border-border bg-white p-6 shadow-sm">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-bold text-foreground">Traveler Details</h2>
-            {travelers.length < trek.maxGroup && (
+            {travelers.length > 1 && travelers.length < 5 && (
               <button
                 type="button"
                 onClick={addTraveler}

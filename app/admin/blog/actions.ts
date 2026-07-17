@@ -15,14 +15,16 @@ export async function createPost(formData: FormData) {
       author: formData.get("author") as string,
       excerpt: formData.get("excerpt") as string || "",
       content: formData.get("content") as string || "",
+      heroImage: formData.get("heroImage") as string || null,
       tags: formData.get("tags") as string || "[]",
       status: formData.get("status") as string || "draft",
       metaTitle: formData.get("metaTitle") as string || null,
       metaDescription: formData.get("metaDescription") as string || null,
+      ogImage: formData.get("ogImage") as string || null,
       publishedDate: new Date(),
     },
   });
-  revalidatePath("/blog");
+  revalidatePath("/blog", "layout");
   redirect("/admin/blog");
 }
 
@@ -37,13 +39,15 @@ export async function updatePost(id: string, formData: FormData) {
       author: formData.get("author") as string,
       excerpt: formData.get("excerpt") as string || "",
       content: formData.get("content") as string || "",
+      heroImage: formData.get("heroImage") as string || null,
       tags: formData.get("tags") as string || "[]",
       status: formData.get("status") as string || "draft",
       metaTitle: formData.get("metaTitle") as string || null,
       metaDescription: formData.get("metaDescription") as string || null,
+      ogImage: formData.get("ogImage") as string || null,
     },
   });
-  revalidatePath("/blog");
+  revalidatePath("/blog", "layout");
   redirect("/admin/blog");
 }
 

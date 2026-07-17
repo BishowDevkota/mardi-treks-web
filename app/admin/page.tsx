@@ -302,7 +302,7 @@ export default async function AdminDashboard() {
               <h2 className="text-sm font-bold text-slate-900">Quick Actions</h2>
             </div>
             <div className="space-y-1 p-3">
-              <QuickActionBtn href="/admin/treks/new" label="Create New Trek" desc="Add a new trekking package" color="emerald" />
+              <QuickActionBtn href="/admin/treks/new" label="Create New Product" desc="Add a new trek, tour, or climb" color="emerald" />
               <QuickActionBtn href="/admin/blog/new" label="Write Blog Post" desc="Share a new story" color="blue" />
               <QuickActionBtn href="/admin/bookings" label="Manage Bookings" desc="Review pending requests" color="amber" />
               <QuickActionBtn href="/admin/media" label="Upload Media" desc="Add images to library" color="violet" />

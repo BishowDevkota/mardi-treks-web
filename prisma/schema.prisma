@@ -27,6 +27,7 @@ model User {
   accounts Account[]
   sessions Session[]
   bookings Booking[]
+  reviews TrekReview[]
 
   @@map("users")
 }
@@ -71,6 +72,30 @@ model VerificationToken {
 }
 
 // ==============================
+// CONTENT: CATEGORIES
+// ==============================
+
+model Category {
+  id            String   @id @default(cuid())
+  name          String
+  slug          String   @unique
+  description   String?
+  icon          String?
+  heroImage     String?
+  metaTitle     String?
+  metaDescription String?
+  ogImage       String?
+  status        String   @default("published")
+  sort          Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  treks Trek[]
+
+  @@map("categories")
+}
+
+// ==============================
 // CONTENT: TREKS
 // ==============================
 
@@ -78,6 +103,7 @@ model Trek {
   id            String   @id @default(cuid())
   title         String
   slug          String   @unique
+  categoryId    String?
   subtitle      String?
   price         Float
   duration      Int
@@ -95,6 +121,7 @@ model Trek {
   heroBadge     String?
 
   // Relationships
+  category     Category?   @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   highlights   TrekHighlight[]
   itinerary    ItineraryDay[]
   pricingTiers PricingTier[]
@@ -120,6 +147,9 @@ model Trek {
 
   // Custom sections (user-defined heading + rich text sections)
   customSections  String?  // JSON array of TrekSection objects
+
+  // Add-ons
+  addons         String?  // JSON array of { title, description, unit, pricePerUnit }
 
   // Status
   status    String   @default("draft") // draft | published | archived
@@ -148,6 +178,7 @@ model ItineraryDay {
   description   String
   elevation     String?
   accommodation String?
+  placeDescription String? // Brief note about the place, e.g. "Gateway to the Khumbu region"
 
   trek Trek @relation(fields: [trekId], references: [id], onDelete: Cascade)
 
@@ -181,6 +212,7 @@ model TrekGalleryImage {
   trekId  String
   imageId String // Cloudinary public ID
   alt     String?
+  caption String?
 
   trek Trek @relation(fields: [trekId], references: [id], onDelete: Cascade)
 
@@ -199,14 +231,17 @@ model TrekFaq {
 }
 
 model TrekReview {
-  id       String  @id @default(cuid())
-  trekId   String
-  author   String
-  rating   Int
-  text     String
-  approved Boolean @default(false)
+  id        String   @id @default(cuid())
+  trekId    String
+  userId    String?
+  author    String
+  rating    Int
+  text      String
+  approved  Boolean  @default(false)
+  createdAt DateTime @default(now())
 
   trek Trek @relation(fields: [trekId], references: [id], onDelete: Cascade)
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@map("trek_reviews")
 }
@@ -276,6 +311,52 @@ model SiteSetting {
   updatedAt     DateTime @updatedAt
 
   @@map("site_settings")
+}
+
+// ==============================
+// HOME PAGE SETTINGS
+// ==============================
+
+model HomePageSettings {
+  id              String   @id @default("home-settings")
+  featuredTrekIds String?  // JSON array of trek IDs — for hero carousel
+  featuredSectionTrekIds String?  // JSON array of trek IDs — for featured section below hero
+
+  // Static company hero slide
+  heroEnabled        Boolean @default(true)
+  heroBadge          String?  // e.g. "Nepal's Premier Trekking Agency"
+  heroTitle          String?  // Main title text (before highlight)
+  heroTitleHighlight String?  // Highlighted portion of title (e.g. "Himalayas")
+  heroSubtitle       String?  // Text below the title
+  heroDescription    String?  // Description paragraph
+  heroImage          String?  // Cloudinary public ID for background
+
+  // Section headings & descriptions
+  featuredTreksHeading      String? @default("Featured Treks")
+  featuredTreksDescription  String? @default("Handpicked adventures for every type of traveler")
+  bestSellingTreksHeading     String? @default("Best Selling Treks")
+  bestSellingTreksDescription String? @default("Most popular treks chosen by our adventurers")
+  topRatedTreksHeading      String? @default("Top Rated Treks")
+  topRatedTreksDescription  String? @default("Highest rated treks by our guests")
+  reviewsHeading            String? @default("What Our Trekkers Say")
+  reviewsDescription        String? @default("Real experiences shared by our happy trekkers.")
+  blogHeading               String? @default("Latest from Our Blog")
+  blogDescription           String? @default("Trekking tips, destination guides, and stories from the Himalayas")
+
+  // Contact section
+  contactHeading      String? @default("Ready for Your Himalayan Adventure?")
+  contactDescription  String? @default("Have a question about a trek, need help planning your itinerary, or ready to book? Send us a message and we'll get back to you within 24 hours.")
+
+  // Why Choose Us section
+  whyChooseUsEnabled  Boolean @default(true)
+  whyChooseUsSubtitle String? @default("Discover the Difference")
+  whyChooseUsHeading  String? @default("Why Trek With Us?")
+  whyChooseUsItems    String?  // JSON array of { icon, title, description }
+  whyChooseUsBgImage  String?  // Background image URL or Cloudinary public ID
+
+  updatedAt       DateTime @updatedAt
+
+  @@map("home_page_settings")
 }
 
 // ==============================

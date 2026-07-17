@@ -22,7 +22,7 @@ interface Props {
   geoJsonUrl?: string;
   geoJsonData?: string | null;
   waypoints?: Array<{ lng: number; lat: number; label: string; description?: string }>;
-  itinerary?: Array<{ dayNumber: number; title: string; elevation?: string }>;
+  itinerary?: Array<{ dayNumber: number; title: string; elevation?: string | null }>;
   staticFallbackImage?: string;
 }
 

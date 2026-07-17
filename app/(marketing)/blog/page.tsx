@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Calendar, Clock, ArrowRight } from "lucide-react";
+import { Calendar, Clock, ArrowRight, FileText } from "lucide-react";
+import { prisma } from "@/lib/prisma";
+
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Blog",
@@ -8,71 +11,37 @@ export const metadata: Metadata = {
     "Read our trekking guides, packing lists, permit information, and stories from the Himalayas. Expert advice for your Nepal adventure.",
 };
 
-// TODO: Fetch from Payload CMS
-const posts = [
-  {
-    slug: "everest-base-camp-packing-list",
-    title: "Ultimate Everest Base Camp Packing List",
-    excerpt:
-      "Everything you need to pack for your Everest Base Camp trek — from clothing layers to essential gear. Expert tips from guides who've done it 50+ times.",
-    author: "Rajesh Gurung",
-    date: "2026-06-15",
-    readTime: "8 min read",
-    tags: ["Packing Lists"],
-  },
-  {
-    slug: "best-time-to-trek-nepal",
-    title: "Best Time to Trek in Nepal: A Seasonal Guide",
-    excerpt:
-      "Spring vs autumn — which season is right for your trek? Detailed breakdown of weather, crowds, trail conditions, and mountain views for each season.",
-    author: "Maya Sherpa",
-    date: "2026-05-28",
-    readTime: "10 min read",
-    tags: ["Seasonal Guides"],
-  },
-  {
-    slug: "nepal-trekking-permits-guide",
-    title: "Nepal Trekking Permits: Complete Guide for 2026",
-    excerpt:
-      "All the permits you need for trekking in Nepal — TIMS, National Park entry fees, restricted area permits. Prices, where to get them, and pro tips.",
-    author: "David Thapa",
-    date: "2026-05-10",
-    readTime: "6 min read",
-    tags: ["Permit Guides"],
-  },
-  {
-    slug: "altitude-sickness-prevention",
-    title: "Altitude Sickness: Prevention and Recognition",
-    excerpt:
-      "How to prevent, recognize, and respond to altitude sickness on high-altitude treks. Expert medical advice for safe trekking above 3,000m.",
-    author: "Dr. Anita Rai",
-    date: "2026-04-22",
-    readTime: "7 min read",
-    tags: ["Travel Tips"],
-  },
-  {
-    slug: "annapurna-circuit-vs-ebc",
-    title: "Annapurna Circuit vs Everest Base Camp: Which Trek is Right for You?",
-    excerpt:
-      "Comparing Nepal's two most famous treks — difficulty, scenery, culture, cost, and logistics. Find your perfect adventure.",
-    author: "Rajesh Gurung",
-    date: "2026-04-08",
-    readTime: "9 min read",
-    tags: ["Trek Reviews"],
-  },
-  {
-    slug: "sherpa-culture-and-traditions",
-    title: "Sherpa Culture and Traditions on the Everest Trail",
-    excerpt:
-      "Discover the rich culture, Buddhist traditions, and warm hospitality of the Sherpa people as you trek through the Khumbu region.",
-    author: "Maya Sherpa",
-    date: "2026-03-18",
-    readTime: "7 min read",
-    tags: ["Culture & Heritage"],
-  },
-];
+export default async function BlogPage() {
+  const posts = await prisma.blogPost.findMany({
+    where: { status: "published" },
+    orderBy: { publishedDate: "desc" },
+    select: {
+      slug: true,
+      title: true,
+      excerpt: true,
+      author: true,
+      publishedDate: true,
+      tags: true,
+    },
+  });
 
-export default function BlogPage() {
+  const postsWithReadTime = posts.map((post) => {
+    const wordCount = post.excerpt ? post.excerpt.split(/\s+/).length : 0;
+    const readTimeMinutes = Math.max(1, Math.round(wordCount / 200));
+    return {
+      ...post,
+      date: post.publishedDate.toISOString().split("T")[0],
+      readTime: `${readTimeMinutes} min read`,
+      tags: (() => {
+        try {
+          const parsed = JSON.parse(post.tags);
+          return Array.isArray(parsed) ? parsed : [];
+        } catch {
+          return [];
+        }
+      })(),
+    };
+  });
   return (
     <>
       {/* Hero */}
@@ -88,8 +57,15 @@ export default function BlogPage() {
       {/* Posts */}
       <section className="py-12">
         <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
+          {postsWithReadTime.length === 0 ? (
+            <div className="flex flex-col items-center py-16 text-center">
+              <FileText className="h-12 w-12 text-slate-300" />
+              <p className="mt-4 text-sm font-medium text-slate-600">No published posts yet</p>
+              <p className="mt-1 text-xs text-slate-400">Check back soon for new articles!</p>
+            </div>
+          ) : (
           <div className="space-y-8">
-            {posts.map((post) => (
+            {postsWithReadTime.map((post) => (
               <article
                 key={post.slug}
                 className="group rounded-xl border border-border bg-white p-6 shadow-sm transition-all hover:shadow-md"
@@ -135,6 +111,7 @@ export default function BlogPage() {
               </article>
             ))}
           </div>
+          )}
         </div>
       </section>
     </>

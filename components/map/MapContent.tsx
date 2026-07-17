@@ -1,14 +1,14 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import mapboxgl from "mapbox-gl";
-import "mapbox-gl/dist/mapbox-gl.css";
+import maplibregl from "maplibre-gl";
+import "maplibre-gl/dist/maplibre-gl.css";
 
 interface MapContentProps {
   geoJsonUrl?: string;
   geoJsonData?: string | null;
   waypoints?: Array<{ lng: number; lat: number; label: string; description?: string }>;
-  itinerary?: Array<{ dayNumber: number; title: string; elevation?: string }>;
+  itinerary?: Array<{ dayNumber: number; title: string; elevation?: string | null }>;
 }
 
 export default function MapContent({
@@ -18,7 +18,7 @@ export default function MapContent({
   itinerary,
 }: MapContentProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
-  const map = useRef<mapboxgl.Map | null>(null);
+  const map = useRef<maplibregl.Map | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -31,10 +31,8 @@ export default function MapContent({
       return;
     }
 
-    mapboxgl.accessToken = token;
-
     // Helper to draw a GeoJSON route on the map
-    function drawGeoJsonRoute(m: mapboxgl.Map, data: any) {
+    function drawGeoJsonRoute(m: maplibregl.Map, data: any) {
       if (m.getSource("route")) return; // already drawn
 
       m.addSource("route", { type: "geojson", data });
@@ -42,12 +40,12 @@ export default function MapContent({
       m.addLayer({
         id: "route-glow", type: "line", source: "route",
         layout: { "line-join": "round", "line-cap": "round" },
-        paint: { "line-color": "#14b8a6", "line-width": 8, "line-opacity": 0.2 },
+        paint: { "line-color": "#ea580c", "line-width": 8, "line-opacity": 0.2 },
       });
       m.addLayer({
         id: "route-line", type: "line", source: "route",
         layout: { "line-join": "round", "line-cap": "round" },
-        paint: { "line-color": "#0f766e", "line-width": 4, "line-opacity": 0.9 },
+        paint: { "line-color": "#c2410c", "line-width": 4, "line-opacity": 0.9 },
       });
       m.addLayer({
         id: "route-label", type: "symbol", source: "route",
@@ -57,10 +55,10 @@ export default function MapContent({
           "text-font": ["DIN Pro Medium", "Arial Unicode MS Regular"],
           "text-size": 11, "text-offset": [0, -1.8],
         },
-        paint: { "text-color": "#0f766e", "text-halo-color": "#ffffff", "text-halo-width": 2 },
+        paint: { "text-color": "#c2410c", "text-halo-color": "#ffffff", "text-halo-width": 2 },
       });
 
-      const bounds = new mapboxgl.LngLatBounds();
+      const bounds = new maplibregl.LngLatBounds();
       if (data.type === "FeatureCollection") {
         data.features?.forEach((f: any) => {
           if (f.geometry?.type === "LineString") {
@@ -74,7 +72,7 @@ export default function MapContent({
     }
 
     // Helper to draw a dashed straight-line route between waypoints
-    function drawWaypointRoute(m: mapboxgl.Map, wps: Array<{ lng: number; lat: number }>) {
+    function drawWaypointRoute(m: maplibregl.Map, wps: Array<{ lng: number; lat: number }>) {
       const coords = wps.map((wp) => [wp.lng, wp.lat]);
       const geojson: any = {
         type: "Feature",
@@ -82,66 +80,61 @@ export default function MapContent({
         properties: {},
       };
 
-      if (m.getSource("route-line")) return; // already drawn
+      if (m.getSource("wp-route")) return; // already drawn
 
-      m.addSource("route-line", { type: "geojson", data: geojson });
+      m.addSource("wp-route", { type: "geojson", data: geojson });
       m.addLayer({
-        id: "route-line-layer", type: "line", source: "route-line",
+        id: "wp-route-line", type: "line", source: "wp-route",
         layout: { "line-join": "round", "line-cap": "round" },
-        paint: { "line-color": "#0f766e", "line-width": 3, "line-opacity": 0.7, "line-dasharray": [3, 2] },
+        paint: { "line-color": "#c2410c", "line-width": 3, "line-opacity": 0.6, "line-dasharray": [3, 2] },
       });
       m.addLayer({
-        id: "route-label", type: "symbol", source: "route-line",
+        id: "wp-route-label", type: "symbol", source: "wp-route",
         layout: {
           "symbol-placement": "line-center",
           "text-field": "Estimated route (straight-line)",
           "text-font": ["DIN Pro Medium", "Arial Unicode MS Regular"],
           "text-size": 10, "text-offset": [0, -1.5],
         },
-        paint: { "text-color": "#64748b", "text-halo-color": "#ffffff", "text-halo-width": 2 },
+        paint: { "text-color": "#c2410c", "text-halo-color": "#ffffff", "text-halo-width": 2 },
       });
 
-      const bounds = new mapboxgl.LngLatBounds();
+      const bounds = new maplibregl.LngLatBounds();
       coords.forEach((c) => bounds.extend(c as [number, number]));
       if (!bounds.isEmpty()) m.fitBounds(bounds, { padding: 60, maxZoom: 14 });
     }
 
     try {
-      // Default to a central Nepal viewpoint
-      const newMap = new mapboxgl.Map({
+      // Clean satellite view — like Google Maps, no 3D terrain distortion
+      const style: any = {
+        version: 8,
+        sources: {
+          satellite: {
+            type: "raster",
+            tiles: [
+              "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+            ],
+            tileSize: 256,
+            attribution:
+              "&copy; Esri, Maxar, Earthstar Geographics, and the GIS User Community",
+          },
+        },
+        layers: [
+          { id: "satellite", type: "raster", source: "satellite" },
+        ],
+      };
+
+      const newMap = new maplibregl.Map({
         container: mapContainer.current,
-        style: "mapbox://styles/mapbox/satellite-streets-v12",
+        style,
         center: [83.9, 28.5], // Central Nepal
-        zoom: 9,
-        pitch: 60,
+        zoom: 8,
+        pitch: 0,
         bearing: 0,
-      } as mapboxgl.MapOptions & { terrain?: any });
+      });
 
       newMap.on("load", () => {
-        // Add DEM source for 3D terrain
-        newMap.addSource("mapbox-dem", {
-          type: "raster-dem",
-          url: "mapbox://mapbox.mapbox-terrain-dem-v1",
-          tileSize: 512,
-          maxzoom: 14,
-        });
-
-        // Set terrain
-        newMap.setTerrain({
-          source: "mapbox-dem",
-          exaggeration: 2.0,
-        });
-
-        // Add sky layer for atmosphere
-        newMap.addLayer({
-          id: "sky",
-          type: "sky",
-          paint: {
-            "sky-type": "atmosphere",
-            "sky-atmosphere-sun": [0.0, 0.0],
-            "sky-atmosphere-sun-intensity": 15,
-          },
-        });
+        // Flat 2D satellite view — no terrain distortion
 
         // If we have inline GeoJSON data (stored in DB), use it directly
         if (geoJsonData) {
@@ -157,10 +150,15 @@ export default function MapContent({
           fetch(`/api/geojson-proxy?url=${encodeURIComponent(geoJsonUrl)}`)
             .then((res) => res.json())
             .then((data) => {
-              if (data.error) throw new Error(data.error);
+              if (data.error) {
+                console.warn("GeoJSON proxy:", data.error, "— falling back to waypoints");
+                if (waypoints && waypoints.length >= 2) drawWaypointRoute(newMap, waypoints);
+                return null;
+              }
               return data;
             })
             .then((data) => {
+              if (!data) return;
               newMap.addSource("route", {
                 type: "geojson",
                 data,
@@ -173,7 +171,7 @@ export default function MapContent({
                 source: "route",
                 layout: { "line-join": "round", "line-cap": "round" },
                 paint: {
-                  "line-color": "#14b8a6",
+                  "line-color": "#ea580c",
                   "line-width": 8,
                   "line-opacity": 0.2,
                 },
@@ -186,7 +184,7 @@ export default function MapContent({
                 source: "route",
                 layout: { "line-join": "round", "line-cap": "round" },
                 paint: {
-                  "line-color": "#0f766e",
+                  "line-color": "#c2410c",
                   "line-width": 4,
                   "line-opacity": 0.9,
                 },
@@ -205,14 +203,14 @@ export default function MapContent({
                   "text-offset": [0, -1.8],
                 },
                 paint: {
-                  "text-color": "#0f766e",
+                  "text-color": "#c2410c",
                   "text-halo-color": "#ffffff",
                   "text-halo-width": 2,
                 },
               });
 
               // Fit map to route bounds
-              const bounds = new mapboxgl.LngLatBounds();
+              const bounds = new maplibregl.LngLatBounds();
               data.features?.forEach((feature: any) => {
                 if (feature.geometry?.type === "LineString") {
                   feature.geometry.coordinates.forEach((coord: number[]) => {
@@ -233,8 +231,8 @@ export default function MapContent({
             });
         }
 
-        // Only draw straight-line route between waypoints when NO GeoJSON route exists
-        if (!geoJsonUrl && waypoints && waypoints.length >= 2) {
+        // Draw straight-line waypoint route as fallback when no GeoJSON is available
+        if (waypoints && waypoints.length >= 2 && !newMap.getSource("route") && !newMap.getSource("wp-route")) {
           drawWaypointRoute(newMap, waypoints);
         }
 
@@ -255,9 +253,9 @@ export default function MapContent({
               `</div>`,
             ].join("");
 
-            const popup = new mapboxgl.Popup({ offset: 25, closeButton: false, maxWidth: "280px" }).setHTML(popupHtml);
+            const popup = new maplibregl.Popup({ offset: 25, closeButton: false, maxWidth: "280px" }).setHTML(popupHtml);
 
-            new mapboxgl.Marker({ element: el })
+            new maplibregl.Marker({ element: el })
               .setLngLat([wp.lng, wp.lat])
               .addTo(newMap);
 
