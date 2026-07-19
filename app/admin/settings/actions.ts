@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
+import { invalidateCachePattern, cacheKeys } from "@/lib/redis";
 
 export async function updateSettings(formData: FormData) {
   const session = await auth();
@@ -33,5 +34,7 @@ export async function updateSettings(formData: FormData) {
     },
   });
 
+  invalidateCachePattern(cacheKeys.pattern.layout);
+  invalidateCachePattern(cacheKeys.pattern.site);
   revalidatePath("/");
 }

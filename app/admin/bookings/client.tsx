@@ -133,7 +133,8 @@ export function AdminBookingsClient({
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {bookings.map((booking) => {
-                  const StatusIcon = statusIcons[booking.status] || AlertCircle;
+                  const iconMap: Record<string, any> = { AlertCircle, Clock, CheckCircle2, Ban };
+                  const StatusIcon = iconMap[statusIcons[booking.status]] || AlertCircle;
                   return (
                     <tr key={booking.id} className="transition-colors hover:bg-slate-50/50">
                       <td className="px-4 py-3.5">
@@ -163,9 +164,19 @@ export function AdminBookingsClient({
                       </td>
                       <td className="px-4 py-3.5">
                         {booking.payment ? (
-                          <span className="text-xs text-slate-600">{booking.payment.method}</span>
+                          <div>
+                            <p className="text-xs font-medium text-slate-700 capitalize">{booking.payment.method}</p>
+                            <p className="text-xs text-slate-400">${booking.payment.amount?.toLocaleString()} — {booking.payment.status}</p>
+                          </div>
                         ) : (
                           <span className="text-xs text-slate-400">—</span>
+                        )}
+                        {booking.paymentStatus && (
+                          <p className={`mt-1 text-[10px] font-medium ${
+                            booking.paymentStatus === "FULLY_PAID" ? "text-emerald-600" :
+                            booking.paymentStatus === "PARTIALLY_PAID" ? "text-blue-600" :
+                            "text-amber-600"
+                          }`}>{booking.paymentStatus.replace(/_/g, " ")}</p>
                         )}
                       </td>
                       <td className="px-4 py-3.5">

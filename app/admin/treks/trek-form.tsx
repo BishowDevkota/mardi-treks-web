@@ -10,12 +10,14 @@ import { Plus, Save, Loader2, ArrowUp, ArrowDown } from "lucide-react";
 
 // ─── Predefined section types the user can add ──────────────────────
 const ADDABLE_SECTION_TYPES: { type: TrekSection["type"]; label: string; icon: string }[] = [
+  { type: "overview", label: "Overview", icon: "📝" },
   { type: "itinerary", label: "Itinerary", icon: "🗺️" },
   { type: "inEx", label: "Inclusions & Exclusions", icon: "✅" },
   { type: "pricing", label: "Pricing Tiers", icon: "💰" },
   { type: "addons", label: "Add-ons", icon: "➕" },
   { type: "faqs", label: "FAQs", icon: "❓" },
   { type: "gallery", label: "Gallery", icon: "🖼️" },
+  { type: "map", label: "Route Map (3D)", icon: "🗺️" },
   { type: "custom", label: "Custom Section", icon: "📄" },
 ];
 
@@ -125,20 +127,40 @@ export function TrekForm({ mode, trek, categories }: { mode: "create" | "edit"; 
     // Custom sections
     const customSections = sections.filter((s) => s.type === "custom");
 
+    // ── Auto-calculate derived values ──────────────────────────────
+    // Price: lowest pricePerPerson from pricing tiers
+    const priceTiers = pricing.items || [];
+    const minPrice = priceTiers.length > 0
+      ? Math.min(...priceTiers.map((t: any) => t.pricePerPerson || 0))
+      : 0;
+
+    // Duration: number of itinerary days
+    const duration = itinerary.items.length > 0 ? itinerary.items.length : 0;
+
+    // Max altitude: highest elevation parsed from itinerary items
+    let maxAltitude = overview.maxAltitude || 0;
+    if (!overview.maxAltitude) {
+      for (const day of itinerary.items) {
+        if (day.elevation) {
+          const parsed = parseFloat(day.elevation.replace(/[,m\s]/g, ""));
+          if (!isNaN(parsed) && parsed > maxAltitude) maxAltitude = parsed;
+        }
+      }
+    }
+
     const fd = new FormData();
     fd.set("title", details.title || "");
     fd.set("slug", details.slug || "");
     fd.set("categoryId", details.categoryId || "");
-    fd.set("subtitle", details.subtitle || "");
-    fd.set("heroBadge", details.heroBadge || "");
-    fd.set("heroSubtitle", details.heroSubtitle || "");
     fd.set("heroImage", details.heroImage || "");
-    fd.set("price", String(details.price || 0));
-    fd.set("duration", String(details.duration || 0));
-    fd.set("maxGroupSize", String(details.maxGroupSize || 12));
+    fd.set("price", String(minPrice));
+    fd.set("duration", String(duration));
     fd.set("difficulty", details.difficulty || "moderate");
-    fd.set("region", details.region || "annapurna");
+    fd.set("region", details.region || "");
+    fd.set("regionId", details.regionId || "");
     fd.set("status", details.status || "draft");
+    fd.set("bestTime", overview.bestTime || "");
+    fd.set("maxAltitude", String(maxAltitude));
     fd.set("overview", overview.content || "");
     fd.set("itinerary", JSON.stringify(itinerary.items));
     // Inclusions & Exclusions from the merged inEx section
@@ -158,7 +180,28 @@ export function TrekForm({ mode, trek, categories }: { mode: "create" | "edit"; 
     fd.set("pitch", String(mapData.pitch || 45));
     fd.set("geoJsonUrl", mapData.geoJsonUrl || "");
     fd.set("geoJsonData", mapData.geoJsonData || "");
-    fd.set("waypoints", JSON.stringify(mapData.waypoints || []));
+    // Waypoints come from itinerary items that have coordinates set
+    const waypointsFromItinerary = (itinerary.items || [])
+      .filter((d: any) => d.lat != null && d.lng != null)
+      .map((d: any) => ({
+        lng: d.lng,
+        lat: d.lat,
+        label: d.accommodation || `Day ${d.dayNumber}`,
+        description: d.placeDescription || "",
+        dayNumber: d.dayNumber,
+      }));
+    fd.set("waypoints", JSON.stringify(waypointsFromItinerary));
+    // Section metadata (heading/description for each section)
+    const sectionData: Record<string, { heading?: string; description?: string }> = {};
+    const metaKeys: TrekSection["type"][] = ["itinerary", "inEx", "pricing", "addons", "faqs", "gallery", "map"];
+    for (const type of metaKeys) {
+      const s = sections.find((sec) => sec.type === type);
+      if (s?.data?.heading || s?.data?.description) {
+        sectionData[type] = { heading: s.data.heading, description: s.data.description };
+      }
+    }
+    fd.set("sectionData", JSON.stringify(sectionData));
+
     fd.set("customSections", JSON.stringify(customSections));
 
     // Section order — store so frontend can render in correct order

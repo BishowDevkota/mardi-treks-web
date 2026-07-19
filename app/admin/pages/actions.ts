@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
+import { invalidateCachePattern, cacheKeys } from "@/lib/redis";
 
 export async function createPage(formData: FormData) {
   const session = await auth();
@@ -20,6 +21,7 @@ export async function createPage(formData: FormData) {
     },
   });
 
+  invalidateCachePattern(cacheKeys.pattern.site);
   revalidatePath("/");
   redirect("/admin/pages");
 }
@@ -40,6 +42,7 @@ export async function updatePage(id: string, formData: FormData) {
     },
   });
 
+  invalidateCachePattern(cacheKeys.pattern.site);
   revalidatePath("/");
   redirect("/admin/pages");
 }

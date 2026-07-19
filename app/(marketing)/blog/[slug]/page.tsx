@@ -3,8 +3,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Calendar, Clock, ArrowLeft, User } from "lucide-react";
 import { prisma } from "@/lib/prisma";
+import { getCachedOrFetch, cacheKeys } from "@/lib/redis";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 300;
 
 export async function generateMetadata({
   params,
@@ -12,11 +13,15 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
-  const post = await prisma.blogPost.findUnique({
-    where: { slug },
-    select: { title: true, excerpt: true, metaTitle: true, metaDescription: true },
-  });
-  if (!post) return {};
+  const post = await getCachedOrFetch(
+    cacheKeys.blogPost(slug),
+    () => prisma.blogPost.findUnique({
+      where: { slug },
+      select: { title: true, excerpt: true, metaTitle: true, metaDescription: true },
+    }),
+    300
+  );
+  if (!post) return {}; 
 
   return {
     title: post.metaTitle || post.title,
@@ -30,9 +35,13 @@ export default async function BlogPostPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const post = await prisma.blogPost.findUnique({
-    where: { slug, status: "published" },
-  });
+  const post = await getCachedOrFetch(
+    cacheKeys.blogPost(slug),
+    () => prisma.blogPost.findUnique({
+      where: { slug, status: "published" },
+    }),
+    300
+  );
 
   if (!post) notFound();
 

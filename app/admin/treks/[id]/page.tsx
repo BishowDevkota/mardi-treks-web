@@ -14,7 +14,10 @@ export default async function EditTrekPage({ params }: { params: Promise<{ id: s
     prisma.category.findMany({
       where: { status: "published" },
       orderBy: { sort: "asc" },
-      select: { id: true, name: true, slug: true, icon: true },
+      select: {
+        id: true, name: true, slug: true, icon: true,
+        regions: { select: { id: true, name: true, slug: true }, orderBy: { sortOrder: "asc" } },
+      },
     }),
   ]);
   if (!trek) notFound();

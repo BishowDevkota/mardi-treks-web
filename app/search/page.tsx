@@ -16,7 +16,7 @@ export default async function SearchPage({
     id: string;
     title: string;
     slug: string;
-    region: string;
+    region: string | null;
     difficulty: string;
     duration: number;
     price: number;
@@ -32,7 +32,6 @@ export default async function SearchPage({
         OR: [
           { title: { contains: qLower, mode: "insensitive" } },
           { region: { contains: qLower, mode: "insensitive" } },
-          { subtitle: { contains: qLower, mode: "insensitive" } },
         ],
       },
       select: {
@@ -111,9 +110,11 @@ export default async function SearchPage({
                   {/* Info */}
                   <div className="p-4">
                     <div className="flex items-center gap-2">
-                      <span className="inline-flex items-center rounded-full bg-teal-50 px-2.5 py-0.5 text-[11px] font-medium text-teal-700">
-                        {trek.region}
-                      </span>
+                      {trek.region && (
+                        <span className="inline-flex items-center rounded-full bg-teal-50 px-2.5 py-0.5 text-[11px] font-medium text-teal-700">
+                          {trek.region}
+                        </span>
+                      )}
                       <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-medium capitalize text-slate-600">
                         {trek.difficulty}
                       </span>
@@ -126,9 +127,11 @@ export default async function SearchPage({
                         <span className="flex items-center gap-1">
                           <Clock className="h-3.5 w-3.5" /> {trek.duration}d
                         </span>
-                        <span className="flex items-center gap-1">
-                          <MapPin className="h-3.5 w-3.5" /> {trek.region}
-                        </span>
+                        {trek.region && (
+                          <span className="flex items-center gap-1">
+                            <MapPin className="h-3.5 w-3.5" /> {trek.region}
+                          </span>
+                        )}
                       </div>
                       <span className="text-sm font-bold text-teal-600">
                         ${trek.price.toLocaleString()}

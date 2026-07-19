@@ -2,9 +2,26 @@ import { NextResponse } from "next/server";
 import { hash } from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { signUpSchema } from "@/lib/validations";
+import { authRateLimit, checkRateLimit } from "@/lib/rate-limit";
 
 export async function POST(request: Request) {
   try {
+    // Rate limiting by IP
+    const ip = request.headers.get("x-forwarded-for") || "unknown";
+    const rateCheck = await checkRateLimit(authRateLimit, ip);
+    if (!rateCheck.success) {
+      return NextResponse.json(
+        { error: "Too many requests. Please try again later." },
+        {
+          status: 429,
+          headers: {
+            "Retry-After": String(rateCheck.reset),
+            "X-RateLimit-Remaining": String(rateCheck.remaining),
+          },
+        }
+      );
+    }
+
     const body = await request.json();
 
     // Validate input

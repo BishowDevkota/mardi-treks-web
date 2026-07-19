@@ -16,11 +16,29 @@ export default function PaymentProcessingPage({ params }: { params: Promise<{ id
     params.then((p) => setBookingId(p.id));
   }, [params]);
 
-  // Poll for payment status
+  // Poll for payment status — try verify endpoint first, fallback to booking check
   useEffect(() => {
     if (!bookingId) return;
 
     const interval = setInterval(async () => {
+      try {
+        // Try eSewa/Khalti verification first
+        const verifyRes = await fetch(`/api/payments/esewa/verify`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ bookingId }),
+        });
+        if (verifyRes.ok) {
+          const verifyData = await verifyRes.json();
+          if (verifyData.status === "confirmed") {
+            setStatus("CONFIRMED");
+            setPolls((p) => p + 1);
+            return;
+          }
+        }
+      } catch {}
+
+      // Fallback: check booking status directly
       try {
         const res = await fetch(`/api/booking?id=${bookingId}`);
         if (res.ok) {

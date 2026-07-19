@@ -46,6 +46,7 @@ export default function PaymentPage({ params }: { params: Promise<{ id: string }
   const [booking, setBooking] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [selectedMethod, setSelectedMethod] = useState<string | null>(null);
+  const [paymentType, setPaymentType] = useState<"ADVANCE" | "FULL">("FULL");
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -85,7 +86,7 @@ export default function PaymentPage({ params }: { params: Promise<{ id: string }
       const res = await fetch(`/api/payments/${selectedMethod}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ bookingId }),
+        body: JSON.stringify({ bookingId, paymentType }),
       });
 
       const data = await res.json();
@@ -190,6 +191,45 @@ export default function PaymentPage({ params }: { params: Promise<{ id: string }
       {error && (
         <div className="mt-4 rounded-xl bg-red-50 border border-red-200 p-4 text-sm text-red-700">
           ⚠️ {error}
+        </div>
+      )}
+
+      {/* Payment Type Selection */}
+      {booking?.totalPrice && (
+        <div className="mt-6 space-y-3">
+          <h2 className="text-sm font-semibold text-slate-900">Payment Amount</h2>
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={() => setPaymentType("ADVANCE")}
+              className={`rounded-2xl border-2 p-4 text-left transition-all ${
+                paymentType === "ADVANCE"
+                  ? "border-teal-200 bg-teal-50 shadow-sm"
+                  : "border-slate-200 bg-white hover:border-slate-300"
+              }`}
+            >
+              <p className="text-xs font-medium text-slate-500">Pay 20% Advance</p>
+              <p className="mt-1 text-xl font-bold text-teal-600">
+                ${(Math.round(booking.totalPrice * 0.2 * 100) / 100).toLocaleString()}
+              </p>
+              <p className="mt-1 text-xs text-slate-400">Secure your booking</p>
+            </button>
+            <button
+              type="button"
+              onClick={() => setPaymentType("FULL")}
+              className={`rounded-2xl border-2 p-4 text-left transition-all ${
+                paymentType === "FULL"
+                  ? "border-teal-200 bg-teal-50 shadow-sm"
+                  : "border-slate-200 bg-white hover:border-slate-300"
+              }`}
+            >
+              <p className="text-xs font-medium text-slate-500">Pay Full Amount</p>
+              <p className="mt-1 text-xl font-bold text-slate-900">
+                ${booking.totalPrice.toLocaleString()}
+              </p>
+              <p className="mt-1 text-xs text-slate-400">Pay entire amount now</p>
+            </button>
+          </div>
         </div>
       )}
 

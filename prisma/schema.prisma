@@ -90,9 +90,30 @@ model Category {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  treks Trek[]
+  treks   Trek[]
+  regions CategoryRegion[]
 
   @@map("categories")
+}
+
+// ==============================
+// CATEGORY REGIONS
+// ==============================
+
+model CategoryRegion {
+  id         String   @id @default(cuid())
+  name       String
+  slug       String
+  categoryId String
+  sortOrder  Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  category Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  treks    Trek[]
+
+  @@unique([slug, categoryId])
+  @@map("category_regions")
 }
 
 // ==============================
@@ -104,11 +125,12 @@ model Trek {
   title         String
   slug          String   @unique
   categoryId    String?
+  regionId      String?
   subtitle      String?
   price         Float
   duration      Int
   difficulty    String   // easy | moderate | challenging | difficult | extreme
-  region        String
+  region        String?
   maxGroupSize  Int      @default(12)
   overview      String   // rich text HTML
   inclusions    String   // JSON array
@@ -117,11 +139,14 @@ model Trek {
   updatedAt     DateTime @updatedAt
 
   heroImage     String?  // Cloudinary public ID
-  heroSubtitle  String?
-  heroBadge     String?
+
+  // Overview stats
+  bestTime      String?  // e.g. "Mar-May, Sep-Nov"
+  maxAltitude   Float?   // Highest elevation from itinerary
 
   // Relationships
-  category     Category?   @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  category     Category?       @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  regionRef    CategoryRegion? @relation(fields: [regionId], references: [id], onDelete: SetNull)
   highlights   TrekHighlight[]
   itinerary    ItineraryDay[]
   pricingTiers PricingTier[]
@@ -147,6 +172,9 @@ model Trek {
 
   // Custom sections (user-defined heading + rich text sections)
   customSections  String?  // JSON array of TrekSection objects
+
+  // Section metadata (heading/description for each section type)
+  sectionData     String?  // JSON object { pricing: { heading, description }, itinerary: { ... }, etc. }
 
   // Add-ons
   addons         String?  // JSON array of { title, description, unit, pricePerUnit }
@@ -304,10 +332,14 @@ model SiteSetting {
   phone         String?
   address       String?
   socialLinks   String? // JSON array
+  topBarContent String? // Rich text HTML for header top bar
   navigation    String? // JSON array
+  categoryDropdownTreks String? // JSON object: { categorySlug: [trekId, ...] }
   defaultMetaTitle String?
   defaultMetaDescription String?
   defaultOgImage String?
+  // Dynamic page content (About, Contact, Blog, Footer)
+  pageContent   String?  // JSON object with content for each page
   updatedAt     DateTime @updatedAt
 
   @@map("site_settings")
@@ -346,6 +378,7 @@ model HomePageSettings {
   // Contact section
   contactHeading      String? @default("Ready for Your Himalayan Adventure?")
   contactDescription  String? @default("Have a question about a trek, need help planning your itinerary, or ready to book? Send us a message and we'll get back to you within 24 hours.")
+  contactInfoCards    String?  // JSON array of { title, description }
 
   // Why Choose Us section
   whyChooseUsEnabled  Boolean @default(true)
@@ -395,6 +428,7 @@ model Booking {
   groupSize     Int
   totalPrice    Float
   status        String   @default("PENDING_REVIEW")
+  paymentStatus String   @default("PENDING")  // PENDING | PARTIALLY_PAID | FULLY_PAID
   travelerDetails TravelerDetail[]
   specialRequests String?
   createdAt     DateTime @default(now())

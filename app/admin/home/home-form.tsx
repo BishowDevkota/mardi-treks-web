@@ -75,7 +75,7 @@ export function HomeForm({
   heroContent: HeroContent;
   sectionContent: SectionContent;
   whyChooseUsContent: WhyChooseUsContent;
-  contactContent: { contactHeading: string; contactDescription: string };
+  contactContent: { contactHeading: string; contactDescription: string; contactInfoCards: { title: string; description: string }[] };
 }) {
   const router = useRouter();
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -97,6 +97,29 @@ export function HomeForm({
           { icon: "Users", title: "Expert Local Guides", description: "Our guides have decades of combined experience across Nepal's trekking regions." },
         ],
   );
+
+  const [contactInfoCards, setContactInfoCards] = useState<{ title: string; description: string }[]>(
+    contactContent.contactInfoCards.length > 0
+      ? contactContent.contactInfoCards
+      : [
+          { title: "Fast response", description: "We usually reply within 24 hours with the next steps." },
+          { title: "Tailor-made support", description: "Share your dates, group size, and ideas. We'll help shape the perfect trip." },
+        ],
+  );
+
+  function addContactInfoCard() {
+    setContactInfoCards([...contactInfoCards, { title: "", description: "" }]);
+  }
+
+  function updateContactInfoCard(index: number, field: "title" | "description", value: string) {
+    const updated = [...contactInfoCards];
+    updated[index][field] = value;
+    setContactInfoCards(updated);
+  }
+
+  function removeContactInfoCard(index: number) {
+    setContactInfoCards(contactInfoCards.filter((_, i) => i !== index));
+  }
 
   function addWhyChooseItem() {
     setWhyChooseItems([...whyChooseItems, { icon: "Shield", title: "", description: "" }]);
@@ -623,6 +646,62 @@ export function HomeForm({
               className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-teal-300 focus:outline-none focus:ring-2 focus:ring-teal-100" />
           </div>
         </div>
+
+        {/* Contact Info Cards */}
+        <div className="mt-6">
+          <div className="flex items-center justify-between">
+            <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Info Cards</h3>
+            <button
+              type="button"
+              onClick={addContactInfoCard}
+              className="inline-flex items-center gap-1 rounded-lg bg-teal-50 px-3 py-1.5 text-xs font-semibold text-teal-700 hover:bg-teal-100 transition-colors"
+            >
+              <Plus className="h-3 w-3" /> Add Card
+            </button>
+          </div>
+          <p className="mt-1 text-xs text-slate-400">
+            These cards appear on the left side of the contact form section.
+          </p>
+          <div className="mt-3 space-y-3">
+            {contactInfoCards.map((card, index) => (
+              <div
+                key={index}
+                className="flex items-start gap-3 rounded-lg border border-slate-200 bg-slate-50/50 p-3"
+              >
+                <div className="flex-1 grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <label className="block text-[10px] font-medium text-slate-400 uppercase">Title</label>
+                    <input
+                      value={card.title}
+                      onChange={(e) => updateContactInfoCard(index, "title", e.target.value)}
+                      placeholder="Card title"
+                      className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-1.5 text-xs focus:border-teal-300 focus:outline-none focus:ring-2 focus:ring-teal-100"
+                    />
+                  </div>
+                  <div className="flex items-end gap-1">
+                    <div className="flex-1">
+                      <label className="block text-[10px] font-medium text-slate-400 uppercase">Description</label>
+                      <input
+                        value={card.description}
+                        onChange={(e) => updateContactInfoCard(index, "description", e.target.value)}
+                        placeholder="Card description"
+                        className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-1.5 text-xs focus:border-teal-300 focus:outline-none focus:ring-2 focus:ring-teal-100"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => removeContactInfoCard(index)}
+                      className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-500 transition-colors"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <input type="hidden" name="contactInfoCards" value={JSON.stringify(contactInfoCards)} />
       </section>
 
       {/* ====================== WHY CHOOSE US ====================== */}

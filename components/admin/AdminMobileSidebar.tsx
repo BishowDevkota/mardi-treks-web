@@ -12,7 +12,7 @@ import {
 const iconMap: Record<string, any> = {
   LayoutDashboard, List, FileText, ShoppingCart,
   Users, ImageIcon, Calendar, Settings, FolderKanban,
-  Home,
+  Home, Menu,
 };
 
 interface NavItem {

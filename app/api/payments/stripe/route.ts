@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { bookingId } = await request.json();
+    const { bookingId, paymentType } = await request.json();
     if (!bookingId) {
       return NextResponse.json({ error: "Booking ID required" }, { status: 400 });
     }
@@ -39,9 +39,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Calculate amount based on payment type (ADVANCE = 20%, FULL = 100%)
+    const type = paymentType === "ADVANCE" ? "ADVANCE" : "FULL";
+    const payAmount =
+      type === "ADVANCE"
+        ? Math.round(booking.totalPrice * 0.2 * 100) / 100
+        : booking.totalPrice;
+
     // Create Stripe payment intent
     const paymentIntent = await createPaymentIntent(
-      booking.totalPrice,
+      payAmount,
       "usd",
       {
         bookingId: booking.id,
@@ -55,13 +62,13 @@ export async function POST(request: NextRequest) {
       where: { bookingId: booking.id },
       update: {
         stripePaymentIntentId: paymentIntent.id,
-        amount: booking.totalPrice,
+        amount: payAmount,
         method: "stripe",
         status: "PENDING",
       },
       create: {
         bookingId: booking.id,
-        amount: booking.totalPrice,
+        amount: payAmount,
         method: "stripe",
         stripePaymentIntentId: paymentIntent.id,
         status: "PENDING",

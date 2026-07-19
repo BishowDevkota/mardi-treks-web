@@ -37,6 +37,7 @@ export default function BookingPage({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedAddons, setSelectedAddons] = useState<{ title: string; qty: number; pricePerUnit: number }[]>([]);
+  const [travelerCount, setTravelerCount] = useState(1);
   const [travelers, setTravelers] = useState<TravelerForm[]>([]);
 
   // Initialize slug from params
@@ -45,14 +46,14 @@ export default function BookingPage({
   }, [params]);
 
   // Initialize travelers count and addons from search params
+  // Only show 1 traveler form by default — users can add more via button
   useEffect(() => {
     searchParams.then((sp) => {
-      const travelerCount = Math.min(Math.max(parseInt(sp.travelers || "1") || 1, 1), 5);
-      setTravelers(
-        Array.from({ length: travelerCount }, () => ({
-          fullName: "", email: "", phone: "", nationality: "", passportNumber: "", age: "",
-        }))
-      );
+      const count = Math.min(Math.max(parseInt(sp.travelers || "1") || 1, 1), 20);
+      setTravelerCount(count);
+      setTravelers([
+        { fullName: "", email: "", phone: "", nationality: "", passportNumber: "", age: "" },
+      ]);
       if (sp.addons) {
         try {
           setSelectedAddons(JSON.parse(decodeURIComponent(sp.addons)));
@@ -63,10 +64,10 @@ export default function BookingPage({
 
   const trek = trekPrices[slug];
   const addonsTotal = selectedAddons.reduce((sum, a) => sum + a.qty * a.pricePerUnit, 0);
-  const totalPrice = trek ? trek.price * travelers.length + addonsTotal : 0;
+  const totalPrice = trek ? trek.price * travelerCount + addonsTotal : 0;
 
   function addTraveler() {
-    if (travelers.length < 5) {
+    if (travelers.length < travelerCount) {
       setTravelers([...travelers, { fullName: "", email: "", phone: "", nationality: "", passportNumber: "", age: "" }]);
     }
   }
@@ -104,7 +105,7 @@ export default function BookingPage({
           trekPrice: trek.price,
           trekDuration: 14, // TODO: get from CMS
           startDate,
-          groupSize: travelers.length,
+          groupSize: travelerCount,
           specialRequests,
           travelers: travelers.map((t) => ({
             ...t,
@@ -178,7 +179,7 @@ export default function BookingPage({
           </div>
           <div className="mt-4 flex items-center justify-between border-b border-border pb-4">
             <span className="text-text">Travelers</span>
-            <span className="font-medium text-foreground">{travelers.length}</span>
+            <span className="font-medium text-foreground">{travelerCount}</span>
           </div>
           {selectedAddons.map((addon, i) => (
             <div key={i} className="mt-4 flex items-center justify-between border-b border-border pb-4">
@@ -212,7 +213,7 @@ export default function BookingPage({
             <div className="flex items-end">
               <div className="w-full rounded-lg border border-border bg-surface px-4 py-2.5">
                 <p className="text-xs text-text-muted">Travelers</p>
-                <p className="text-lg font-bold text-foreground">{travelers.length}</p>
+                <p className="text-lg font-bold text-foreground">{travelerCount}</p>
               </div>
             </div>
           </div>
@@ -222,14 +223,14 @@ export default function BookingPage({
         <div className="rounded-xl border border-border bg-white p-6 shadow-sm">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-bold text-foreground">Traveler Details</h2>
-            {travelers.length > 1 && travelers.length < 5 && (
+            {travelers.length < travelerCount && (
               <button
                 type="button"
                 onClick={addTraveler}
                 className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:text-primary-dark"
               >
                 <Plus className="h-4 w-4" />
-                Add Traveler
+                Add Traveler ({travelers.length}/{travelerCount})
               </button>
             )}
           </div>

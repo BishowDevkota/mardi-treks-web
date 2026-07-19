@@ -39,7 +39,7 @@ export default async function TreksPage() {
   const regionCounts: Record<string, number> = {};
   const difficultyCounts: Record<string, number> = {};
   for (const t of allTreks) {
-    regionCounts[t.region] = (regionCounts[t.region] || 0) + 1;
+    if (t.region) regionCounts[t.region] = (regionCounts[t.region] || 0) + 1;
     difficultyCounts[t.difficulty] = (difficultyCounts[t.difficulty] || 0) + 1;
   }
 

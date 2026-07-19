@@ -15,24 +15,23 @@ export type SectionType =
 export interface DetailsData {
   title: string;
   slug: string;
-  subtitle: string;
-  heroBadge: string;
-  heroSubtitle: string;
   heroImage: string;
-  price: number;
-  duration: number;
-  maxGroupSize: number;
   difficulty: string;
   region: string;
+  regionId: string;
   status: string;
   categoryId: string;
 }
 
 export interface OverviewData {
   content: string; // rich text HTML
+  bestTime?: string; // e.g. "Mar-May, Sep-Nov"
+  maxAltitude?: number; // Highest elevation from itinerary — auto-calculated on save
 }
 
 export interface ItineraryData {
+  heading?: string;
+  description?: string;
   items: {
     dayNumber: number;
     title: string;
@@ -40,22 +39,32 @@ export interface ItineraryData {
     elevation: string;
     accommodation: string;
     placeDescription?: string;
+    lat?: number;
+    lng?: number;
   }[];
 }
 
 export interface InExData {
+  heading?: string;
+  description?: string;
   items: { type: "included" | "excluded"; text: string }[];
 }
 
 export interface PricingData {
+  heading?: string;
+  description?: string;
   items: { groupSize: string; pricePerPerson: number }[];
 }
 
 export interface FaqsData {
+  heading?: string;
+  description?: string;
   items: { question: string; answer: string }[];
 }
 
 export interface MapData {
+  heading?: string;
+  description?: string;
   centerLat: number;
   centerLng: number;
   zoom: number;
@@ -66,10 +75,14 @@ export interface MapData {
 }
 
 export interface AddonData {
+  heading?: string;
+  description?: string;
   items: { title: string; description: string; unit: string; pricePerUnit: number }[];
 }
 
 export interface GalleryData {
+  heading?: string;
+  description?: string;
   items: { imageId: string; alt: string; caption: string }[];
 }
 
@@ -100,6 +113,13 @@ export function createDefaultSection(type: SectionType, trek?: any): TrekSection
   const id = `${type}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
   const base = { id, type, visible: true };
 
+  // Restore section heading/description from saved sectionData
+  let sectionMeta: Record<string, { heading?: string; description?: string }> = {};
+  if (trek?.sectionData) {
+    try { sectionMeta = JSON.parse(trek.sectionData); } catch {}
+  }
+  const meta = sectionMeta[type] || {};
+
   switch (type) {
     case "details":
       return {
@@ -108,15 +128,10 @@ export function createDefaultSection(type: SectionType, trek?: any): TrekSection
         data: {
           title: trek?.title || "",
           slug: trek?.slug || "",
-          subtitle: trek?.subtitle || "",
-          heroBadge: trek?.heroBadge || "",
-          heroSubtitle: trek?.heroSubtitle || "",
           heroImage: trek?.heroImage || "",
-          price: trek?.price || "",
-          duration: trek?.duration || "",
-          maxGroupSize: trek?.maxGroupSize || 12,
           difficulty: trek?.difficulty || "moderate",
-          region: trek?.region || "annapurna",
+          region: trek?.region || "",
+          regionId: trek?.regionId || "",
           status: trek?.status || "draft",
           categoryId: (trek as any)?.categoryId || "",
         } as DetailsData,
@@ -125,30 +140,49 @@ export function createDefaultSection(type: SectionType, trek?: any): TrekSection
       return {
         ...base,
         label: "Overview",
-        data: { content: trek?.overview || "" } as OverviewData,
+        data: {
+          content: trek?.overview || "",
+          bestTime: (trek as any)?.bestTime || "",
+          maxAltitude: (trek as any)?.maxAltitude || 0,
+        } as OverviewData,
       };
-    case "itinerary":
+    case "itinerary": {
+      // Restore lat/lng from saved waypoints matched by day number
+      const savedWaypoints: { lng: number; lat: number; label: string }[] = parseJsonArray(trek?.waypoints);
+      const items = (trek?.itinerary || []).map((d: any) => {
+        const wp = savedWaypoints.find((w: any) => w.label === d.title || w.dayNumber === d.dayNumber);
+        return {
+          dayNumber: d.dayNumber,
+          title: d.title || "",
+          description: d.description || "",
+          elevation: d.elevation || "",
+          accommodation: d.accommodation || "",
+          placeDescription: d.placeDescription || "",
+          lat: d.lat ?? wp?.lat ?? undefined,
+          lng: d.lng ?? wp?.lng ?? undefined,
+        };
+      });
       return {
         ...base,
         label: "Itinerary",
         data: {
-          items: (trek?.itinerary || []).map((d: any) => ({
-            dayNumber: d.dayNumber,
-            title: d.title || "",
-            description: d.description || "",
-            elevation: d.elevation || "",
-            accommodation: d.accommodation || "",
-            placeDescription: d.placeDescription || "",
-          })),
+          heading: meta.heading || "Itinerary",
+          description: meta.description || "",
+          items,
         } as ItineraryData,
       };
+    }
     case "inEx": {
       const incItems = parseStringArray(trek?.inclusions).map((t: string) => ({ type: "included" as const, text: t }));
       const excItems = parseStringArray(trek?.exclusions).map((t: string) => ({ type: "excluded" as const, text: t }));
       return {
         ...base,
         label: "Inclusions & Exclusions",
-        data: { items: [...incItems, ...excItems] } as InExData,
+        data: {
+          heading: meta.heading || "Inclusions & Exclusions",
+          description: meta.description || "",
+          items: [...incItems, ...excItems],
+        } as InExData,
       };
     }
     case "pricing":
@@ -156,6 +190,8 @@ export function createDefaultSection(type: SectionType, trek?: any): TrekSection
         ...base,
         label: "Pricing Tiers",
         data: {
+          heading: meta.heading || "Pricing",
+          description: meta.description || "",
           items: (trek?.pricingTiers || []).map((p: any) => ({ groupSize: p.groupSize || "", pricePerPerson: p.pricePerPerson || 0 })),
         } as PricingData,
       };
@@ -164,6 +200,8 @@ export function createDefaultSection(type: SectionType, trek?: any): TrekSection
         ...base,
         label: "Add-ons",
         data: {
+          heading: meta.heading || "Add-ons",
+          description: meta.description || "",
           items: parseJsonArray(trek?.addons),
         } as AddonData,
       };
@@ -172,6 +210,8 @@ export function createDefaultSection(type: SectionType, trek?: any): TrekSection
         ...base,
         label: "Gallery",
         data: {
+          heading: meta.heading || "Gallery",
+          description: meta.description || "",
           items: (trek?.galleryImages || []).map((g: any) => ({
             imageId: g.imageId || g.image || "",
             alt: g.alt || "",
@@ -184,6 +224,8 @@ export function createDefaultSection(type: SectionType, trek?: any): TrekSection
         ...base,
         label: "FAQs",
         data: {
+          heading: meta.heading || "Frequently Asked Questions",
+          description: meta.description || "",
           items: (trek?.faqs || []).map((f: any) => ({ question: f.question || "", answer: f.answer || "" })),
         } as FaqsData,
       };
@@ -192,6 +234,8 @@ export function createDefaultSection(type: SectionType, trek?: any): TrekSection
         ...base,
         label: "Route Map (3D)",
         data: {
+          heading: meta.heading || "Route Map",
+          description: meta.description || "",
           centerLat: trek?.centerLat || 28.5,
           centerLng: trek?.centerLng || 83.9,
           zoom: trek?.zoom || 7,

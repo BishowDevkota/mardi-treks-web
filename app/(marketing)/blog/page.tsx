@@ -1,29 +1,54 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Calendar, Clock, ArrowRight, FileText } from "lucide-react";
+import { Calendar, Clock, ArrowRight, FileText, Mountain } from "lucide-react";
 import { prisma } from "@/lib/prisma";
+import { getCachedOrFetch, cacheKeys } from "@/lib/redis";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 300;
 
-export const metadata: Metadata = {
-  title: "Blog",
-  description:
-    "Read our trekking guides, packing lists, permit information, and stories from the Himalayas. Expert advice for your Nepal adventure.",
-};
+async function getPageContent() {
+  return getCachedOrFetch(
+    cacheKeys.pageContent,
+    async () => {
+      const settings = await prisma.siteSetting.findUnique({ where: { id: "site-settings" } });
+      const raw = (settings as any)?.pageContent;
+      if (!raw) return null;
+      try { return JSON.parse(raw); } catch { return null; }
+    },
+    300
+  );
+}
+
+export async function generateMetadata(): Promise<Metadata> {
+  const pc = await getPageContent();
+  const blog = pc?.blog;
+  return {
+    title: blog?.seo?.title || "Blog",
+    description: blog?.seo?.description || "Read our trekking guides and stories from the Himalayas.",
+  };
+}
 
 export default async function BlogPage() {
-  const posts = await prisma.blogPost.findMany({
-    where: { status: "published" },
-    orderBy: { publishedDate: "desc" },
-    select: {
-      slug: true,
-      title: true,
-      excerpt: true,
-      author: true,
-      publishedDate: true,
-      tags: true,
-    },
-  });
+  const pc = await getPageContent();
+  const blog = pc?.blog || {};
+  const hero = blog.hero || {};
+
+  const posts = await getCachedOrFetch(
+    cacheKeys.blogPosts,
+    () => prisma.blogPost.findMany({
+      where: { status: "published" },
+      orderBy: { publishedDate: "desc" },
+      select: {
+        slug: true,
+        title: true,
+        excerpt: true,
+        author: true,
+        publishedDate: true,
+        tags: true,
+      },
+    }),
+    300
+  );
 
   const postsWithReadTime = posts.map((post) => {
     const wordCount = post.excerpt ? post.excerpt.split(/\s+/).length : 0;
@@ -45,12 +70,23 @@ export default async function BlogPage() {
   return (
     <>
       {/* Hero */}
-      <section className="bg-gradient-to-br from-slate-900 to-slate-800 py-16">
-        <div className="mx-auto max-w-3xl px-4 text-center sm:px-6 lg:px-8">
-          <h1 className="text-4xl font-bold tracking-tight text-white sm:text-5xl">Blog</h1>
-          <p className="mt-4 text-lg text-slate-300">
-            Trekking guides, packing tips, permit information, and stories from the Himalayas.
-          </p>
+      <section
+        className="relative flex items-center py-16"
+        style={hero.backgroundImage ? {
+          backgroundImage: `url(https://res.cloudinary.com/dk7ggjvlw/image/upload/${hero.backgroundImage})`,
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+        } : {}}
+      >
+        {hero.backgroundImage && <div className="absolute inset-0 bg-black/50" />}
+        <div className="relative z-10 mx-auto max-w-3xl px-4 text-center sm:px-6 lg:px-8">
+          <Mountain className="mx-auto h-12 w-12 text-primary-light" />
+          <h1 className="mt-4 text-4xl font-bold tracking-tight text-white sm:text-5xl">
+            {hero.heading || "Blog"}
+          </h1>
+          {hero.description && (
+            <p className="mt-4 text-lg text-slate-300">{hero.description}</p>
+          )}
         </div>
       </section>
 

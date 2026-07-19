@@ -5,15 +5,49 @@ export const redis = new Redis({
   token: process.env.UPSTASH_REDIS_REST_TOKEN!,
 });
 
-// Cache helpers
+// Cache keys
 export const cacheKeys = {
+  // Treks
   treks: "treks:list",
   trek: (slug: string) => `trek:${slug}`,
   trekAvailability: (slug: string, date: string) =>
     `trek:${slug}:availability:${date}`,
   featuredTreks: "treks:featured",
+  featuredSectionTreks: "treks:featured-section",
+  searchTreks: "treks:search",
+
+  // Blog
   blogPosts: "blog:list",
   blogPost: (slug: string) => `blog:${slug}`,
+
+  // Layout
+  categories: "layout:categories",
+  siteSettings: "layout:site-settings",
+  dropdownTreks: "layout:dropdown-treks",
+  allRegions: "layout:regions",
+
+  // Homepage
+  homeSettings: "home:settings",
+  latestReviews: "home:latest-reviews",
+  stats: "home:stats",
+  whyChooseUs: "home:why-choose-us",
+
+  // Category listing
+  categoryBySlug: (slug: string) => `category:${slug}`,
+  categoryTreksAll: (catId: string) => `category:${catId}:treks-all`,
+
+  // Pages
+  pageContent: "site:page-content",
+
+  // Pattern helpers for bulk invalidation
+  pattern: {
+    treks: "trek:*",
+    blog: "blog:*",
+    layout: "layout:*",
+    home: "home:*",
+    category: "category:*",
+    site: "site:*",
+  },
 };
 
 export async function getCachedOrFetch<T>(

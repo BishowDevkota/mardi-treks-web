@@ -16,12 +16,12 @@ const statusStyles: Record<string, string> = {
   COMPLETED: "bg-slate-50 text-slate-600 border-slate-200 ring-slate-200",
 };
 
-const statusIcons: Record<string, any> = {
-  PENDING_REVIEW: AlertCircle,
-  AWAITING_PAYMENT: Clock,
-  CONFIRMED: CheckCircle2,
-  CANCELLED: Ban,
-  COMPLETED: CheckCircle2,
+const statusIcons: Record<string, string> = {
+  PENDING_REVIEW: "AlertCircle",
+  AWAITING_PAYMENT: "Clock",
+  CONFIRMED: "CheckCircle2",
+  CANCELLED: "Ban",
+  COMPLETED: "CheckCircle2",
 };
 
 export default async function AdminBookingsPage({

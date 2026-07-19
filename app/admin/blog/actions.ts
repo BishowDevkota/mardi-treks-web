@@ -4,6 +4,12 @@ import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
+import { invalidateCachePattern, cacheKeys } from "@/lib/redis";
+
+function invalidateBlogCache() {
+  invalidateCachePattern(cacheKeys.pattern.blog);
+  invalidateCachePattern(cacheKeys.pattern.home);
+}
 
 export async function createPost(formData: FormData) {
   const session = await auth();
@@ -24,6 +30,7 @@ export async function createPost(formData: FormData) {
       publishedDate: new Date(),
     },
   });
+  invalidateBlogCache();
   revalidatePath("/blog", "layout");
   redirect("/admin/blog");
 }
@@ -47,6 +54,7 @@ export async function updatePost(id: string, formData: FormData) {
       ogImage: formData.get("ogImage") as string || null,
     },
   });
+  invalidateBlogCache();
   revalidatePath("/blog", "layout");
   redirect("/admin/blog");
 }
@@ -55,6 +63,7 @@ export async function deletePost(id: string) {
   const session = await auth();
   if (!session || (session.user as any).role !== "admin") throw new Error("Unauthorized");
   await prisma.blogPost.delete({ where: { id } });
+  invalidateBlogCache();
   revalidatePath("/blog");
   redirect("/admin/blog");
 }

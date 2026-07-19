@@ -1,5 +1,4 @@
-oject.
-
+when i calculate the price form price calculator it is good and when i and go to booking page it is ok then i click book now it is redirecting to complete payment page it is ok then i select esewa that is the only one working then it take me to payment page then there is a option to pay advance and pay full amount then i select full amount 
 
 1. Project Context
 

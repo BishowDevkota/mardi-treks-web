@@ -4,8 +4,6 @@ import { useRouter } from "next/navigation";
 import { updateSettings } from "./actions";
 import { useState, useEffect } from "react";
 import { Plus, Trash2, GripVertical, Save, Loader2 } from "lucide-react";
-import { useEditor, EditorContent } from "@tiptap/react";
-import StarterKit from "@tiptap/starter-kit";
 
 const defaultNavItems = [
   { label: "Treks", href: "/treks" },
@@ -405,3 +403,5 @@ export function SettingsForm({ settings }: { settings: any }) {
     </form>
   );
 }
+
+

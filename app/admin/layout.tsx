@@ -1,7 +1,7 @@
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { Mountain, Bell, FolderKanban } from "lucide-react";
+import { Mountain, Bell, FolderKanban, Menu } from "lucide-react";
 import { AdminSidebar } from "@/components/admin/AdminSidebar";
 import { AdminMobileSidebar } from "@/components/admin/AdminMobileSidebar";
 
@@ -16,6 +16,8 @@ export const nav = [
   { label: "Users", href: "/admin/users", icon: "Users" },
   { label: "Media", href: "/admin/media", icon: "ImageIcon" },
   { label: "Pages", href: "/admin/pages", icon: "Calendar" },
+  { label: "Page Manager", href: "/admin/page-manager", icon: "FileText" },
+  { label: "Navigation", href: "/admin/navigation", icon: "Menu" },
   { label: "Settings", href: "/admin/settings", icon: "Settings" },
 ];
 

@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
+import { invalidateCachePattern, cacheKeys } from "@/lib/redis";
 
 export async function updateHomeSettings(formData: FormData) {
   const session = await auth();
@@ -46,6 +47,7 @@ export async function updateHomeSettings(formData: FormData) {
     // Contact section
     contactHeading: (formData.get("contactHeading") as string) || null,
     contactDescription: (formData.get("contactDescription") as string) || null,
+    contactInfoCards: (formData.get("contactInfoCards") as string) || null,
 
     // Why Choose Us
     whyChooseUsEnabled: formData.get("whyChooseUsEnabled") === "on",
@@ -61,6 +63,7 @@ export async function updateHomeSettings(formData: FormData) {
     create: { id: "home-settings", ...data },
   });
 
+  invalidateCachePattern(cacheKeys.pattern.home);
   revalidatePath("/");
   revalidatePath("/admin/home");
   redirect("/admin/home");

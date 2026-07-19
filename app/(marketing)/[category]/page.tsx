@@ -2,11 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { getCachedOrFetch, cacheKeys } from "@/lib/redis";
+import { CategoryClient } from "./category-client";
 import {
-  Calendar,
-  Clock,
-  Users,
-  MapPin,
   Star,
   Search,
   SlidersHorizontal,
@@ -15,12 +13,12 @@ import {
   Mountain,
 } from "lucide-react";
 
-const difficultyColors: Record<string, string> = {
-  easy: "bg-green-100 text-green-700",
-  moderate: "bg-yellow-100 text-yellow-700",
-  challenging: "bg-orange-100 text-orange-700",
-  difficult: "bg-red-100 text-red-700",
-  extreme: "bg-purple-100 text-purple-700",
+const difficultyStyles: Record<string, { badge: string; dot: string }> = {
+  easy: { badge: "bg-[#EEF3E8] text-[#4C6B45]", dot: "bg-[#6B8E5F]" },
+  moderate: { badge: "bg-[#FBF0DE] text-[#9A6A1F]", dot: "bg-[#DB8A3A]" },
+  challenging: { badge: "bg-[#FBE7DD] text-[#A24E2E]", dot: "bg-[#C25B36]" },
+  difficult: { badge: "bg-[#F8DEDE] text-[#9C3939]", dot: "bg-[#B23F3F]" },
+  extreme: { badge: "bg-[#EBE1F2] text-[#6B4C8A]", dot: "bg-[#7E5AA3]" },
 };
 
 export const revalidate = 300;
@@ -31,8 +29,12 @@ export async function generateMetadata({
   params: Promise<{ category: string }>;
 }): Promise<Metadata> {
   const { category: slug } = await params;
-  const cat = await prisma.category.findUnique({ where: { slug } });
-  if (!cat) return { title: "Category Not Found" };
+  const cat = await getCachedOrFetch(
+    cacheKeys.categoryBySlug(slug),
+    () => prisma.category.findUnique({ where: { slug } }),
+    300
+  );
+  if (!cat) return { title: "Category Not Found" }; 
 
   return {
     title: cat.metaTitle || `${cat.name} | Mardi Treks`,
@@ -53,54 +55,74 @@ export default async function CategoryListingPage({
   searchParams,
 }: {
   params: Promise<{ category: string }>;
-  searchParams: Promise<{ region?: string; difficulty?: string; duration?: string; price?: string }>;
+  searchParams: Promise<{
+    region?: string;
+    difficulty?: string;
+    duration?: string;
+    price?: string;
+    rating?: string;
+    q?: string;
+  }>;
 }) {
   const { category: catSlug } = await params;
   const filters = await searchParams;
 
-  // Find the category
-  const category = await prisma.category.findUnique({ where: { slug: catSlug } });
+  const category = await getCachedOrFetch(
+    cacheKeys.categoryBySlug(catSlug),
+    () => prisma.category.findUnique({ where: { slug: catSlug } }),
+    300
+  );
   if (!category) notFound();
 
-  // Build where clause
-  const where: any = { status: "published", categoryId: category.id };
+  const where: any = { status: "published", categoryId: category.id }; 
   if (filters.region) where.region = filters.region;
   if (filters.difficulty) where.difficulty = filters.difficulty;
   if (filters.duration) {
     const [min, max] = filters.duration.split("-").map(Number);
-    if (max) {
-      where.duration = { gte: min, lte: max };
-    } else {
-      where.duration = { gte: min };
-    }
+    where.duration = max ? { gte: min, lte: max } : { gte: min };
   }
   if (filters.price) {
     const [min, max] = filters.price.split("-").map(Number);
-    if (max) {
-      where.price = { gte: min, lte: max };
-    } else {
-      where.price = { gte: min };
-    }
+    where.price = max ? { gte: min, lte: max } : { gte: min };
+  }
+  if (filters.q) {
+    where.title = { contains: filters.q, mode: "insensitive" };
   }
 
-  const allTrekList = await prisma.trek.findMany({
-    where: { status: "published", categoryId: category.id },
-    orderBy: { createdAt: "desc" },
-  });
+  const allTrekList = await getCachedOrFetch(
+    cacheKeys.categoryTreksAll(category.id),
+    () => prisma.trek.findMany({
+      where: { status: "published", categoryId: category.id },
+      orderBy: { createdAt: "desc" },
+    }),
+    120
+  );
 
-  const filteredTreks = await prisma.trek.findMany({
+  const filteredTreksRaw = await prisma.trek.findMany({
     where,
     orderBy: { createdAt: "desc" },
     include: {
       reviews: { where: { approved: true }, select: { rating: true } },
-      availableDates: { select: { startDate: true, seatsLeft: true } },
     },
   });
+
+  const avgRating = (reviews: { rating: number }[]) => {
+    if (!reviews.length) return null;
+    return reviews.reduce((a, r) => a + r.rating, 0) / reviews.length;
+  };
+
+  const minRating = filters.rating ? Number(filters.rating) : null;
+  const filteredTreks = minRating
+    ? filteredTreksRaw.filter((t) => {
+        const avg = avgRating(t.reviews);
+        return avg !== null && avg >= minRating;
+      })
+    : filteredTreksRaw;
 
   const regionCounts: Record<string, number> = {};
   const difficultyCounts: Record<string, number> = {};
   for (const t of allTrekList) {
-    regionCounts[t.region] = (regionCounts[t.region] || 0) + 1;
+    if (t.region) regionCounts[t.region] = (regionCounts[t.region] || 0) + 1;
     difficultyCounts[t.difficulty] = (difficultyCounts[t.difficulty] || 0) + 1;
   }
 
@@ -125,361 +147,238 @@ export default async function CategoryListingPage({
 
   const priceRanges = [
     { value: "0-999", label: "Under $1,000" },
-    { value: "1000-1499", label: "$1,000 - $1,499" },
-    { value: "1500-1999", label: "$1,500 - $1,999" },
+    { value: "1000-1499", label: "$1,000 – $1,499" },
+    { value: "1500-1999", label: "$1,500 – $1,999" },
     { value: "2000+", label: "$2,000+" },
   ];
 
-  const avgRating = (reviews: { rating: number }[]) => {
-    if (!reviews.length) return null;
-    return (reviews.reduce((a, r) => a + r.rating, 0) / reviews.length).toFixed(1);
-  };
-
-  const nextDate = (dates: { startDate: Date; seatsLeft: number }[]) => {
-    const upcoming = dates.filter((d) => d.startDate > new Date());
-    if (!upcoming.length) return null;
-    const next = upcoming.sort((a, b) => a.startDate.getTime() - b.startDate.getTime())[0];
-    return {
-      date: next.startDate.toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-      }),
-      seatsLeft: next.seatsLeft,
-    };
-  };
+  const ratingOptions = [
+    { value: "5", label: "5 stars" },
+    { value: "4", label: "4 stars & up" },
+    { value: "3", label: "3 stars & up" },
+    { value: "2", label: "2 stars & up" },
+    { value: "1", label: "1 star & up" },
+  ];
 
   const buildFilterUrl = (key: string, value: string) => {
     const params = new URLSearchParams();
-    if (filters.region && key !== "region") params.set("region", filters.region);
-    if (filters.difficulty && key !== "difficulty") params.set("difficulty", filters.difficulty);
-    if (filters.duration && key !== "duration") params.set("duration", filters.duration);
-    if (filters.price && key !== "price") params.set("price", filters.price);
+    const current: Record<string, string | undefined> = {
+      region: filters.region,
+      difficulty: filters.difficulty,
+      duration: filters.duration,
+      price: filters.price,
+      rating: filters.rating,
+      q: filters.q,
+    };
+    for (const [k, v] of Object.entries(current)) {
+      if (v && k !== key) params.set(k, v);
+    }
     if (value) params.set(key, value);
     const qs = params.toString();
     return `/${catSlug}${qs ? `?${qs}` : ""}`;
   };
 
   const clearUrl = `/${catSlug}`;
-  const hasActiveFilters = !!(filters.region || filters.difficulty || filters.duration || filters.price);
+  const hasActiveFilters = !!(
+    filters.region ||
+    filters.difficulty ||
+    filters.duration ||
+    filters.price ||
+    filters.rating
+  );
+
+  const activeChips: { key: string; label: string }[] = [];
+  if (filters.region) activeChips.push({ key: "region", label: filters.region.charAt(0).toUpperCase() + filters.region.slice(1) });
+  if (filters.difficulty) activeChips.push({ key: "difficulty", label: filters.difficulty.charAt(0).toUpperCase() + filters.difficulty.slice(1) });
+  if (filters.duration) activeChips.push({ key: "duration", label: durations.find((d) => d.value === filters.duration)?.label ?? filters.duration });
+  if (filters.price) activeChips.push({ key: "price", label: priceRanges.find((p) => p.value === filters.price)?.label ?? filters.price });
+  if (filters.rating) activeChips.push({ key: "rating", label: ratingOptions.find((r) => r.value === filters.rating)?.label ?? `${filters.rating}★ & up` });
+
+  const FilterSection = ({
+    title,
+    filterKey,
+    isActive,
+    children,
+  }: {
+    title: string;
+    filterKey: string;
+    isActive: boolean;
+    children: React.ReactNode;
+  }) => (
+    <details className="group" open={isActive}>
+      <summary className="flex cursor-pointer list-none items-center justify-between py-1 marker:content-none [&::-webkit-details-marker]:hidden">
+        <h3 className="text-[13px] font-semibold uppercase tracking-wide text-slate-500 group-open:text-[#182A38]">
+          {title}
+        </h3>
+        <ChevronDown className="h-4 w-4 text-slate-400 transition-transform duration-200 group-open:rotate-180 group-open:text-primary" />
+      </summary>
+      <div className="mt-3 space-y-1 pb-1">{children}</div>
+    </details>
+  );
 
   return (
     <>
-      {/* Page Header */}
-      <section className="bg-gradient-to-br from-slate-900 to-slate-800 py-12">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h1 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
-                {category.icon ? `${category.icon} ` : ""}
-                {category.name}
-              </h1>
-              <p className="mt-2 text-sm text-slate-300">
-                {category.description || `${allTrekList.length} packages`}
-              </p>
-            </div>
-            <div className="mt-4 flex items-center gap-3 sm:mt-0">
-              <div className="relative">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                <input
-                  type="text"
-                  placeholder="Search..."
-                  className="w-48 rounded-lg border border-slate-600 bg-slate-700/50 py-2 pl-9 pr-3 text-sm text-white placeholder:text-slate-400 focus:border-teal-400 focus:outline-none focus:ring-1 focus:ring-teal-400"
-                />
-              </div>
-              <select className="rounded-lg border border-slate-600 bg-slate-700/50 px-3 py-2 text-sm text-white focus:border-teal-400 focus:outline-none focus:ring-1 focus:ring-teal-400">
-                <option value="popular">Most Popular</option>
-                <option value="price-low">Price: Low to High</option>
-                <option value="price-high">Price: High to Low</option>
-                <option value="duration">Duration</option>
-                <option value="rating">Highest Rated</option>
-              </select>
-            </div>
-          </div>
+      {/* ===== Simple Hero: category name + centered search ===== */}
+      <section className="bg-background py-16 sm:py-20">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 text-center">
+          <h1 className="text-4xl font-bold tracking-tight text-foreground sm:text-5xl">
+            {category.name}
+          </h1>
         </div>
       </section>
 
-      {/* Main Content */}
-      <section className="py-8">
+      {/* ===== Main Content ===== */}
+      <section className="bg-background pb-16 sm:pb-20">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+
+          {/* Active filter chips */}
+          {hasActiveFilters && (
+            <div className="mb-6 flex flex-wrap items-center gap-2">
+              <span className="text-xs font-medium uppercase tracking-wide text-text-muted">Filtering by:</span>
+              {activeChips.map((chip) => (
+                <Link
+                  key={chip.key}
+                  href={buildFilterUrl(chip.key, "")}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-medium text-primary transition hover:bg-primary/20"
+                >
+                  {chip.label}
+                  <X className="h-3 w-3" />
+                </Link>
+              ))}
+              <Link href={clearUrl} className="text-xs font-medium text-text-muted underline decoration-dotted hover:text-foreground">
+                Clear all
+              </Link>
+            </div>
+          )}
+
           <div className="flex flex-col gap-8 lg:flex-row">
             {/* ===== FILTER SIDEBAR ===== */}
             <aside className="w-full shrink-0 lg:w-64">
-              <div className="sticky top-24 space-y-6">
-                <div className="flex items-center justify-between lg:hidden">
+              <div className="sticky top-24 space-y-5">
+                <div className="flex items-center justify-between rounded-xl border border-border bg-surface px-4 py-3 lg:hidden">
                   <button
-                    className="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
+                    className="inline-flex items-center gap-2 text-sm font-semibold text-foreground"
                     popoverTarget="filter-popover"
                   >
                     <SlidersHorizontal className="h-4 w-4" />
                     Filters
                   </button>
-                  <span className="text-sm text-slate-500">{filteredTreks.length} results</span>
+                  <span className="text-sm text-text-muted">{filteredTreks.length} results</span>
                 </div>
 
                 <div
                   id="filter-popover"
-                  className="space-y-6 max-lg:hidden max-lg:fixed max-lg:inset-0 max-lg:z-50 max-lg:overflow-y-auto max-lg:bg-white max-lg:p-6 [&:popover-open]:block max-lg:[&:popover-open]:flex max-lg:[&:popover-open]:flex-col"
+                  className="divide-y divide-border rounded-2xl border border-border bg-surface px-5 shadow-sm max-lg:hidden max-lg:fixed max-lg:inset-0 max-lg:z-50 max-lg:overflow-y-auto max-lg:rounded-none max-lg:border-0 max-lg:p-6 [&:popover-open]:block max-lg:[&:popover-open]:flex max-lg:[&:popover-open]:flex-col"
                 >
-                  <div className="flex items-center justify-between lg:hidden">
-                    <h2 className="text-lg font-bold text-slate-900">Filters</h2>
-                    <button
-                      className="p-1 text-slate-500 hover:text-slate-900"
-                      popoverTarget="filter-popover"
-                    >
+                  <div className="flex items-center justify-between py-4 lg:hidden">
+                    <h2 className="text-lg font-semibold text-foreground">Filters</h2>
+                    <button className="p-1 text-text-muted hover:text-foreground" popoverTarget="filter-popover">
                       <X className="h-5 w-5" />
                     </button>
                   </div>
 
-                  {hasActiveFilters && (
-                    <Link
-                      href={clearUrl}
-                      className="inline-flex items-center gap-1 text-xs font-medium text-teal-600 hover:text-teal-700"
-                    >
-                      <X className="h-3 w-3" /> Clear all filters
-                    </Link>
-                  )}
-
-                  {/* Region */}
-                  <div>
-                    <h3 className="flex items-center justify-between text-sm font-semibold text-slate-900">
-                      Region <ChevronDown className="h-4 w-4 text-slate-400" />
-                    </h3>
-                    <div className="mt-3 space-y-2">
-                      <Link
-                        href={`/${catSlug}`}
-                        className={`flex items-center justify-between rounded-lg px-3 py-2 text-sm hover:bg-slate-50 ${
-                          !filters.region ? "bg-teal-50 text-teal-700 font-medium" : "text-slate-600"
-                        }`}
-                      >
+                  <div className="py-4">
+                    <FilterSection title="Region" filterKey="region" isActive={!!filters.region}>
+                      <Link href={`/${catSlug}`}
+                        className={`flex items-center justify-between rounded-lg px-3 py-2 text-sm transition ${!filters.region ? "bg-primary text-white font-medium" : "text-text hover:bg-surface-alt"}`}>
                         <span>All Regions</span>
-                        <span className="text-xs text-slate-400">{allTrekList.length}</span>
+                        <span className={`text-xs ${!filters.region ? "text-white/70" : "text-text-muted"}`}>{allTrekList.length}</span>
                       </Link>
                       {regions.map((region) => (
-                        <Link
-                          key={region.value}
-                          href={buildFilterUrl("region", region.value)}
-                          className={`flex items-center justify-between rounded-lg px-3 py-2 text-sm hover:bg-slate-50 ${
-                            filters.region === region.value
-                              ? "bg-teal-50 text-teal-700 font-medium"
-                              : "text-slate-600"
-                          }`}
-                        >
+                        <Link key={region.value} href={buildFilterUrl("region", region.value)}
+                          className={`flex items-center justify-between rounded-lg px-3 py-2 text-sm transition ${filters.region === region.value ? "bg-primary text-white font-medium" : "text-text hover:bg-surface-alt"}`}>
                           <span>{region.label}</span>
-                          <span className="text-xs text-slate-400">{region.count}</span>
+                          <span className={`text-xs ${filters.region === region.value ? "text-white/70" : "text-text-muted"}`}>{region.count}</span>
                         </Link>
                       ))}
-                    </div>
+                    </FilterSection>
                   </div>
 
-                  <hr className="border-slate-200" />
-
-                  {/* Difficulty */}
-                  <div>
-                    <h3 className="flex items-center justify-between text-sm font-semibold text-slate-900">
-                      Difficulty <ChevronDown className="h-4 w-4 text-slate-400" />
-                    </h3>
-                    <div className="mt-3 space-y-2">
+                  <div className="py-4">
+                    <FilterSection title="Difficulty" filterKey="difficulty" isActive={!!filters.difficulty}>
                       {difficulties.map((d) => (
-                        <Link
-                          key={d.value}
-                          href={buildFilterUrl("difficulty", d.value)}
-                          className={`flex items-center justify-between rounded-lg px-3 py-2 text-sm hover:bg-slate-50 ${
-                            filters.difficulty === d.value
-                              ? "bg-teal-50 text-teal-700 font-medium"
-                              : "text-slate-600"
-                          }`}
-                        >
+                        <Link key={d.value} href={buildFilterUrl("difficulty", d.value)}
+                          className={`flex items-center justify-between rounded-lg px-3 py-2 text-sm transition ${filters.difficulty === d.value ? "bg-primary/10 text-primary font-medium" : "text-text hover:bg-surface-alt"}`}>
                           <span className="flex items-center gap-2">
-                            <span
-                              className={`inline-block h-2 w-2 rounded-full ${
-                                d.value === "easy"
-                                  ? "bg-green-500"
-                                  : d.value === "moderate"
-                                    ? "bg-yellow-500"
-                                    : d.value === "challenging"
-                                      ? "bg-orange-500"
-                                      : "bg-red-500"
-                              }`}
-                            />
+                            <span className={`inline-block h-2 w-2 rounded-full ${difficultyStyles[d.value]?.dot ?? "bg-slate-400"}`} />
                             {d.label}
                           </span>
-                          <span className="text-xs text-slate-400">{d.count}</span>
+                          <span className="text-xs text-text-muted">{d.count}</span>
                         </Link>
                       ))}
-                    </div>
+                    </FilterSection>
                   </div>
 
-                  <hr className="border-slate-200" />
-
-                  {/* Duration */}
-                  <div>
-                    <h3 className="flex items-center justify-between text-sm font-semibold text-slate-900">
-                      Duration <ChevronDown className="h-4 w-4 text-slate-400" />
-                    </h3>
-                    <div className="mt-3 space-y-2">
+                  <div className="py-4">
+                    <FilterSection title="Duration" filterKey="duration" isActive={!!filters.duration}>
                       {durations.map((d) => (
-                        <Link
-                          key={d.value}
-                          href={buildFilterUrl("duration", d.value)}
-                          className={`flex items-center justify-between rounded-lg px-3 py-2 text-sm hover:bg-slate-50 ${
-                            filters.duration === d.value
-                              ? "bg-teal-50 text-teal-700 font-medium"
-                              : "text-slate-600"
-                          }`}
-                        >
-                          <span>{d.label}</span>
+                        <Link key={d.value} href={buildFilterUrl("duration", d.value)}
+                          className={`flex items-center rounded-lg px-3 py-2 text-sm transition ${filters.duration === d.value ? "bg-primary text-white font-medium" : "text-text hover:bg-surface-alt"}`}>
+                          {d.label}
                         </Link>
                       ))}
-                    </div>
+                    </FilterSection>
                   </div>
 
-                  <hr className="border-slate-200" />
-
-                  {/* Price Range */}
-                  <div>
-                    <h3 className="flex items-center justify-between text-sm font-semibold text-slate-900">
-                      Price Range <ChevronDown className="h-4 w-4 text-slate-400" />
-                    </h3>
-                    <div className="mt-3 space-y-2">
+                  <div className="py-4">
+                    <FilterSection title="Price Range" filterKey="price" isActive={!!filters.price}>
                       {priceRanges.map((p) => (
-                        <Link
-                          key={p.value}
-                          href={buildFilterUrl("price", p.value)}
-                          className={`flex items-center justify-between rounded-lg px-3 py-2 text-sm hover:bg-slate-50 ${
-                            filters.price === p.value
-                              ? "bg-teal-50 text-teal-700 font-medium"
-                              : "text-slate-600"
-                          }`}
-                        >
-                          <span>{p.label}</span>
+                        <Link key={p.value} href={buildFilterUrl("price", p.value)}
+                          className={`flex items-center rounded-lg px-3 py-2 text-sm transition ${filters.price === p.value ? "bg-primary text-white font-medium" : "text-text hover:bg-surface-alt"}`}>
+                          {p.label}
                         </Link>
                       ))}
-                    </div>
+                    </FilterSection>
                   </div>
+
+                  <div className="py-4">
+                    <FilterSection title="Review Rating" filterKey="rating" isActive={!!filters.rating}>
+                      {ratingOptions.map((r) => (
+                        <Link key={r.value} href={buildFilterUrl("rating", r.value)}
+                          className={`flex items-center justify-between rounded-lg px-3 py-2 text-sm transition ${filters.rating === r.value ? "bg-primary/10 text-primary font-medium" : "text-text hover:bg-surface-alt"}`}>
+                          <span className="flex items-center gap-1">
+                            {Array.from({ length: Number(r.value) }).map((_, i) => (
+                              <Star key={i} className="h-3 w-3 fill-primary text-primary" />
+                            ))}
+                          </span>
+                          <span className="text-xs">{r.label}</span>
+                        </Link>
+                      ))}
+                    </FilterSection>
+                  </div>
+
+                  {hasActiveFilters && (
+                    <div className="py-4">
+                      <Link href={clearUrl} className="flex items-center justify-center gap-1.5 rounded-lg border border-border py-2 text-xs font-semibold text-text-muted hover:bg-surface-alt">
+                        <X className="h-3 w-3" /> Clear all filters
+                      </Link>
+                    </div>
+                  )}
                 </div>
               </div>
             </aside>
 
-            {/* ===== TREK GRID ===== */}
+            {/* ===== TREK GRID (client-side search) ===== */}
             <div className="flex-1">
-              <div className="mb-4 flex items-center justify-between">
-                <p className="text-sm text-slate-500">
-                  Showing <span className="font-medium text-slate-900">{filteredTreks.length}</span>{" "}
-                  {filteredTreks.length === 1 ? "trek" : "treks"}
-                </p>
-              </div>
-
-              {filteredTreks.length === 0 ? (
-                <div className="rounded-2xl border-2 border-dashed border-slate-200 bg-white p-12 text-center">
-                  <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-50">
-                    <MapPin className="h-6 w-6 text-slate-300" />
-                  </div>
-                  <h3 className="text-lg font-semibold text-slate-900">No treks found</h3>
-                  <p className="mt-1 text-sm text-slate-500">
-                    Try adjusting your filters to see more results.
-                  </p>
-                  {hasActiveFilters && (
-                    <Link
-                      href={clearUrl}
-                      className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-teal-500 to-teal-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:from-teal-600 hover:to-teal-700"
-                    >
-                      Clear Filters
-                    </Link>
-                  )}
-                </div>
-              ) : (
-                <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
-                  {filteredTreks.map((trek) => {
-                    const rating = avgRating(trek.reviews);
-                    const next = nextDate(trek.availableDates);
-                    return (
-                      <Link
-                        key={trek.id}
-                        href={`/${catSlug}/${trek.slug}`}
-                        className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg"
-                      >
-                        {/* Hero Image / Placeholder */}
-                        <div className="relative aspect-[16/9] overflow-hidden bg-gradient-to-br from-teal-100 to-teal-50">
-                          {trek.heroImage ? (
-                            <img
-                              src={`https://res.cloudinary.com/demo/image/upload/w_600,h_338,c_fill/${trek.heroImage}`}
-                              alt={trek.title}
-                              className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-                            />
-                          ) : (
-                            <div className="flex h-full w-full items-center justify-center">
-                              <Mountain className="h-12 w-12 text-teal-300" />
-                            </div>
-                          )}
-                          {/* Badges */}
-                          <div className="absolute left-3 top-3 flex flex-wrap gap-2">
-                            {trek.heroBadge && (
-                              <span className="rounded-full bg-gradient-to-r from-teal-500 to-teal-600 px-2.5 py-1 text-[11px] font-semibold text-white shadow-sm">
-                                {trek.heroBadge}
-                              </span>
-                            )}
-                            <span
-                              className={`rounded-full px-2.5 py-1 text-[11px] font-semibold shadow-sm ${
-                                difficultyColors[trek.difficulty] || "bg-slate-100 text-slate-600"
-                              }`}
-                            >
-                              {trek.difficulty.charAt(0).toUpperCase() + trek.difficulty.slice(1)}
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* Content */}
-                        <div className="p-4">
-                          <h3 className="text-base font-bold text-slate-900 group-hover:text-teal-600 transition-colors">
-                            {trek.title}
-                          </h3>
-                          {trek.subtitle && (
-                            <p className="mt-0.5 text-xs text-slate-500">{trek.subtitle}</p>
-                          )}
-
-                          {/* Meta row */}
-                          <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-slate-500">
-                            <span className="inline-flex items-center gap-1">
-                              <Clock className="h-3 w-3" /> {trek.duration} days
-                            </span>
-                            <span className="inline-flex items-center gap-1">
-                              <MapPin className="h-3 w-3" />{" "}
-                              {trek.region.charAt(0).toUpperCase() + trek.region.slice(1)}
-                            </span>
-                            {rating && (
-                              <span className="inline-flex items-center gap-1">
-                                <Star className="h-3 w-3 fill-amber-400 text-amber-400" /> {rating}
-                              </span>
-                            )}
-                          </div>
-
-                          {/* Next available date */}
-                          {next && (
-                            <div className="mt-2 flex items-center gap-1.5 rounded-lg bg-teal-50 px-2.5 py-1.5">
-                              <Calendar className="h-3 w-3 text-teal-600" />
-                              <span className="text-[11px] font-medium text-teal-700">
-                                {next.date}{" "}
-                                <span className="text-teal-500">
-                                  ({next.seatsLeft} {next.seatsLeft === 1 ? "seat" : "seats"})
-                                </span>
-                              </span>
-                            </div>
-                          )}
-
-                          {/* Price */}
-                          <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-3">
-                            <span className="text-xs text-slate-400">Starting from</span>
-                            <span className="text-lg font-bold text-teal-600">
-                              ${trek.price.toLocaleString()}
-                            </span>
-                          </div>
-                        </div>
-                      </Link>
-                    );
-                  })}
-                </div>
-              )}
+              <CategoryClient
+                catSlug={catSlug}
+                categoryName={category.name}
+                treks={JSON.parse(JSON.stringify(filteredTreks.map((t) => ({
+                  id: t.id,
+                  title: t.title,
+                  slug: t.slug,
+                  heroImage: t.heroImage,
+                  difficulty: t.difficulty,
+                  duration: t.duration,
+                  price: t.price,
+                  avgRating: (() => {
+                    const avg = avgRating(t.reviews);
+                    return avg !== null ? Math.round(avg * 10) / 10 : null;
+                  })(),
+                }))))}
+                hasActiveFilters={hasActiveFilters}
+                clearUrl={clearUrl}
+              />
             </div>
           </div>
         </div>

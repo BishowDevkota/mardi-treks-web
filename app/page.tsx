@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { getCachedOrFetch, cacheKeys } from "@/lib/redis";
 import { HeroCarousel } from "@/components/home/HeroCarousel";
 import { FallbackHero } from "@/components/home/FallbackHero";
 import { FeaturedTreksSection } from "@/components/home/FeaturedTreksSection";
@@ -13,9 +14,13 @@ import { ContactFormSection } from "@/components/home/ContactFormSection";
 export const revalidate = 300;
 
 export default async function HomePage() {
-  const settings = await prisma.homePageSettings.findUnique({
-    where: { id: "home-settings" },
-  });
+  const settings = await getCachedOrFetch(
+    cacheKeys.homeSettings,
+    () => prisma.homePageSettings.findUnique({
+      where: { id: "home-settings" },
+    }),
+    120
+  );
 
   const featuredTrekIds: string[] = settings?.featuredTrekIds
     ? JSON.parse(settings.featuredTrekIds)
@@ -24,16 +29,20 @@ export default async function HomePage() {
   // Fetch featured treks for hero carousel
   let featuredTreksData: any[] = [];
   if (featuredTrekIds.length > 0) {
-    featuredTreksData = await prisma.trek.findMany({
-      where: { id: { in: featuredTrekIds }, status: "published" },
-      include: {
-        category: true,
-        pricingTiers: true,
-        reviews: { where: { approved: true } },
-        itinerary: { orderBy: { dayNumber: "asc" } },
-        _count: { select: { reviews: true } },
-      },
-    });
+    featuredTreksData = await getCachedOrFetch(
+      cacheKeys.featuredTreks,
+      () => prisma.trek.findMany({
+        where: { id: { in: featuredTrekIds }, status: "published" },
+        include: {
+          category: true,
+          pricingTiers: true,
+          reviews: { where: { approved: true } },
+          itinerary: { orderBy: { dayNumber: "asc" } },
+          _count: { select: { reviews: true } },
+        },
+      }),
+      120
+    );
     featuredTreksData.sort((a, b) => featuredTrekIds.indexOf(a.id) - featuredTrekIds.indexOf(b.id));
   }
 
@@ -44,23 +53,31 @@ export default async function HomePage() {
 
   let featuredSectionTreks: any[] = [];
   if (featuredSectionIds.length > 0) {
-    featuredSectionTreks = await prisma.trek.findMany({
-      where: { id: { in: featuredSectionIds }, status: "published" },
-      include: {
-        category: { select: { slug: true } },
-        reviews: { where: { approved: true }, select: { rating: true } },
-        _count: { select: { reviews: true } },
-      },
-    });
+    featuredSectionTreks = await getCachedOrFetch(
+      cacheKeys.featuredSectionTreks,
+      () => prisma.trek.findMany({
+        where: { id: { in: featuredSectionIds }, status: "published" },
+        include: {
+          category: { select: { slug: true } },
+          reviews: { where: { approved: true }, select: { rating: true } },
+          _count: { select: { reviews: true } },
+        },
+      }),
+      120
+    );
     featuredSectionTreks.sort((a, b) => featuredSectionIds.indexOf(a.id) - featuredSectionIds.indexOf(b.id));
   }
 
   // Fetch all published treks for the search feature
-  const allTreksForSearch = await prisma.trek.findMany({
-    where: { status: "published" },
-    select: { title: true, slug: true, region: true, difficulty: true, duration: true, category: { select: { slug: true } } },
-    orderBy: { title: "asc" },
-  });
+  const allTreksForSearch = await getCachedOrFetch(
+    cacheKeys.searchTreks,
+    () => prisma.trek.findMany({
+      where: { status: "published" },
+      select: { title: true, slug: true, region: true, difficulty: true, duration: true, category: { select: { slug: true } } },
+      orderBy: { title: "asc" },
+    }),
+    300
+  );
 
   // Build hero content for the company slide
   const heroContent = settings
@@ -76,17 +93,33 @@ export default async function HomePage() {
     : undefined;
 
   // Fetch latest approved reviews for the carousel
-  const latestReviews = await prisma.trekReview.findMany({
-    where: { approved: true },
-    orderBy: { createdAt: "desc" },
-    take: 9,
-    include: { trek: { select: { title: true, slug: true } } },
-  });
+  const latestReviews = await getCachedOrFetch(
+    cacheKeys.latestReviews,
+    () => prisma.trekReview.findMany({
+      where: { approved: true },
+      orderBy: { createdAt: "desc" },
+      take: 9,
+      include: { trek: { select: { title: true, slug: true } } },
+    }),
+    120
+  );
 
   // Dynamic stats
-  const totalTreks = await prisma.trek.count({ where: { status: "published" } });
-  const totalReviews = await prisma.trekReview.count({ where: { approved: true } });
-  const totalBookings = await prisma.booking.count();
+  const totalTreks = await getCachedOrFetch(
+    cacheKeys.stats + ":treks",
+    () => prisma.trek.count({ where: { status: "published" } }),
+    120
+  );
+  const totalReviews = await getCachedOrFetch(
+    cacheKeys.stats + ":reviews",
+    () => prisma.trekReview.count({ where: { approved: true } }),
+    120
+  );
+  const totalBookings = await getCachedOrFetch(
+    cacheKeys.stats + ":bookings",
+    () => prisma.booking.count(),
+    120
+  );
 
   const dynamicStats = [
     { icon: "Mountain", value: `${totalTreks}+`, label: "Trek Packages" },
@@ -111,6 +144,9 @@ export default async function HomePage() {
   // Contact section
   const contactHeading = s?.contactHeading;
   const contactDescription = s?.contactDescription;
+  const contactInfoCards: { title: string; description: string }[] = s?.contactInfoCards
+    ? JSON.parse(s.contactInfoCards)
+    : [];
 
   // Why Choose Us
   const whyChooseUsEnabled = s?.whyChooseUsEnabled ?? true;
@@ -183,6 +219,7 @@ export default async function HomePage() {
       <ContactFormSection
         heading={contactHeading}
         description={contactDescription}
+        infoCards={contactInfoCards}
       />
     </>
   );

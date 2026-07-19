@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useSession } from "next-auth/react";
+import { usePathname } from "next/navigation";
 import { Star, Send, LogIn } from "lucide-react";
 import Link from "next/link";
 
@@ -11,6 +12,7 @@ interface ReviewFormProps {
 
 export function ReviewForm({ trekId }: ReviewFormProps) {
   const { data: session } = useSession();
+  const pathname = usePathname();
   const [rating, setRating] = useState(0);
   const [hoverRating, setHoverRating] = useState(0);
   const [text, setText] = useState("");
@@ -27,7 +29,7 @@ export function ReviewForm({ trekId }: ReviewFormProps) {
         <p className="mt-2 text-sm text-slate-500">Please log in or create an account to submit a review.</p>
         <div className="mt-4 flex items-center justify-center gap-3">
           <Link
-            href={`/login?callbackUrl=${encodeURIComponent(typeof window !== "undefined" ? window.location.pathname : "")}`}
+            href={`/login?callbackUrl=${encodeURIComponent(pathname)}`}
             className="inline-flex items-center gap-1.5 rounded-lg bg-teal-600 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-700"
           >
             Log In

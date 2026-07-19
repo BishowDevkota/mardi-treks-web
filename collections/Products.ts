@@ -39,15 +39,15 @@ export const Products: CollectionConfig = {
       },
     },
     {
-      name: "subtitle",
-      type: "text",
-    },
-    {
       name: "price",
       label: "Base Price (USD)",
       type: "number",
       required: true,
       min: 0,
+      admin: {
+        description: "Auto-calculated from pricing tiers lowest value",
+        readOnly: true,
+      },
     },
     {
       name: "duration",
@@ -55,6 +55,10 @@ export const Products: CollectionConfig = {
       type: "number",
       required: true,
       min: 1,
+      admin: {
+        description: "Auto-calculated from itinerary day count",
+        readOnly: true,
+      },
     },
     {
       name: "difficulty",
@@ -80,12 +84,21 @@ export const Products: CollectionConfig = {
       },
     },
     {
-      name: "maxGroupSize",
-      type: "number",
-      defaultValue: 12,
-      min: 1,
+      name: "bestTime",
+      label: "Best Time",
+      type: "text",
       admin: {
         position: "sidebar",
+        description: "e.g. Mar-May, Sep-Nov",
+      },
+    },
+    {
+      name: "maxAltitude",
+      label: "Max Altitude (m)",
+      type: "number",
+      admin: {
+        position: "sidebar",
+        description: "Auto-calculated from itinerary elevation",
       },
     },
     {
@@ -108,16 +121,6 @@ export const Products: CollectionConfig = {
       type: "upload",
       relationTo: "media",
       label: "Hero Image",
-    },
-    {
-      name: "heroSubtitle",
-      type: "text",
-      label: "Hero Subtitle",
-    },
-    {
-      name: "heroBadge",
-      type: "text",
-      label: "Hero Badge (e.g. 'Best Seller')",
     },
 
     // ── Overview ────────────────────────────────────────────────

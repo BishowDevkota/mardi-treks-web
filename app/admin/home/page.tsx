@@ -33,9 +33,14 @@ export default async function AdminHomePage() {
   };
 
   // Contact section
+  const contactInfoCards: { title: string; description: string }[] = s?.contactInfoCards
+    ? JSON.parse(s.contactInfoCards)
+    : [];
+
   const contactContent = {
     contactHeading: s?.contactHeading ?? "",
     contactDescription: s?.contactDescription ?? "",
+    contactInfoCards,
   };
 
   // Section content

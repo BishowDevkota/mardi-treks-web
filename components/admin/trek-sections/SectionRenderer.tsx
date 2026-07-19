@@ -13,6 +13,14 @@ const RichTextEditor = dynamic(
 );
 
 // ─── Props ───────────────────────────────────────────────────────────
+interface CategoryInfo {
+  id: string;
+  name: string;
+  slug: string;
+  icon?: string | null;
+  regions?: { id: string; name: string; slug: string }[];
+}
+
 interface Props {
   section: TrekSection;
   index: number;
@@ -22,7 +30,7 @@ interface Props {
   onRemove: (id: string) => void;
   onMoveUp: (index: number) => void;
   onMoveDown: (index: number) => void;
-  categories?: { id: string; name: string; slug: string; icon?: string | null }[];
+  categories?: CategoryInfo[];
 }
 
 // ─── Section wrapper with controls ──────────────────────────────────
@@ -86,8 +94,17 @@ function AddBtn({ onClick, label }: { onClick: () => void; label: string }) {
 // ═════════════════════════════════════════════════════════════════════
 
 // ─── Details ────────────────────────────────────────────────────────
-function DetailsSection({ data, onChange, categories }: { data: DetailsData; onChange: (d: DetailsData) => void; categories?: { id: string; name: string; slug: string; icon?: string | null }[] }) {
+function DetailsSection({ data, onChange, categories }: { data: DetailsData; onChange: (d: DetailsData) => void; categories?: CategoryInfo[] }) {
   const set = (field: keyof DetailsData, value: any) => onChange({ ...data, [field]: value });
+
+  // Compute available regions from the selected category's regions
+  const selectedCategory = categories?.find((c) => c.id === data.categoryId);
+  const allRegions = selectedCategory?.regions || [];
+  // When category changes, reset region if the current regionId doesn't belong to the new category
+  const regionValid = !data.regionId || allRegions.some((r) => r.id === data.regionId);
+  if (data.regionId && !regionValid) {
+    onChange({ ...data, regionId: "", region: "" });
+  }
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
       <Field label="Title *"><input value={data.title} onChange={(e) => set("title", e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" /></Field>
@@ -100,24 +117,23 @@ function DetailsSection({ data, onChange, categories }: { data: DetailsData; onC
           ))}
         </select>
       </Field>
-      <Field label="Subtitle"><input value={data.subtitle} onChange={(e) => set("subtitle", e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" /></Field>
-      <Field label="Hero Badge"><input value={data.heroBadge} onChange={(e) => set("heroBadge", e.target.value)} placeholder="Best Seller" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" /></Field>
-      <Field label="Hero Subtitle"><input value={data.heroSubtitle} onChange={(e) => set("heroSubtitle", e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" /></Field>
-      <Field label="Base Price (USD) *">
-        <div className="relative"><span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">$</span>
-          <input type="number" value={data.price} onChange={(e) => set("price", parseFloat(e.target.value) || 0)} className="w-full rounded-lg border border-slate-200 py-2 pl-7 pr-3 text-sm" /></div>
-      </Field>
-      <Field label="Duration (days) *"><input type="number" value={data.duration} onChange={(e) => set("duration", parseInt(e.target.value) || 0)} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" /></Field>
-      <Field label="Max Group Size"><input type="number" value={data.maxGroupSize} onChange={(e) => set("maxGroupSize", parseInt(e.target.value) || 12)} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" /></Field>
       <Field label="Difficulty">
         <select value={data.difficulty} onChange={(e) => set("difficulty", e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">
           {["easy", "moderate", "challenging", "difficult", "extreme"].map((d) => <option key={d} value={d}>{d.charAt(0).toUpperCase()+d.slice(1)}</option>)}
         </select>
       </Field>
       <Field label="Region">
-        <select value={data.region} onChange={(e) => set("region", e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">
-          {["everest","annapurna","langtang","mustang","manaslu","kanchenjunga","far-west","other"].map((r) => <option key={r} value={r}>{r.charAt(0).toUpperCase()+r.slice(1)}</option>)}
+        <select value={data.regionId} onChange={(e) => {
+          const selectedRegion = allRegions.find((r) => r.id === e.target.value);
+          set("regionId", e.target.value);
+          set("region", selectedRegion?.name || "");
+        }} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">
+          <option value="">Select a region...</option>
+          {allRegions.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
         </select>
+        {data.regionId && (
+          <p className="mt-1 text-xs text-slate-400">Region: {data.region}</p>
+        )}
       </Field>
       <Field label="Status">
         <select value={data.status} onChange={(e) => set("status", e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">
@@ -133,21 +149,71 @@ function DetailsSection({ data, onChange, categories }: { data: DetailsData; onC
 
 // ─── Overview ───────────────────────────────────────────────────────
 function OverviewSection({ data, onChange }: { data: OverviewData; onChange: (d: OverviewData) => void }) {
-  return <RichTextEditor content={data.content} onChange={(html) => onChange({ content: html })} placeholder="Describe the trek..." />;
+  const set = (field: string, val: any) => onChange({ ...data, [field]: val });
+  return (
+    <div className="space-y-4">
+      <RichTextEditor content={data.content} onChange={(html) => set("content", html)} placeholder="Describe the trek..." />
+
+      {/* Overview Stats Boxes */}
+      <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-4">
+        <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Overview Stats (shown in boxes)</p>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <Field label="Best Time *">
+            <input value={data.bestTime || ""} onChange={(e) => set("bestTime", e.target.value)}
+              placeholder="e.g. Mar-May, Sep-Nov"
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+          </Field>
+          <Field label="Max Altitude">
+            <div className="relative">
+              <input type="number" value={data.maxAltitude || ""} onChange={(e) => set("maxAltitude", parseFloat(e.target.value) || 0)}
+                placeholder="Auto-calculated from itinerary elevation"
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400">m</span>
+            </div>
+            <p className="mt-1 text-[10px] text-slate-400">Auto-calculated from itinerary elevation data on save. Override manually if needed.</p>
+          </Field>
+          <div className="rounded-md bg-slate-100 px-3 py-2 sm:col-span-2">
+            <p className="text-xs text-slate-500">
+              <span className="font-semibold">Note:</span> Duration, difficulty, min price, and region are taken from the
+              Details section and pricing tiers. Review stats will be auto-calculated on save.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 // ─── Itinerary ──────────────────────────────────────────────────────
 function ItinerarySection({ data, onChange }: { data: ItineraryData; onChange: (d: ItineraryData) => void }) {
+  const set = (field: string, val: any) => onChange({ ...data, [field]: val });
   const items = data.items;
-  const update = (i: number, field: string, val: any) => {
-    const next = items.map((item, idx) => idx === i ? { ...item, [field]: val } : item);
+  const updateItem = (i: number, updates: Record<string, any>) => {
+    const next = items.map((item, idx) => idx === i ? { ...item, ...updates } : item);
     onChange({ items: next });
   };
   const remove = (i: number) => onChange({ items: items.filter((_, idx) => idx !== i) });
-  const add = () => onChange({ items: [...items, { dayNumber: items.length + 1, title: "", description: "", elevation: "", accommodation: "", placeDescription: "" }] });
+  const add = () => onChange({ items: [...items, { dayNumber: items.length + 1, title: "", description: "", elevation: "", accommodation: "", placeDescription: "", lat: undefined, lng: undefined }] });
+
+  function parseCoord(raw: string) {
+    const comma = raw.lastIndexOf(",");
+    if (comma >= 0) {
+      const first = parseFloat(raw.slice(0, comma).trim());
+      const second = parseFloat(raw.slice(comma + 1).trim());
+      return { lat: !isNaN(first) ? first : undefined, lng: !isNaN(second) ? second : undefined };
+    }
+    const val = parseFloat(raw.trim());
+    return { lat: !isNaN(val) ? val : undefined, lng: undefined };
+  }
 
   return (
     <div className="space-y-3">
+      <Field label="Section Heading">
+        <input value={data.heading || ""} onChange={(e) => set("heading", e.target.value)} placeholder="e.g. Itinerary" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+      </Field>
+      <Field label="Section Description (optional)">
+        <textarea rows={2} value={data.description || ""} onChange={(e) => set("description", e.target.value)} placeholder="A brief description about the itinerary..." className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+      </Field>
       {items.length === 0 && <p className="text-xs text-slate-400 text-center py-2">No itinerary days yet.</p>}
       {items.map((item, i) => (
         <div key={i} className="rounded-lg border border-slate-200 bg-slate-50/50 p-3">
@@ -156,12 +222,30 @@ function ItinerarySection({ data, onChange }: { data: ItineraryData; onChange: (
             <button type="button" onClick={() => remove(i)} className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-500"><Trash2 className="h-3.5 w-3.5" /></button>
           </div>
           <div className="grid gap-2 sm:grid-cols-2">
-            <input type="number" value={item.dayNumber || i + 1} onChange={(e) => update(i, "dayNumber", parseInt(e.target.value) || i + 1)} className="rounded border border-slate-200 px-2 py-1.5 text-sm" />
-            <input value={item.title} onChange={(e) => update(i, "title", e.target.value)} placeholder="Title" className="rounded border border-slate-200 px-2 py-1.5 text-sm" />
-            <textarea rows={2} value={item.description} onChange={(e) => update(i, "description", e.target.value)} placeholder="Description" className="col-span-2 rounded border border-slate-200 px-2 py-1.5 text-sm" />
-            <input value={item.elevation} onChange={(e) => update(i, "elevation", e.target.value)} placeholder="Elevation (e.g. 2,800m)" className="rounded border border-slate-200 px-2 py-1.5 text-sm" />
-            <input value={item.accommodation} onChange={(e) => update(i, "accommodation", e.target.value)} placeholder="Accommodation" className="rounded border border-slate-200 px-2 py-1.5 text-sm" />
-            <input value={item.placeDescription || ""} onChange={(e) => update(i, "placeDescription", e.target.value)} placeholder="Place description (e.g. Gateway to the Khumbu)" className="col-span-2 rounded border border-slate-200 px-2 py-1.5 text-sm" />
+            <input type="number" value={item.dayNumber || i + 1} onChange={(e) => updateItem(i, { dayNumber: parseInt(e.target.value) || i + 1 })} className="rounded border border-slate-200 px-2 py-1.5 text-sm" />
+            <input value={item.title} onChange={(e) => updateItem(i, { title: e.target.value })} placeholder="Title" className="rounded border border-slate-200 px-2 py-1.5 text-sm" />
+            <textarea rows={2} value={item.description} onChange={(e) => updateItem(i, { description: e.target.value })} placeholder="Description" className="col-span-2 rounded border border-slate-200 px-2 py-1.5 text-sm" />
+            <input value={item.elevation} onChange={(e) => updateItem(i, { elevation: e.target.value })} placeholder="Elevation (e.g. 2,800m)" className="rounded border border-slate-200 px-2 py-1.5 text-sm" />
+            <input value={item.accommodation} onChange={(e) => updateItem(i, { accommodation: e.target.value })} placeholder="Accommodation" className="rounded border border-slate-200 px-2 py-1.5 text-sm" />
+            <input value={item.placeDescription || ""} onChange={(e) => updateItem(i, { placeDescription: e.target.value })} placeholder="Place description (e.g. Gateway to the Khumbu)" className="col-span-2 rounded border border-slate-200 px-2 py-1.5 text-sm" />
+            <div className="col-span-2 border-t border-slate-100 pt-2">
+              <p className="mb-1.5 text-[11px] font-medium text-slate-400">Route Coordinates (for map waypoint)</p>
+              <input
+                defaultValue={item.lat != null && item.lng != null ? item.lat + ", " + item.lng : item.lat != null ? String(item.lat) : item.lng != null ? String(item.lng) : ""}
+                onBlur={(e) => {
+                  const { lat, lng } = parseCoord(e.target.value);
+                  updateItem(i, { lat, lng });
+                  e.target.value = lat != null && lng != null ? lat + ", " + lng : lat != null ? String(lat) : lng != null ? String(lng) : "";
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    (e.target as HTMLInputElement).blur();
+                  }
+                }}
+                placeholder="27.7044, 85.3587"
+                className="w-full rounded border border-slate-200 px-2 py-1.5 text-sm font-mono"
+              />
+            </div>
           </div>
         </div>
       ))}
@@ -172,6 +256,7 @@ function ItinerarySection({ data, onChange }: { data: ItineraryData; onChange: (
 
 // ─── Inclusions & Exclusions (merged) ──────────────────────────────
 function InExSection({ data, onChange }: { data: InExData; onChange: (d: InExData) => void }) {
+  const set = (field: string, val: any) => onChange({ ...data, [field]: val });
   const items = data.items;
   const update = (i: number, field: string, val: any) => onChange({ items: items.map((item, idx) => idx === i ? { ...item, [field]: val } : item) });
   const remove = (i: number) => onChange({ items: items.filter((_, idx) => idx !== i) });
@@ -182,6 +267,12 @@ function InExSection({ data, onChange }: { data: InExData; onChange: (d: InExDat
 
   return (
     <div className="space-y-4">
+      <Field label="Section Heading">
+        <input value={data.heading || ""} onChange={(e) => set("heading", e.target.value)} placeholder="e.g. Inclusions & Exclusions" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+      </Field>
+      <Field label="Section Description (optional)">
+        <textarea rows={2} value={data.description || ""} onChange={(e) => set("description", e.target.value)} placeholder="A brief description..." className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+      </Field>
       <div>
         <label className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-emerald-700"><Check className="h-3 w-3" /> Included</label>
         <div className="space-y-1.5">
@@ -221,28 +312,38 @@ function InExSection({ data, onChange }: { data: InExData; onChange: (d: InExDat
 
 // ─── Pricing Tiers ──────────────────────────────────────────────────
 function PricingSection({ data, onChange }: { data: PricingData; onChange: (d: PricingData) => void }) {
+  const set = (field: string, val: any) => onChange({ ...data, [field]: val });
   const items = data.items;
   const update = (i: number, field: string, val: any) => onChange({ items: items.map((item, idx) => idx === i ? { ...item, [field]: val } : item) });
   const remove = (i: number) => onChange({ items: items.filter((_, idx) => idx !== i) });
   const add = () => onChange({ items: [...items, { groupSize: "", pricePerPerson: 0 }] });
 
   return (
-    <div className="space-y-2">
-      {items.map((item, i) => (
-        <div key={i} className="flex items-start gap-2 rounded-lg border border-slate-200 bg-slate-50/50 p-2.5">
-          <input value={item.groupSize} onChange={(e) => update(i, "groupSize", e.target.value)} placeholder="e.g. 1-2 people" className="flex-1 rounded border border-slate-200 px-2 py-1.5 text-sm" />
-          <div className="relative w-32"><span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm">$</span>
-            <input type="number" value={item.pricePerPerson} onChange={(e) => update(i, "pricePerPerson", parseFloat(e.target.value) || 0)} className="w-full rounded border border-slate-200 py-1.5 pl-6 pr-2 text-sm" /></div>
-          <button type="button" onClick={() => remove(i)} className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-500"><Trash2 className="h-3.5 w-3.5" /></button>
-        </div>
-      ))}
-      <AddBtn onClick={add} label="Add pricing tier" />
+    <div className="space-y-3">
+      <Field label="Section Heading">
+        <input value={data.heading || ""} onChange={(e) => set("heading", e.target.value)} placeholder="e.g. Pricing" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+      </Field>
+      <Field label="Section Description (optional)">
+        <textarea rows={2} value={data.description || ""} onChange={(e) => set("description", e.target.value)} placeholder="A brief description about the pricing..." className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+      </Field>
+      <div className="space-y-2">
+        {items.map((item, i) => (
+          <div key={i} className="flex items-start gap-2 rounded-lg border border-slate-200 bg-slate-50/50 p-2.5">
+            <input value={item.groupSize} onChange={(e) => update(i, "groupSize", e.target.value)} placeholder="e.g. 1-2 people" className="flex-1 rounded border border-slate-200 px-2 py-1.5 text-sm" />
+            <div className="relative w-32"><span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm">$</span>
+              <input type="number" value={item.pricePerPerson} onChange={(e) => update(i, "pricePerPerson", parseFloat(e.target.value) || 0)} className="w-full rounded border border-slate-200 py-1.5 pl-6 pr-2 text-sm" /></div>
+            <button type="button" onClick={() => remove(i)} className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-500"><Trash2 className="h-3.5 w-3.5" /></button>
+          </div>
+        ))}
+        <AddBtn onClick={add} label="Add pricing tier" />
+      </div>
     </div>
   );
 }
 
 // ─── Add-ons ───────────────────────────────────────────────────────
 function AddonSection({ data, onChange }: { data: AddonData; onChange: (d: AddonData) => void }) {
+  const set = (field: string, val: any) => onChange({ ...data, [field]: val });
   const items = data.items || [];
   const update = (i: number, field: string, val: any) => onChange({ items: items.map((item, idx) => idx === i ? { ...item, [field]: val } : item) });
   const remove = (i: number) => onChange({ items: items.filter((_, idx) => idx !== i) });
@@ -250,6 +351,12 @@ function AddonSection({ data, onChange }: { data: AddonData; onChange: (d: Addon
 
   return (
     <div className="space-y-3">
+      <Field label="Section Heading">
+        <input value={data.heading || ""} onChange={(e) => set("heading", e.target.value)} placeholder="e.g. Add-ons" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+      </Field>
+      <Field label="Section Description (optional)">
+        <textarea rows={2} value={data.description || ""} onChange={(e) => set("description", e.target.value)} placeholder="A brief description about the add-ons..." className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+      </Field>
       {items.length === 0 && <p className="text-xs text-slate-400 text-center py-2">No add-ons yet.</p>}
       {items.map((item, i) => (
         <div key={i} className="rounded-lg border border-slate-200 bg-slate-50/50 p-3">
@@ -280,6 +387,7 @@ function AddonSection({ data, onChange }: { data: AddonData; onChange: (d: Addon
 
 // ─── Gallery ───────────────────────────────────────────────────────
 function GallerySection({ data, onChange }: { data: GalleryData; onChange: (d: GalleryData) => void }) {
+  const set = (field: string, val: any) => onChange({ ...data, [field]: val });
   const items = data.items || [];
   const update = (i: number, field: string, val: any) => onChange({ items: items.map((item, idx) => idx === i ? { ...item, [field]: val } : item) });
   const remove = (i: number) => onChange({ items: items.filter((_, idx) => idx !== i) });
@@ -287,6 +395,12 @@ function GallerySection({ data, onChange }: { data: GalleryData; onChange: (d: G
 
   return (
     <div className="space-y-3">
+      <Field label="Section Heading">
+        <input value={data.heading || ""} onChange={(e) => set("heading", e.target.value)} placeholder="e.g. Gallery" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+      </Field>
+      <Field label="Section Description (optional)">
+        <textarea rows={2} value={data.description || ""} onChange={(e) => set("description", e.target.value)} placeholder="A brief description about the gallery..." className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+      </Field>
       {items.length === 0 && <p className="text-xs text-slate-400 text-center py-2">No gallery images yet.</p>}
       {items.map((item, i) => (
         <div key={i} className="rounded-lg border border-slate-200 bg-slate-50/50 p-3">
@@ -308,6 +422,7 @@ function GallerySection({ data, onChange }: { data: GalleryData; onChange: (d: G
 
 // ─── FAQs ───────────────────────────────────────────────────────────
 function FaqsSection({ data, onChange }: { data: FaqsData; onChange: (d: FaqsData) => void }) {
+  const set = (field: string, val: any) => onChange({ ...data, [field]: val });
   const items = data.items;
   const update = (i: number, field: string, val: string) => onChange({ items: items.map((item, idx) => idx === i ? { ...item, [field]: val } : item) });
   const remove = (i: number) => onChange({ items: items.filter((_, idx) => idx !== i) });
@@ -315,6 +430,12 @@ function FaqsSection({ data, onChange }: { data: FaqsData; onChange: (d: FaqsDat
 
   return (
     <div className="space-y-3">
+      <Field label="Section Heading">
+        <input value={data.heading || ""} onChange={(e) => set("heading", e.target.value)} placeholder="e.g. Frequently Asked Questions" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+      </Field>
+      <Field label="Section Description (optional)">
+        <textarea rows={2} value={data.description || ""} onChange={(e) => set("description", e.target.value)} placeholder="A brief description about the FAQs..." className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+      </Field>
       {items.map((item, i) => (
         <div key={i} className="rounded-lg border border-slate-200 bg-slate-50/50 p-3">
           <div className="flex items-center justify-between mb-1.5">
@@ -335,27 +456,16 @@ function FaqsSection({ data, onChange }: { data: FaqsData; onChange: (d: FaqsDat
 // ─── Map ────────────────────────────────────────────────────────────
 function MapSection({ data, onChange }: { data: MapData; onChange: (d: MapData) => void }) {
   const set = (field: keyof MapData, value: any) => onChange({ ...data, [field]: value });
-
-  const waypoints = Array.isArray(data.waypoints) ? data.waypoints : [];
-  const addWaypoint = () => set("waypoints", [...waypoints, { lng: 0, lat: 0, label: "" }]);
-  const removeWp = (i: number) => set("waypoints", waypoints.filter((_, idx) => idx !== i));
-
-  // Parse "lat, lng" string — extracts both numbers from a single input
-  function parseCoord(raw: string) {
-    const parts = raw.split(",").map((s) => parseFloat(s.trim()));
-    return { lat: parts[0] && !isNaN(parts[0]) ? parts[0] : 0, lng: parts[1] && !isNaN(parts[1]) ? parts[1] : 0 };
-  }
-  function coordValue(wp: { lat: number; lng: number }) {
-    return wp.lat || wp.lng ? `${wp.lat}, ${wp.lng}` : "";
-  }
-  function updateWpCoord(i: number, raw: string) {
-    const { lat, lng } = parseCoord(raw);
-    const next = waypoints.map((wp, idx) => (idx === i ? { ...wp, lat, lng } : wp));
-    set("waypoints", next);
-  }
+  const setMeta = (field: string, val: any) => onChange({ ...data, [field]: val });
 
   return (
     <div className="space-y-3">
+      <Field label="Section Heading">
+        <input value={data.heading || ""} onChange={(e) => setMeta("heading", e.target.value)} placeholder="e.g. Route Map" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+      </Field>
+      <Field label="Section Description (optional)">
+        <textarea rows={2} value={data.description || ""} onChange={(e) => setMeta("description", e.target.value)} placeholder="A brief description about the map..." className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+      </Field>
       <MapPreview centerLat={data.centerLat} centerLng={data.centerLng} zoom={data.zoom} pitch={data.pitch} />
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         <Field label="Center Lat" slim><input type="number" step="any" value={data.centerLat} onChange={(e) => set("centerLat", parseFloat(e.target.value) || 0)} className="w-full rounded border border-slate-200 px-2 py-1.5 text-sm" /></Field>
@@ -381,41 +491,10 @@ function MapSection({ data, onChange }: { data: MapData; onChange: (d: MapData) 
         />
       </div>
 
-      {/* Waypoints */}
-      <div>
-        <label className="block text-xs font-medium text-slate-500 mb-2">Route Waypoints</label>
-        <div className="space-y-1.5">
-          {waypoints.length === 0 && (
-            <p className="text-xs text-slate-400 text-center py-2">No waypoints. Add points along the trek route.</p>
-          )}
-          {waypoints.map((wp, i) => (
-            <div key={i} className="rounded-lg border border-slate-200 bg-slate-50/50 p-2">
-              <div className="flex items-start gap-1.5">
-                <span className="mt-1.5 text-xs font-bold text-slate-400 w-5 shrink-0">{i + 1}.</span>
-                <input type="text" value={coordValue(wp)} placeholder="27.70, 85.37"
-                  onChange={(e) => updateWpCoord(i, e.target.value)}
-                  className="w-44 rounded border border-slate-200 px-2 py-1.5 text-sm font-mono" />
-                <input type="text" value={wp.label} placeholder="Label (e.g. Lukla)"
-                  onChange={(e) => {
-                    const next = waypoints.map((w, idx) => (idx === i ? { ...w, label: e.target.value } : w));
-                    set("waypoints", next);
-                  }}
-                  className="flex-1 rounded border border-slate-200 px-2 py-1.5 text-sm" />
-                <button type="button" onClick={() => removeWp(i)}
-                  className="mt-1 rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-500 shrink-0">
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
-              </div>
-              <textarea rows={1} value={wp.description || ""} placeholder="Description (shown on hover)"
-                onChange={(e) => {
-                  const next = waypoints.map((w, idx) => (idx === i ? { ...w, description: e.target.value } : w));
-                  set("waypoints", next);
-                }}
-                className="mt-1.5 w-full rounded border border-slate-200 px-2 py-1 text-xs text-slate-600 resize-none" />
-            </div>
-          ))}
-          <AddBtn onClick={addWaypoint} label="Add waypoint" />
-        </div>
+      <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-3">
+        <p className="text-xs text-slate-500">
+          <span className="font-semibold">Waypoints:</span> Set coordinates (latitude/longitude) per day in the <strong>Itinerary</strong> section. Days with coordinates will appear as waypoints on the map.
+        </p>
       </div>
     </div>
   );

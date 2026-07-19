@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
+import { invalidateCachePattern, cacheKeys } from "@/lib/redis";
 
 export async function approveReview(id: string) {
   const session = await auth();
@@ -13,7 +14,9 @@ export async function approveReview(id: string) {
     data: { approved: true },
   });
 
+  invalidateCachePattern(cacheKeys.pattern.home);
   revalidatePath("/admin/reviews");
+  revalidatePath("/", "layout");
 }
 
 export async function rejectReview(id: string) {
@@ -22,5 +25,7 @@ export async function rejectReview(id: string) {
 
   // Reject = delete the review
   await prisma.trekReview.delete({ where: { id } });
+  invalidateCachePattern(cacheKeys.pattern.home);
   revalidatePath("/admin/reviews");
+  revalidatePath("/", "layout");
 }

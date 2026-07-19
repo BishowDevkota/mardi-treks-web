@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
+import { invalidateCachePattern, cacheKeys } from "@/lib/redis";
 
 export async function updateBookingStatus(id: string, status: string) {
   const session = await auth();
@@ -20,7 +21,14 @@ export async function deleteBooking(id: string) {
   const session = await auth();
   if (!session || (session.user as any).role !== "admin") throw new Error("Unauthorized");
 
-  await prisma.booking.delete({ where: { id } });
+  // Delete child records first to avoid foreign key constraint violations
+  await prisma.$transaction(async (tx) => {
+    await tx.payment.deleteMany({ where: { bookingId: id } });
+    await tx.travelerDetail.deleteMany({ where: { bookingId: id } });
+    await tx.booking.delete({ where: { id } });
+  });
+
+  invalidateCachePattern(cacheKeys.pattern.home);
   revalidatePath("/admin/bookings");
 }
 

@@ -1,124 +1,129 @@
 import type { Metadata } from "next";
-import { Mountain, Users, Shield, Heart, Award, Globe } from "lucide-react";
+import { prisma } from "@/lib/prisma";
+import Image from "next/image";
+import { Mountain, Shield, Heart, Award, Globe, Users } from "lucide-react";
+import { WhyChooseUs } from "@/components/home/WhyChooseUs";
 
-export const metadata: Metadata = {
-  title: "About Us",
-  description:
-    "Learn about Mardi Treks — Nepal's premier trekking and tour agency. Discover our story, our team, and our commitment to sustainable Himalayan travel.",
-};
+export const revalidate = 300;
 
-const values = [
-  {
-    icon: Shield,
-    title: "Safety First",
-    description:
-      "Every guide is wilderness first-aid certified and carries satellite communication. We never compromise on safety standards.",
-  },
-  {
-    icon: Heart,
-    title: "Community Impact",
-    description:
-      "We employ local guides, support village schools, and invest in community-led tourism initiatives across trekking regions.",
-  },
-  {
-    icon: Award,
-    title: "Expert Knowledge",
-    description:
-      "With decades of combined experience, our team knows every trail, peak, and village in Nepal's trekking regions.",
-  },
-  {
-    icon: Globe,
-    title: "Sustainable Travel",
-    description:
-      "We're committed to leave-no-trace principles, plastic-free treks, and carbon-offset programs for every booking.",
-  },
-];
+async function getPageContent() {
+  const settings = await prisma.siteSetting.findUnique({
+    where: { id: "site-settings" },
+    select: { pageContent: true },
+  });
+  if (!settings?.pageContent) return null;
+  try { return JSON.parse(settings.pageContent); } catch { return null; }
+}
 
-const team = [
-  { name: "Rajesh Gurung", role: "Founder & Lead Guide", region: "Annapurna Region" },
-  { name: "Maya Sherpa", role: "Operations Manager", region: "Khumbu Region" },
-  { name: "David Thapa", role: "Senior Trek Guide", region: "Langtang Region" },
-  { name: "Anita Rai", role: "Customer Relations", region: "Kathmandu" },
-];
+const iconMap: Record<string, any> = { Shield, Heart, Award, Globe, Users, Mountain };
 
-export default function AboutPage() {
+export async function generateMetadata(): Promise<Metadata> {
+  const pc = await getPageContent();
+  const about = pc?.about;
+  return {
+    title: about?.seo?.title || "About Us",
+    description: about?.seo?.description || "Learn about Mardi Treks — Nepal's premier trekking and tour agency.",
+  };
+}
+
+export default async function AboutPage() {
+  const pc = await getPageContent();
+  const about = pc?.about || {};
+  const hero = about.hero || {};
+  const sections = about.sections || [];
+  const whyChooseUs = about.whyChooseUs || {};
+  const team = about.team || [];
+  const gallery = about.gallery || [];
+
   return (
     <>
-      {/* Hero */}
-      <section className="bg-gradient-to-br from-slate-900 to-slate-800 py-16">
-        <div className="mx-auto max-w-3xl px-4 text-center sm:px-6 lg:px-8">
+      {/* ── Hero ── */}
+      <section
+        className="relative flex items-center py-16"
+        style={hero.backgroundImage ? {
+          backgroundImage: `url(https://res.cloudinary.com/dk7ggjvlw/image/upload/${hero.backgroundImage})`,
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+        } : {}}
+      >
+        {hero.backgroundImage && <div className="absolute inset-0 bg-black/50" />}
+        <div className="relative z-10 mx-auto max-w-3xl px-4 text-center sm:px-6 lg:px-8">
           <Mountain className="mx-auto h-12 w-12 text-primary-light" />
           <h1 className="mt-4 text-4xl font-bold tracking-tight text-white sm:text-5xl">
-            About Mardi Treks
+            {hero.heading || "About Mardi Treks"}
           </h1>
-          <p className="mt-4 text-lg text-slate-300">
-            We&apos;ve been helping travelers explore the Himalayas since 2008. Our mission is
-            simple: create life-changing adventures while supporting the communities and
-            environments that make them possible.
-          </p>
+          {hero.description && (
+            <p className="mt-4 text-lg text-slate-300">{hero.description}</p>
+          )}
         </div>
       </section>
 
-      {/* Story */}
-      <section className="py-16">
-        <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8">
-          <h2 className="text-2xl font-bold text-foreground">Our Story</h2>
-          <div className="mt-4 space-y-4 text-text leading-relaxed">
-            <p>
-              Mardi Treks was born from a love for the mountains and a desire to share Nepal&apos;s
-              incredible trekking routes with the world. Our founder, Rajesh Gurung, grew up in
-              the shadow of Mardi Himal and spent his youth exploring every trail in the region.
-            </p>
-            <p>
-              What started as guiding small groups on his home trails has grown into a full-service
-              trekking agency operating across Nepal&apos;s premier trekking regions. Today, we employ
-              over 30 local guides, porters, and support staff — all from the communities we trek through.
-            </p>
-            <p>
-              We believe that travel should be a force for good. That&apos;s why we invest 10% of our
-              profits into community development projects in the regions where we operate, from
-              trail maintenance to school supplies in remote mountain villages.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      {/* Values */}
-      <section className="bg-surface py-16">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <h2 className="text-center text-2xl font-bold text-foreground">What We Stand For</h2>
-          <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-            {values.map((value) => (
-              <div key={value.title} className="rounded-xl border border-border bg-white p-6 text-center">
-                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10">
-                  <value.icon className="h-6 w-6 text-primary" />
-                </div>
-                <h3 className="mt-4 font-semibold text-foreground">{value.title}</h3>
-                <p className="mt-2 text-sm text-text-muted">{value.description}</p>
+      {/* ── Custom Sections ── */}
+      {sections.map((sec: any, i: number) => (
+        <section key={sec.id || i} className="py-16">
+          <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8">
+            {sec.heading && <h2 className="text-2xl font-bold text-foreground">{sec.heading}</h2>}
+            {sec.description && (
+              <div className="mt-4 space-y-4 text-text leading-relaxed">
+                <p>{sec.description}</p>
               </div>
-            ))}
+            )}
           </div>
-        </div>
-      </section>
+        </section>
+      ))}
 
-      {/* Team */}
-      <section className="py-16">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <h2 className="text-center text-2xl font-bold text-foreground">Our Team</h2>
-          <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-            {team.map((member) => (
-              <div key={member.name} className="text-center">
-                <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-primary/10">
-                  <Users className="h-8 w-8 text-primary" />
+      {/* ── Why Choose Us ── */}
+      <WhyChooseUs
+        heading={whyChooseUs.heading || "Why Trek With Us?"}
+        subtitle={whyChooseUs.subtitle || "Discover the Difference"}
+        items={whyChooseUs.items || []}
+        bgImage={whyChooseUs.bgImage}
+      />
+
+      {/* ── Team ── */}
+      {team.length > 0 && (
+        <section className="py-16">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+            <h2 className="text-center text-2xl font-bold text-foreground">Our Team</h2>
+            <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+              {team.map((member: any, i: number) => (
+                <div key={i} className="text-center">
+                  <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-primary/10">
+                    {member.image ? (
+                      <Image src={`https://res.cloudinary.com/dk7ggjvlw/image/upload/${member.image}`} alt={member.name} width={80} height={80} className="rounded-full object-cover" />
+                    ) : (
+                      <Users className="h-8 w-8 text-primary" />
+                    )}
+                  </div>
+                  <h3 className="mt-4 font-semibold text-foreground">{member.name}</h3>
+                  <p className="text-sm text-primary">{member.role}</p>
                 </div>
-                <h3 className="mt-4 font-semibold text-foreground">{member.name}</h3>
-                <p className="text-sm text-primary">{member.role}</p>
-                <p className="text-xs text-text-muted">{member.region}</p>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
+
+      {/* ── Gallery / Legal Documents ── */}
+      {gallery.length > 0 && (
+        <section className="bg-surface py-16">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+            <h2 className="text-center text-2xl font-bold text-foreground">Legal Documents</h2>
+            <div className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              {gallery.map((item: any, i: number) => (
+                <div key={i} className="overflow-hidden rounded-xl border border-border bg-white">
+                  {item.imageId && (
+                    <div className="relative aspect-[4/3]">
+                      <Image src={`https://res.cloudinary.com/dk7ggjvlw/image/upload/${item.imageId}`} alt={item.caption || ""} fill className="object-cover" />
+                    </div>
+                  )}
+                  {item.caption && <p className="p-3 text-xs text-text-muted">{item.caption}</p>}
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
     </>
   );
 }
