@@ -1,13 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { loadStripe } from "@stripe/stripe-js";
+import { loadStripe, Stripe } from "@stripe/stripe-js";
 import { Elements, PaymentElement, useStripe, useElements } from "@stripe/react-stripe-js";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import Link from "next/link";
-
-const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
 
 function CheckoutForm({ bookingId, onComplete }: { bookingId: string; onComplete: () => void }) {
   const stripe = useStripe();
@@ -60,15 +58,35 @@ export default function StripePaymentPage({ params }: { params: Promise<{ id: st
   const searchParams = useSearchParams();
   const [bookingId, setBookingId] = useState<string>("");
   const [clientSecret, setClientSecret] = useState<string | null>(null);
+  const [stripePromise, setStripePromise] = useState<Promise<Stripe | null> | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Fetch the Stripe publishable key at runtime, then initialize Stripe
+  useEffect(() => {
+    async function initStripe() {
+      try {
+        const res = await fetch("/api/stripe-key");
+        if (!res.ok) {
+          const data = await res.json();
+          throw new Error(data.error || "Failed to load Stripe configuration");
+        }
+        const { publishableKey } = await res.json();
+        setStripePromise(loadStripe(publishableKey));
+      } catch (err: any) {
+        setError(err.message || "Failed to initialize payment system");
+        setLoading(false);
+      }
+    }
+    initStripe();
+  }, []);
 
   useEffect(() => {
     params.then((p) => setBookingId(p.id));
   }, [params]);
 
   useEffect(() => {
-    if (!bookingId) return;
+    if (!bookingId || !stripePromise) return;
     const cs = searchParams.get("clientSecret");
     if (cs) {
       setClientSecret(cs);
@@ -77,7 +95,7 @@ export default function StripePaymentPage({ params }: { params: Promise<{ id: st
       // Initiate payment if no clientSecret
       initiatePayment();
     }
-  }, [bookingId, searchParams]);
+  }, [bookingId, stripePromise, searchParams]);
 
   async function initiatePayment() {
     if (!bookingId) return;
@@ -100,7 +118,7 @@ export default function StripePaymentPage({ params }: { params: Promise<{ id: st
     }
   }
 
-  if (loading) {
+  if (loading || !stripePromise) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-teal-600" />
