@@ -1,8 +1,97 @@
-import Link from "next/link";
-import { CheckCircle } from "lucide-react";
+"use client";
 
-export default async function PaymentSuccessPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
+import { useState, useEffect } from "react";
+import { useParams, useSearchParams } from "next/navigation";
+import Link from "next/link";
+import { CheckCircle, Loader2, ArrowLeft } from "lucide-react";
+
+export default function PaymentSuccessPage() {
+  const params = useParams();
+  const searchParams = useSearchParams();
+  const [bookingId, setBookingId] = useState<string>("");
+  const [status, setStatus] = useState<"verifying" | "success" | "error">("verifying");
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    params.id.then((id: string) => setBookingId(id));
+  }, [params]);
+
+  useEffect(() => {
+    if (!bookingId) return;
+
+    async function verifyPayment() {
+      const paymentIntentId = searchParams.get("payment_intent");
+
+      // If Stripe provided a payment_intent ID, verify it
+      if (paymentIntentId) {
+        try {
+          const res = await fetch("/api/payments/verify", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ bookingId, paymentIntentId }),
+          });
+          const data = await res.json();
+
+          if (data.verified) {
+            setStatus("success");
+          } else if (data.status === "succeeded") {
+            setStatus("success");
+          } else {
+            setError(data.message || "Payment verification pending");
+            setStatus("error");
+          }
+        } catch {
+          setError("Could not verify payment. Please check your dashboard.");
+          setStatus("error");
+        }
+      } else {
+        // No payment_intent in URL, just show success
+        setStatus("success");
+      }
+    }
+
+    verifyPayment();
+  }, [bookingId, searchParams]);
+
+  if (status === "verifying") {
+    return (
+      <div className="mx-auto max-w-lg px-4 py-20 text-center">
+        <Loader2 className="mx-auto h-8 w-8 animate-spin text-teal-600" />
+        <h1 className="mt-6 text-2xl font-bold text-slate-900">Verifying Payment...</h1>
+        <p className="mt-2 text-sm text-slate-500">
+          Please wait while we confirm your payment.
+        </p>
+      </div>
+    );
+  }
+
+  if (status === "error") {
+    return (
+      <div className="mx-auto max-w-lg px-4 py-20 text-center">
+        <h1 className="text-2xl font-bold text-slate-900">Payment Received</h1>
+        <p className="mt-2 text-sm text-slate-500">
+          {error || "Your payment was processed, but verification is pending."}
+        </p>
+        <p className="mt-1 text-sm text-slate-400">
+          Please check your dashboard for the latest booking status.
+        </p>
+        <div className="mt-8 flex items-center justify-center gap-4">
+          <Link
+            href="/dashboard"
+            className="rounded-xl bg-gradient-to-r from-teal-500 to-teal-600 px-6 py-2.5 text-sm font-semibold text-white shadow-sm hover:from-teal-600 hover:to-teal-700"
+          >
+            View My Bookings
+          </Link>
+          <Link
+            href="/treks"
+            className="rounded-xl border border-slate-200 px-6 py-2.5 text-sm font-medium text-slate-500 hover:bg-slate-50"
+          >
+            Browse More Treks
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-lg px-4 py-20 text-center">
@@ -11,7 +100,7 @@ export default async function PaymentSuccessPage({ params }: { params: Promise<{
       </div>
       <h1 className="mt-6 text-2xl font-bold text-slate-900">Payment Successful!</h1>
       <p className="mt-2 text-sm text-slate-500">
-        Your payment has been processed successfully. Booking #{id.slice(0, 8)} is confirmed.
+        Your payment has been processed successfully. Booking #{bookingId?.slice(0, 8)} is confirmed.
       </p>
       <div className="mt-8 flex items-center justify-center gap-4">
         <Link

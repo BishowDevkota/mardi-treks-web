@@ -112,6 +112,15 @@ export async function PUT(request: NextRequest) {
       });
 
       if (payment) {
+        // Determine if this was an advance or full payment
+        const booking = await prisma.booking.findUnique({
+          where: { id: payment.bookingId },
+          select: { totalPrice: true },
+        });
+
+        const isPartial = booking ? payment.amount < booking.totalPrice : false;
+        const paymentStatus = isPartial ? "PARTIALLY_PAID" : "FULLY_PAID";
+
         await prisma.$transaction(async (tx) => {
           await tx.payment.update({
             where: { id: payment.id },
@@ -120,7 +129,10 @@ export async function PUT(request: NextRequest) {
 
           await tx.booking.update({
             where: { id: payment.bookingId },
-            data: { status: "CONFIRMED" },
+            data: {
+              status: "CONFIRMED",
+              paymentStatus,
+            },
           });
         });
       }
