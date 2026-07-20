@@ -50,6 +50,9 @@ export default async function AdminBookingsPage({
       include: {
         user: { select: { name: true, email: true } },
         payment: { select: { method: true, status: true, amount: true } },
+        travelerDetails: {
+          select: { fullName: true, email: true, phone: true, nationality: true, passportNumber: true, age: true },
+        },
       },
     }),
     prisma.booking.aggregate({

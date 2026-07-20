@@ -33,6 +33,12 @@ export const travelerDetailSchema = z.object({
   age: z.number().int().min(1).max(120).optional().nullable(),
 });
 
+const addonItemSchema = z.object({
+  title: z.string(),
+  qty: z.number().int().min(0),
+  pricePerUnit: z.number().min(0),
+});
+
 export const createBookingSchema = z.object({
   trekSlug: z.string().min(1, "Trek slug is required"),
   trekTitle: z.string().min(1, "Trek title is required"),
@@ -42,6 +48,7 @@ export const createBookingSchema = z.object({
     message: "Invalid date",
   }),
   groupSize: z.number().int().min(1, "At least 1 traveler").max(20),
+  addons: z.array(addonItemSchema).optional().default([]),
   specialRequests: z.string().max(2000).optional().or(z.literal("")),
   travelers: z
     .array(travelerDetailSchema)

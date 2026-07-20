@@ -258,6 +258,7 @@ export function AdminBookingsClient({
             </div>
 
             <div className="mt-5 space-y-4">
+              {/* Customer & Trek Info */}
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="rounded-xl bg-slate-50 p-4">
                   <p className="text-xs font-medium uppercase tracking-wider text-slate-500">Customer</p>
@@ -271,6 +272,7 @@ export function AdminBookingsClient({
                 </div>
               </div>
 
+              {/* Date, Travelers, Price */}
               <div className="grid gap-4 sm:grid-cols-3">
                 <div className="rounded-xl bg-slate-50 p-4">
                   <p className="text-xs font-medium uppercase tracking-wider text-slate-500">Start Date</p>
@@ -286,6 +288,35 @@ export function AdminBookingsClient({
                 </div>
               </div>
 
+              {/* Payment Info */}
+              <div className="rounded-xl bg-slate-50 p-4">
+                <p className="text-xs font-medium uppercase tracking-wider text-slate-500">Payment</p>
+                {selectedBooking.payment ? (
+                  <div className="mt-2 space-y-1">
+                    <p className="text-sm text-slate-700">
+                      Method: <span className="font-medium capitalize">{selectedBooking.payment.method || "N/A"}</span>
+                    </p>
+                    <p className="text-sm text-slate-700">
+                      Amount: <span className="font-medium">${selectedBooking.payment.amount?.toLocaleString() || "0"}</span>
+                    </p>
+                    <p className="text-sm text-slate-700">
+                      Status: <span className="font-medium">{selectedBooking.payment.status || "N/A"}</span>
+                    </p>
+                    {selectedBooking.paymentStatus && (
+                      <p className={`text-sm font-medium ${
+                        selectedBooking.paymentStatus === "FULLY_PAID" ? "text-emerald-600" :
+                        selectedBooking.paymentStatus === "PARTIALLY_PAID" ? "text-blue-600" : "text-amber-600"
+                      }`}>
+                        {selectedBooking.paymentStatus.replace(/_/g, " ")}
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <p className="mt-1 text-sm text-slate-400">No payment recorded</p>
+                )}
+              </div>
+
+              {/* Special Requests */}
               {selectedBooking.specialRequests && (
                 <div className="rounded-xl bg-amber-50 p-4">
                   <p className="text-xs font-medium uppercase tracking-wider text-amber-600">Special Requests</p>
@@ -293,19 +324,41 @@ export function AdminBookingsClient({
                 </div>
               )}
 
+              {/* Add-ons */}
+              {selectedBooking.addons && (() => {
+                let parsedAddons;
+                try { parsedAddons = JSON.parse(selectedBooking.addons); } catch { parsedAddons = null; }
+                return parsedAddons && parsedAddons.length > 0 ? (
+                  <div className="rounded-xl bg-slate-50 p-4">
+                    <p className="text-xs font-medium uppercase tracking-wider text-slate-500">Add-ons</p>
+                    <div className="mt-2 space-y-1">
+                      {parsedAddons.map((addon: any, i: number) => (
+                        <p key={i} className="text-sm text-slate-700">
+                          {addon.title} &times; {addon.qty} — <span className="font-medium">+${(addon.qty * addon.pricePerUnit).toLocaleString()}</span>
+                        </p>
+                      ))}
+                    </div>
+                  </div>
+                ) : null;
+              })()}
+
+              {/* Traveler Details - Full Info */}
               <div className="rounded-xl bg-slate-50 p-4">
                 <p className="text-xs font-medium uppercase tracking-wider text-slate-500">
                   Traveler Details ({selectedBooking.travelerDetails?.length || 0})
                 </p>
                 {selectedBooking.travelerDetails?.length > 0 ? (
-                  <div className="mt-2 space-y-2">
+                  <div className="mt-2 space-y-3">
                     {selectedBooking.travelerDetails.map((t: any, i: number) => (
-                      <div key={t.id} className="rounded-lg bg-white px-3 py-2 text-sm">
-                        <span className="font-medium text-slate-900">{t.fullName}</span>
-                        <span className="mx-2 text-slate-300">|</span>
-                        <span className="text-slate-500">{t.email}</span>
-                        <span className="mx-2 text-slate-300">|</span>
-                        <span className="text-slate-500">{t.nationality}</span>
+                      <div key={t.id || i} className="rounded-lg border border-slate-200 bg-white p-3 text-sm">
+                        <p className="font-semibold text-slate-900">{t.fullName}</p>
+                        <div className="mt-1.5 grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-slate-600">
+                          <span>Email: {t.email}</span>
+                          <span>Phone: {t.phone}</span>
+                          <span>Nationality: {t.nationality}</span>
+                          <span>Passport: {t.passportNumber || "N/A"}</span>
+                          <span>Age: {t.age || "N/A"}</span>
+                        </div>
                       </div>
                     ))}
                   </div>

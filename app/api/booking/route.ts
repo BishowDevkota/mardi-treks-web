@@ -52,11 +52,13 @@ export async function POST(request: NextRequest) {
       trekDuration,
       startDate,
       groupSize,
+      addons,
       specialRequests,
       travelers,
     } = validated.data;
 
-    const totalPrice = trekPrice * groupSize;
+    const addonsTotal = (addons || []).reduce((sum: number, a: any) => sum + a.qty * a.pricePerUnit, 0);
+    const totalPrice = trekPrice * groupSize + addonsTotal;
 
     // Check availability (Prisma read, could also check Payload CMS date)
     // Check TrekAvailability table
@@ -106,6 +108,7 @@ export async function POST(request: NextRequest) {
           startDate: new Date(startDate),
           groupSize,
           totalPrice,
+          addons: addons && addons.length > 0 ? JSON.stringify(addons) : null,
           specialRequests: specialRequests || null,
           status: "PENDING_REVIEW",
           travelerDetails: {
@@ -182,7 +185,12 @@ export async function GET(request: NextRequest) {
           groupSize: true,
           status: true,
           userId: true,
-          payment: { select: { status: true, method: true } },
+          addons: true,
+          specialRequests: true,
+          travelerDetails: {
+            select: { fullName: true, email: true, phone: true, nationality: true, passportNumber: true, age: true },
+          },
+          payment: { select: { status: true, method: true, amount: true } },
         },
       });
 

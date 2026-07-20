@@ -427,6 +427,7 @@ model Booking {
   startDate     DateTime
   groupSize     Int
   totalPrice    Float
+  addons        String?  // JSON array of { title, qty, pricePerUnit }
   status        String   @default("PENDING_REVIEW")
   paymentStatus String   @default("PENDING")  // PENDING | PARTIALLY_PAID | FULLY_PAID
   travelerDetails TravelerDetail[]
