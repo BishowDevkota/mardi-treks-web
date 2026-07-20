@@ -42,30 +42,36 @@ export async function POST(request: NextRequest) {
       where: { stripePaymentIntentId: paymentIntentId },
     });
 
-    if (payment) {
-      // Determine if this was an advance or full payment
-      const isPartial = payment.amount < booking.totalPrice;
-      const paymentStatus = isPartial ? "PARTIALLY_PAID" : "FULLY_PAID";
-
-      await prisma.$transaction(async (tx) => {
-        await tx.payment.update({
-          where: { id: payment.id },
-          data: { status: "SUCCEEDED" },
-        });
-
-        await tx.booking.update({
-          where: { id: bookingId },
-          data: {
-            status: "CONFIRMED",
-            paymentStatus,
-          },
-        });
-      });
+    if (!payment) {
+      return NextResponse.json(
+        { error: "Payment record not found", verified: false },
+        { status: 404 }
+      );
     }
+
+    // Determine if this was an advance or full payment
+    const isPartial = payment.amount < booking.totalPrice;
+    const paymentStatus = isPartial ? "PARTIALLY_PAID" : "FULLY_PAID";
+
+    await prisma.$transaction(async (tx) => {
+      await tx.payment.update({
+        where: { id: payment.id },
+        data: { status: "SUCCEEDED" },
+      });
+
+      await tx.booking.update({
+        where: { id: bookingId },
+        data: {
+          status: "CONFIRMED",
+          paymentStatus,
+        },
+      });
+    });
 
     return NextResponse.json({
       verified: true,
       status: "succeeded",
+      paymentStatus,
     });
   } catch (error) {
     console.error("Payment verification error:", error);

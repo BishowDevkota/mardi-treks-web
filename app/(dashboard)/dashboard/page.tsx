@@ -12,6 +12,7 @@ export default async function DashboardPage() {
 
   const bookings = await prisma.booking.findMany({
     where: { userId: session.user.id },
+    include: { payment: true },
     orderBy: { createdAt: "desc" },
   });
 
@@ -32,10 +33,10 @@ export default async function DashboardPage() {
   const paymentStatusLabels: Record<string, string> = {
     PENDING: "Payment Pending",
     PARTIALLY_PAID: "Partially Paid",
-    FULLY_PAID: "Paid",
+    FULLY_PAID: "Fully Paid",
   };
 
-  function needsPayment(status: string, paymentStatus: string) {
+  function needsPayment(paymentStatus: string) {
     return paymentStatus === "PENDING" || paymentStatus === "PARTIALLY_PAID";
   }
 
@@ -64,6 +65,7 @@ export default async function DashboardPage() {
         <div className="mt-8 space-y-4">
           {bookings.map((booking) => {
             const ps = booking.paymentStatus || "PENDING";
+            const paymentMethod = booking.payment?.method;
             return (
               <div
                 key={booking.id}
@@ -112,7 +114,7 @@ export default async function DashboardPage() {
                     >
                       {booking.status.replace(/_/g, " ")}
                     </span>
-                    {needsPayment(booking.status, ps) && (
+                    {needsPayment(ps) && (
                       <div className="flex flex-col gap-1.5">
                         <Link
                           href={`/payment/${booking.id}`}
@@ -120,12 +122,14 @@ export default async function DashboardPage() {
                         >
                           Pay Now
                         </Link>
-                        <Link
-                          href={`/payment/${booking.id}/processing?method=esewa`}
-                          className="inline-flex items-center gap-1 rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
-                        >
-                          Verify Payment
-                        </Link>
+                        {paymentMethod === "esewa" && (
+                          <Link
+                            href={`/payment/${booking.id}/processing?method=esewa`}
+                            className="inline-flex items-center gap-1 rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                          >
+                            Verify Payment
+                          </Link>
+                        )}
                       </div>
                     )}
                   </div>
