@@ -13,7 +13,7 @@ export default function PaymentSuccessPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    params.id.then((id: string) => setBookingId(id));
+    params.then((p) => setBookingId(p.id));
   }, [params]);
 
   useEffect(() => {
