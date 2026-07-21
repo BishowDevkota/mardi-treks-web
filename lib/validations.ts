@@ -61,7 +61,7 @@ export type CreateBookingInput = z.infer<typeof createBookingSchema>;
 // ---- Payment ----
 export const createPaymentSchema = z.object({
   bookingId: z.string().min(1),
-  method: z.enum(["stripe", "esewa", "khalti"]),
+  method: z.enum(["stripe", "esewa"]),
   returnUrl: z.string().url().optional(),
 });
 
@@ -79,9 +79,8 @@ export type ContactFormInput = z.infer<typeof contactFormSchema>;
 
 // ---- Review ----
 export const reviewSchema = z.object({
-  trekSlug: z.string().min(1),
-  author: z.string().min(2, "Name is required").max(100).trim(),
-  rating: z.number().int().min(1).max(5),
+  trekId: z.string().min(1, "Trek ID is required"),
+  rating: z.number().int().min(1, "Rating must be at least 1").max(5, "Rating must be at most 5"),
   text: z.string().min(10, "Review must be at least 10 characters").max(2000).trim(),
 });
 

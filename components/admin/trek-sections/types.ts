@@ -110,7 +110,11 @@ export interface TrekSection {
 
 // ─── Create section defaults ────────────────────────────────────────
 export function createDefaultSection(type: SectionType, trek?: any): TrekSection {
-  const id = `${type}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+  // Use stable ID based on type for non-custom sections so saved sectionOrder matches
+  // For custom sections always generate a unique ID (they can be multiple)
+  const id = type === "custom"
+    ? `${type}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
+    : type;
   const base = { id, type, visible: true };
 
   // Restore section heading/description from saved sectionData

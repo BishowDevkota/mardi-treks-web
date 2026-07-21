@@ -25,6 +25,7 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title: blog?.seo?.title || "Blog",
     description: blog?.seo?.description || "Read our trekking guides and stories from the Himalayas.",
+    alternates: { canonical: "https://marditreks.com/blog" },
   };
 }
 

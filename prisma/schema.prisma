@@ -176,6 +176,9 @@ model Trek {
   // Section metadata (heading/description for each section type)
   sectionData     String?  // JSON object { pricing: { heading, description }, itinerary: { ... }, etc. }
 
+  // Section order (JSON array of section IDs in display order)
+  sectionOrder    String?  // JSON array of section IDs
+
   // Add-ons
   addons         String?  // JSON array of { title, description, unit, pricePerUnit }
 

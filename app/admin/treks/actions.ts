@@ -48,6 +48,8 @@ export async function createTrek(formData: FormData) {
     customSections: formData.get("customSections") as string || null,
     // Section metadata
     sectionData: formData.get("sectionData") as string || null,
+    // Section order
+    sectionOrder: formData.get("sectionOrder") as string || null,
     // Add-ons
     addons: formData.get("addons") as string || "[]",
   };
@@ -122,6 +124,8 @@ export async function updateTrek(id: string, formData: FormData) {
     customSections: formData.get("customSections") as string || null,
     // Section metadata
     sectionData: formData.get("sectionData") as string || null,
+    // Section order
+    sectionOrder: formData.get("sectionOrder") as string || null,
     // Add-ons
     addons: formData.get("addons") as string || "[]",
   };

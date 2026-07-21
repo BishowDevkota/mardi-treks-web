@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { reviewSchema } from "@/lib/validations";
 
 export async function POST(request: Request) {
   try {
@@ -9,21 +10,21 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "You must be logged in to submit a review" }, { status: 401 });
     }
 
-    const { trekId, rating, text } = await request.json();
+    const body = await request.json();
 
-    // Validate
-    if (!trekId || !rating || !text) {
-      return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+    // Validate with Zod
+    const validated = reviewSchema.safeParse(body);
+    if (!validated.success) {
+      return NextResponse.json(
+        {
+          error: "Invalid review data",
+          details: validated.error.flatten().fieldErrors,
+        },
+        { status: 400 }
+      );
     }
 
-    const ratingNum = Number(rating);
-    if (!Number.isInteger(ratingNum) || ratingNum < 1 || ratingNum > 5) {
-      return NextResponse.json({ error: "Rating must be an integer between 1 and 5" }, { status: 400 });
-    }
-
-    if (text.trim().length < 10) {
-      return NextResponse.json({ error: "Review must be at least 10 characters" }, { status: 400 });
-    }
+    const { trekId, rating, text } = validated.data;
 
     // Verify the trek exists
     const trek = await prisma.trek.findUnique({ where: { id: trekId }, select: { id: true } });
@@ -37,8 +38,8 @@ export async function POST(request: Request) {
         trekId,
         userId: session.user.id,
         author: session.user.name || "Anonymous",
-        rating: ratingNum,
-        text: text.trim(),
+        rating,
+        text,
         approved: false,
       },
     });

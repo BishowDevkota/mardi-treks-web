@@ -3,12 +3,14 @@
 import { useState } from "react";
 import { useSession } from "next-auth/react";
 import { usePathname } from "next/navigation";
-import { Star, Send, LogIn } from "lucide-react";
+import { Star, Send, LogIn, CheckCircle2, AlertCircle } from "lucide-react";
 import Link from "next/link";
 
 interface ReviewFormProps {
   trekId: string;
 }
+
+const RATING_LABELS = ["", "Poor", "Fair", "Good", "Very Good", "Excellent"];
 
 export function ReviewForm({ trekId }: ReviewFormProps) {
   const { data: session } = useSession();
@@ -21,22 +23,34 @@ export function ReviewForm({ trekId }: ReviewFormProps) {
 
   if (!session?.user) {
     return (
-      <div className="rounded-lg border border-slate-200 bg-slate-50 p-8 text-center">
-        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-slate-100">
-          <LogIn className="h-6 w-6 text-slate-400" />
+      <div
+        className="rounded-3xl border p-8 text-center sm:p-10"
+        style={{ backgroundColor: "var(--color-surface-alt)", borderColor: "var(--color-border)" }}
+      >
+        <div
+          className="mx-auto flex h-12 w-12 items-center justify-center rounded-full"
+          style={{ backgroundColor: "var(--color-surface)" }}
+        >
+          <LogIn className="h-5 w-5" style={{ color: "var(--color-primary)" }} />
         </div>
-        <h3 className="mt-4 text-lg font-semibold text-slate-900">Want to leave a review?</h3>
-        <p className="mt-2 text-sm text-slate-500">Please log in or create an account to submit a review.</p>
-        <div className="mt-4 flex items-center justify-center gap-3">
+        <h3 className="mt-4 text-lg font-semibold" style={{ color: "var(--color-foreground)" }}>
+          Want to leave a review?
+        </h3>
+        <p className="mt-1.5 text-sm" style={{ color: "var(--color-text-muted)" }}>
+          Please log in or create an account to submit a review.
+        </p>
+        <div className="mt-5 flex items-center justify-center gap-3">
           <Link
             href={`/login?callbackUrl=${encodeURIComponent(pathname)}`}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-teal-600 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-700"
+            className="inline-flex items-center gap-1.5 rounded-full px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:opacity-90"
+            style={{ backgroundColor: "var(--color-primary)" }}
           >
             Log In
           </Link>
           <Link
             href="/signup"
-            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+            className="inline-flex items-center gap-1.5 rounded-full border px-5 py-2.5 text-sm font-semibold transition-colors hover:opacity-80"
+            style={{ borderColor: "var(--color-border)", color: "var(--color-foreground)" }}
           >
             Sign Up
           </Link>
@@ -83,14 +97,24 @@ export function ReviewForm({ trekId }: ReviewFormProps) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="rounded-lg border border-slate-200 bg-white p-6">
-      <h3 className="text-lg font-semibold text-slate-900">Write a Review</h3>
-      <p className="mt-1 text-sm text-slate-500">Share your experience with this trek</p>
+    <form
+      onSubmit={handleSubmit}
+      className="rounded-3xl border p-6 sm:p-8"
+      style={{ backgroundColor: "var(--color-surface)", borderColor: "var(--color-border)" }}
+    >
+      <h3 className="text-lg font-semibold" style={{ color: "var(--color-foreground)" }}>
+        Write a Review
+      </h3>
+      <p className="mt-1 text-sm" style={{ color: "var(--color-text-muted)" }}>
+        Share your experience with this trek
+      </p>
 
       {/* Star Rating */}
-      <div className="mt-4">
-        <label className="text-sm font-medium text-slate-700">Your Rating</label>
-        <div className="mt-1.5 flex items-center gap-1">
+      <div className="mt-6">
+        <label className="text-sm font-medium" style={{ color: "var(--color-foreground)" }}>
+          Your Rating
+        </label>
+        <div className="mt-2 flex items-center gap-1">
           {[1, 2, 3, 4, 5].map((star) => (
             <button
               key={star}
@@ -101,25 +125,25 @@ export function ReviewForm({ trekId }: ReviewFormProps) {
               className="p-0.5 transition-transform hover:scale-110"
             >
               <Star
-                className={`h-7 w-7 ${
-                  (hoverRating || rating) >= star
-                    ? "fill-amber-400 text-amber-400"
-                    : "text-slate-300"
-                }`}
+                className="h-7 w-7"
+                style={{
+                  fill: (hoverRating || rating) >= star ? "var(--color-warning)" : "transparent",
+                  color: (hoverRating || rating) >= star ? "var(--color-warning)" : "var(--color-border)",
+                }}
               />
             </button>
           ))}
-          {rating > 0 && (
-            <span className="ml-2 text-sm font-medium text-slate-600">
-              {rating === 1 ? "Poor" : rating === 2 ? "Fair" : rating === 3 ? "Good" : rating === 4 ? "Very Good" : "Excellent"}
+          {(hoverRating || rating) > 0 && (
+            <span className="ml-2 text-sm font-medium" style={{ color: "var(--color-text-muted)" }}>
+              {RATING_LABELS[hoverRating || rating]}
             </span>
           )}
         </div>
       </div>
 
       {/* Review Text */}
-      <div className="mt-4">
-        <label htmlFor="review-text" className="text-sm font-medium text-slate-700">
+      <div className="mt-5">
+        <label htmlFor="review-text" className="text-sm font-medium" style={{ color: "var(--color-foreground)" }}>
           Your Review
         </label>
         <textarea
@@ -128,31 +152,53 @@ export function ReviewForm({ trekId }: ReviewFormProps) {
           value={text}
           onChange={(e) => setText(e.target.value)}
           placeholder="Share details about your experience..."
-          className="mt-1.5 block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 placeholder-slate-400 shadow-sm focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
+          className="mt-2 block w-full rounded-2xl border px-4 py-3 text-sm focus:outline-none focus:ring-2"
+          style={{
+            borderColor: "var(--color-border)",
+            backgroundColor: "var(--color-surface-alt)",
+            color: "var(--color-foreground)",
+          }}
           maxLength={1000}
         />
-        <p className="mt-1 text-xs text-slate-400">{text.length}/1000 characters</p>
+        <p className="mt-1.5 text-xs" style={{ color: "var(--color-text-muted)" }}>
+          {text.length}/1000 characters
+        </p>
       </div>
 
       {/* Message */}
       {message && (
         <div
-          className={`mt-4 rounded-lg px-4 py-3 text-sm ${
-            message.type === "success"
-              ? "bg-emerald-50 text-emerald-700"
-              : "bg-red-50 text-red-700"
-          }`}
+          className="mt-5 flex items-start gap-2 rounded-2xl px-4 py-3 text-sm"
+          style={{
+            backgroundColor: message.type === "success" ? "var(--color-success)" : "var(--color-error)",
+            opacity: 0.12,
+          }}
         >
-          {message.text}
+          {/* colored background layer above is intentionally separate from the
+              text/icon layer below so opacity only affects the tint, not the text */}
+        </div>
+      )}
+      {message && (
+        <div
+          className="-mt-[calc(2.75rem+0.5rem)] flex items-start gap-2 rounded-2xl px-4 py-3 text-sm relative z-10"
+          style={{ color: message.type === "success" ? "var(--color-success)" : "var(--color-error)" }}
+        >
+          {message.type === "success" ? (
+            <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
+          ) : (
+            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+          )}
+          <span>{message.text}</span>
         </div>
       )}
 
       {/* Submit */}
-      <div className="mt-4">
+      <div className="mt-6">
         <button
           type="submit"
           disabled={submitting}
-          className="inline-flex items-center gap-1.5 rounded-lg bg-teal-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-teal-700 disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex items-center gap-1.5 rounded-full px-6 py-3 text-sm font-semibold text-white transition-all hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+          style={{ backgroundColor: "var(--color-primary)" }}
         >
           {submitting ? (
             "Submitting..."

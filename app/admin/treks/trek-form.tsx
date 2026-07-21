@@ -59,6 +59,28 @@ export function TrekForm({ mode, trek, categories }: { mode: "create" | "edit"; 
           if (Array.isArray(cs)) existing.push(...cs);
         } catch {}
       }
+
+      // Apply saved sectionOrder if it exists
+      const orderStr = (trek as any).sectionOrder;
+      if (orderStr) {
+        try {
+          const order = JSON.parse(orderStr) as string[];
+          if (Array.isArray(order) && order.length > 0) {
+            const ordered: TrekSection[] = [];
+            const idMap = new Map(existing.map((s) => [s.id, s]));
+            for (const id of order) {
+              const s = idMap.get(id);
+              if (s) {
+                ordered.push(s);
+                idMap.delete(id);
+              }
+            }
+            // Append any sections not in the order (e.g. newly added)
+            for (const s of idMap.values()) ordered.push(s);
+            return ordered;
+          }
+        } catch {}
+      }
     }
 
     return existing;
@@ -204,8 +226,8 @@ export function TrekForm({ mode, trek, categories }: { mode: "create" | "edit"; 
 
     fd.set("customSections", JSON.stringify(customSections));
 
-    // Section order — store so frontend can render in correct order
-    fd.set("sectionOrder", JSON.stringify(sections.filter((s) => s.visible).map((s) => s.id)));
+    // Section order — store ALL sections in their current order (including hidden)
+    fd.set("sectionOrder", JSON.stringify(sections.map((s) => s.id)));
 
     try {
       if (mode === "create") await createTrek(fd);

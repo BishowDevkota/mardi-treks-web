@@ -34,18 +34,20 @@ export async function generateMetadata({
     () => prisma.category.findUnique({ where: { slug } }),
     300
   );
-  if (!cat) return { title: "Category Not Found" }; 
+  if (!cat) return { title: "Category Not Found" };
 
   return {
     title: cat.metaTitle || `${cat.name} | Mardi Treks`,
     description:
       cat.metaDescription ||
       `Browse our ${cat.name.toLowerCase()} packages across Nepal.`,
+    alternates: { canonical: `https://marditreks.com/${slug}` },
     openGraph: {
       title: cat.metaTitle || `${cat.name} | Mardi Treks`,
       description:
         cat.metaDescription ||
         `Browse our ${cat.name.toLowerCase()} packages across Nepal.`,
+      url: `https://marditreks.com/${slug}`,
     },
   };
 }
@@ -74,7 +76,7 @@ export default async function CategoryListingPage({
   );
   if (!category) notFound();
 
-  const where: any = { status: "published", categoryId: category.id }; 
+  const where: any = { status: "published", categoryId: category.id };
   if (filters.region) where.region = filters.region;
   if (filters.difficulty) where.difficulty = filters.difficulty;
   if (filters.duration) {
@@ -207,10 +209,10 @@ export default async function CategoryListingPage({
   }) => (
     <details className="group" open={isActive}>
       <summary className="flex cursor-pointer list-none items-center justify-between py-1 marker:content-none [&::-webkit-details-marker]:hidden">
-        <h3 className="text-[13px] font-semibold uppercase tracking-wide text-slate-500 group-open:text-[#182A38]">
+        <h3 className="text-[13px] font-semibold uppercase tracking-wide text-text-muted group-open:text-secondary">
           {title}
         </h3>
-        <ChevronDown className="h-4 w-4 text-slate-400 transition-transform duration-200 group-open:rotate-180 group-open:text-primary" />
+        <ChevronDown className="h-4 w-4 text-text-muted transition-transform duration-200 group-open:rotate-180 group-open:text-primary" />
       </summary>
       <div className="mt-3 space-y-1 pb-1">{children}</div>
     </details>
@@ -218,8 +220,8 @@ export default async function CategoryListingPage({
 
   return (
     <>
-      {/* ===== Simple Hero: category name + centered search ===== */}
-      <section className="bg-background py-16 sm:py-20">
+      {/* ===== Hero ===== */}
+      <section className="border-b border-border bg-background py-14 sm:py-18">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 text-center">
           <h1 className="text-4xl font-bold tracking-tight text-foreground sm:text-5xl">
             {category.name}
@@ -228,7 +230,7 @@ export default async function CategoryListingPage({
       </section>
 
       {/* ===== Main Content ===== */}
-      <section className="bg-background pb-16 sm:pb-20">
+      <section className="bg-background py-10 sm:py-14">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
 
           {/* Active filter chips */}
@@ -239,13 +241,13 @@ export default async function CategoryListingPage({
                 <Link
                   key={chip.key}
                   href={buildFilterUrl(chip.key, "")}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-medium text-primary transition hover:bg-primary/20"
+                  className="inline-flex items-center gap-1.5 rounded-full border border-primary/25 bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary transition hover:bg-primary/20"
                 >
                   {chip.label}
                   <X className="h-3 w-3" />
                 </Link>
               ))}
-              <Link href={clearUrl} className="text-xs font-medium text-text-muted underline decoration-dotted hover:text-foreground">
+              <Link href={clearUrl} className="text-xs font-medium text-text-muted underline decoration-dotted underline-offset-2 hover:text-foreground">
                 Clear all
               </Link>
             </div>
@@ -253,14 +255,14 @@ export default async function CategoryListingPage({
 
           <div className="flex flex-col gap-8 lg:flex-row">
             {/* ===== FILTER SIDEBAR ===== */}
-            <aside className="w-full shrink-0 lg:w-64">
+            <aside className="w-full shrink-0 lg:w-72">
               <div className="sticky top-24 space-y-5">
-                <div className="flex items-center justify-between rounded-xl border border-border bg-surface px-4 py-3 lg:hidden">
+                <div className="flex items-center justify-between rounded-2xl border border-border bg-surface px-4 py-3 lg:hidden">
                   <button
                     className="inline-flex items-center gap-2 text-sm font-semibold text-foreground"
                     popoverTarget="filter-popover"
                   >
-                    <SlidersHorizontal className="h-4 w-4" />
+                    <SlidersHorizontal className="h-4 w-4 text-primary" />
                     Filters
                   </button>
                   <span className="text-sm text-text-muted">{filteredTreks.length} results</span>
@@ -268,7 +270,7 @@ export default async function CategoryListingPage({
 
                 <div
                   id="filter-popover"
-                  className="divide-y divide-border rounded-2xl border border-border bg-surface px-5 shadow-sm max-lg:hidden max-lg:fixed max-lg:inset-0 max-lg:z-50 max-lg:overflow-y-auto max-lg:rounded-none max-lg:border-0 max-lg:p-6 [&:popover-open]:block max-lg:[&:popover-open]:flex max-lg:[&:popover-open]:flex-col"
+                  className="divide-y divide-border rounded-3xl border border-border bg-surface px-5 shadow-sm max-lg:hidden max-lg:fixed max-lg:inset-0 max-lg:z-50 max-lg:overflow-y-auto max-lg:rounded-none max-lg:border-0 max-lg:p-6 [&:popover-open]:block max-lg:[&:popover-open]:flex max-lg:[&:popover-open]:flex-col"
                 >
                   <div className="flex items-center justify-between py-4 lg:hidden">
                     <h2 className="text-lg font-semibold text-foreground">Filters</h2>
@@ -277,16 +279,21 @@ export default async function CategoryListingPage({
                     </button>
                   </div>
 
+                  <div className="hidden items-center gap-2 py-4 lg:flex">
+                    <SlidersHorizontal className="h-4 w-4 text-primary" />
+                    <h2 className="text-sm font-bold uppercase tracking-wide text-secondary">Refine Results</h2>
+                  </div>
+
                   <div className="py-4">
                     <FilterSection title="Region" filterKey="region" isActive={!!filters.region}>
-                      <Link href={`/${catSlug}`}
-                        className={`flex items-center justify-between rounded-lg px-3 py-2 text-sm transition ${!filters.region ? "bg-primary text-white font-medium" : "text-text hover:bg-surface-alt"}`}>
-                        <span>All Regions</span>
-                        <span className={`text-xs ${!filters.region ? "text-white/70" : "text-text-muted"}`}>{allTrekList.length}</span>
-                      </Link>
+<Link href={buildFilterUrl("region", "")}
+  className={`flex items-center justify-between rounded-xl px-3 py-2 text-sm transition ${!filters.region ? "bg-primary text-white font-medium" : "text-text hover:bg-surface-alt"}`}>
+  <span>All Regions</span>
+  <span className={`text-xs ${!filters.region ? "text-white/70" : "text-text-muted"}`}>{allTrekList.length}</span>
+</Link>
                       {regions.map((region) => (
                         <Link key={region.value} href={buildFilterUrl("region", region.value)}
-                          className={`flex items-center justify-between rounded-lg px-3 py-2 text-sm transition ${filters.region === region.value ? "bg-primary text-white font-medium" : "text-text hover:bg-surface-alt"}`}>
+                          className={`flex items-center justify-between rounded-xl px-3 py-2 text-sm transition ${filters.region === region.value ? "bg-primary text-white font-medium" : "text-text hover:bg-surface-alt"}`}>
                           <span>{region.label}</span>
                           <span className={`text-xs ${filters.region === region.value ? "text-white/70" : "text-text-muted"}`}>{region.count}</span>
                         </Link>
@@ -298,9 +305,9 @@ export default async function CategoryListingPage({
                     <FilterSection title="Difficulty" filterKey="difficulty" isActive={!!filters.difficulty}>
                       {difficulties.map((d) => (
                         <Link key={d.value} href={buildFilterUrl("difficulty", d.value)}
-                          className={`flex items-center justify-between rounded-lg px-3 py-2 text-sm transition ${filters.difficulty === d.value ? "bg-primary/10 text-primary font-medium" : "text-text hover:bg-surface-alt"}`}>
+                          className={`flex items-center justify-between rounded-xl px-3 py-2 text-sm transition ${filters.difficulty === d.value ? "bg-primary/10 text-primary font-medium" : "text-text hover:bg-surface-alt"}`}>
                           <span className="flex items-center gap-2">
-                            <span className={`inline-block h-2 w-2 rounded-full ${difficultyStyles[d.value]?.dot ?? "bg-slate-400"}`} />
+                            <span className={`inline-block h-2 w-2 rounded-full ${difficultyStyles[d.value]?.dot ?? "bg-secondary-light"}`} />
                             {d.label}
                           </span>
                           <span className="text-xs text-text-muted">{d.count}</span>
@@ -313,7 +320,7 @@ export default async function CategoryListingPage({
                     <FilterSection title="Duration" filterKey="duration" isActive={!!filters.duration}>
                       {durations.map((d) => (
                         <Link key={d.value} href={buildFilterUrl("duration", d.value)}
-                          className={`flex items-center rounded-lg px-3 py-2 text-sm transition ${filters.duration === d.value ? "bg-primary text-white font-medium" : "text-text hover:bg-surface-alt"}`}>
+                          className={`flex items-center rounded-xl px-3 py-2 text-sm transition ${filters.duration === d.value ? "bg-primary text-white font-medium" : "text-text hover:bg-surface-alt"}`}>
                           {d.label}
                         </Link>
                       ))}
@@ -324,7 +331,7 @@ export default async function CategoryListingPage({
                     <FilterSection title="Price Range" filterKey="price" isActive={!!filters.price}>
                       {priceRanges.map((p) => (
                         <Link key={p.value} href={buildFilterUrl("price", p.value)}
-                          className={`flex items-center rounded-lg px-3 py-2 text-sm transition ${filters.price === p.value ? "bg-primary text-white font-medium" : "text-text hover:bg-surface-alt"}`}>
+                          className={`flex items-center rounded-xl px-3 py-2 text-sm transition ${filters.price === p.value ? "bg-primary text-white font-medium" : "text-text hover:bg-surface-alt"}`}>
                           {p.label}
                         </Link>
                       ))}
@@ -335,7 +342,7 @@ export default async function CategoryListingPage({
                     <FilterSection title="Review Rating" filterKey="rating" isActive={!!filters.rating}>
                       {ratingOptions.map((r) => (
                         <Link key={r.value} href={buildFilterUrl("rating", r.value)}
-                          className={`flex items-center justify-between rounded-lg px-3 py-2 text-sm transition ${filters.rating === r.value ? "bg-primary/10 text-primary font-medium" : "text-text hover:bg-surface-alt"}`}>
+                          className={`flex items-center justify-between rounded-xl px-3 py-2 text-sm transition ${filters.rating === r.value ? "bg-primary/10 text-primary font-medium" : "text-text hover:bg-surface-alt"}`}>
                           <span className="flex items-center gap-1">
                             {Array.from({ length: Number(r.value) }).map((_, i) => (
                               <Star key={i} className="h-3 w-3 fill-primary text-primary" />
@@ -349,7 +356,7 @@ export default async function CategoryListingPage({
 
                   {hasActiveFilters && (
                     <div className="py-4">
-                      <Link href={clearUrl} className="flex items-center justify-center gap-1.5 rounded-lg border border-border py-2 text-xs font-semibold text-text-muted hover:bg-surface-alt">
+                      <Link href={clearUrl} className="flex items-center justify-center gap-1.5 rounded-xl border border-border py-2.5 text-xs font-semibold text-text-muted transition hover:bg-surface-alt hover:text-foreground">
                         <X className="h-3 w-3" /> Clear all filters
                       </Link>
                     </div>

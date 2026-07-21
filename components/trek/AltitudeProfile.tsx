@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { TrendingUp } from "lucide-react";
+import { TrendingUp, ArrowUp, ArrowDown } from "lucide-react";
 
 interface ItineraryDay {
   dayNumber: number;
@@ -58,6 +58,14 @@ export function AltitudeProfile({ itinerary }: AltitudeProfileProps) {
   const maxAlt = points.length ? Math.max(...points.map((p) => p.altitude)) : 0;
   const minAlt = points.length ? Math.min(...points.map((p) => p.altitude)) : 0;
   const range = maxAlt - minAlt || 1;
+  const totalGain = useMemo(() => {
+    let gain = 0;
+    for (let i = 1; i < points.length; i++) {
+      const diff = points[i].altitude - points[i - 1].altitude;
+      if (diff > 0) gain += diff;
+    }
+    return gain;
+  }, [points]);
 
   // Dotted reference line every 1000m that actually falls inside this trek's range
   const gridLines = useMemo(() => {
@@ -73,11 +81,44 @@ export function AltitudeProfile({ itinerary }: AltitudeProfileProps) {
   if (points.length < 1) return null;
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white px-4 py-6 shadow-sm sm:px-8">
+    <div
+      className="rounded-3xl border px-4 py-6 sm:px-8 sm:py-8"
+      style={{ backgroundColor: "var(--color-surface)", borderColor: "var(--color-border)" }}
+    >
       {/* Header */}
-      <div className="flex items-center gap-2">
-        <TrendingUp className="h-5 w-5 text-hero-accent" />
-        <h2 className="text-2xl font-bold text-slate-900">Altitude Profile</h2>
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="flex items-center gap-2">
+          <TrendingUp className="h-5 w-5" style={{ color: "var(--color-primary)" }} />
+          <h2 className="text-2xl font-bold" style={{ color: "var(--color-secondary)" }}>
+            Altitude Profile
+          </h2>
+        </div>
+
+        {/* Quick stats — derived from the same data driving the chart */}
+        <div className="flex flex-wrap items-center gap-2">
+          <span
+            className="flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold"
+            style={{ borderColor: "var(--color-border)", backgroundColor: "var(--color-surface-alt)", color: "var(--color-primary)" }}
+          >
+            <ArrowUp className="h-3.5 w-3.5" />
+            {formatAltitude(maxAlt)} max
+          </span>
+          <span
+            className="flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold"
+            style={{ borderColor: "var(--color-border)", backgroundColor: "var(--color-surface-alt)", color: "var(--color-text-muted)" }}
+          >
+            <ArrowDown className="h-3.5 w-3.5" />
+            {formatAltitude(minAlt)} min
+          </span>
+          {totalGain > 0 && (
+            <span
+              className="flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold"
+              style={{ borderColor: "var(--color-border)", backgroundColor: "var(--color-surface-alt)", color: "var(--color-text-muted)" }}
+            >
+              +{formatAltitude(totalGain)} gain
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Chart area — fully fluid, no scroll containers of any kind */}
@@ -92,10 +133,13 @@ export function AltitudeProfile({ itinerary }: AltitudeProfileProps) {
                 className="flex items-center"
                 style={{ position: "absolute", left: 0, right: 0, bottom: `${pct}%`, height: 0 }}
               >
-                <span className="w-14 shrink-0 text-right text-[11px] font-medium text-slate-400 -mt-3 pr-2">
+                <span
+                  className="w-14 shrink-0 text-right text-[11px] font-medium -mt-3 pr-2"
+                  style={{ color: "var(--color-text-muted)" }}
+                >
                   {formatAltitude(value)}
                 </span>
-                <div className="flex-1 border-t border-dashed border-slate-200" />
+                <div className="flex-1 border-t border-dashed" style={{ borderColor: "var(--color-border)" }} />
               </div>
             );
           })}
@@ -111,8 +155,8 @@ export function AltitudeProfile({ itinerary }: AltitudeProfileProps) {
           >
             <defs>
               <linearGradient id="altGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#ea580c" stopOpacity="0.25" />
-                <stop offset="100%" stopColor="#ea580c" stopOpacity="0.03" />
+                <stop offset="0%" stopColor="var(--color-primary)" stopOpacity="0.25" />
+                <stop offset="100%" stopColor="var(--color-primary)" stopOpacity="0.02" />
               </linearGradient>
             </defs>
             <polygon
@@ -136,7 +180,7 @@ export function AltitudeProfile({ itinerary }: AltitudeProfileProps) {
                 })
                 .join(" ")}
               fill="none"
-              stroke="#ea580c"
+              stroke="var(--color-primary)"
               strokeWidth="2.5"
               strokeLinejoin="round"
               strokeLinecap="round"
@@ -168,11 +212,17 @@ export function AltitudeProfile({ itinerary }: AltitudeProfileProps) {
                   onMouseLeave={() => setHoveredIndex(null)}
                 >
                   <div
-                    className={`flex items-center justify-center rounded-full border-2 bg-white font-bold transition-all duration-150 ${
-                      isHovered
-                        ? "h-7 w-7 scale-110 border-hero-accent shadow-md text-[11px] text-hero-accent-dark"
-                        : "h-6 w-6 border-hero-accent/70 text-[10px] text-hero-accent"
-                    }`}
+                    className="flex items-center justify-center rounded-full border-2 font-bold transition-all duration-150"
+                    style={{
+                      backgroundColor: "var(--color-surface)",
+                      borderColor: "var(--color-primary)",
+                      color: "var(--color-primary)",
+                      height: isHovered ? "28px" : "24px",
+                      width: isHovered ? "28px" : "24px",
+                      fontSize: isHovered ? "11px" : "10px",
+                      boxShadow: isHovered ? "0 2px 8px rgba(0,0,0,0.12)" : "none",
+                      opacity: isHovered ? 1 : 0.85,
+                    }}
                   >
                     {i + 1}
                   </div>
@@ -243,25 +293,40 @@ function TooltipContent({
         [showBelow ? "marginTop" : "marginBottom"]: "10px",
       }}
     >
-      <div className="rounded-xl border border-slate-200 bg-white px-3.5 py-3 shadow-lg">
+      <div
+        className="rounded-xl border px-3.5 py-3 shadow-lg"
+        style={{ backgroundColor: "var(--color-surface)", borderColor: "var(--color-border)" }}
+      >
         <div className="flex items-center gap-2">
-          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-hero-accent/15 text-[10px] font-bold text-hero-accent-dark">
+          <span
+            className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold"
+            style={{ backgroundColor: "var(--color-surface-alt)", color: "var(--color-primary)" }}
+          >
             {point.day}
           </span>
-          <span className="text-sm font-semibold text-slate-900 truncate">
+          <span className="text-sm font-semibold truncate" style={{ color: "var(--color-foreground)" }}>
             {point.accommodation || point.label}
           </span>
         </div>
-        <div className="mt-1 text-xs font-medium text-hero-accent">{formatAltitude(point.altitude)}</div>
+        <div className="mt-1 text-xs font-medium" style={{ color: "var(--color-primary)" }}>
+          {formatAltitude(point.altitude)}
+        </div>
         {point.description && (
-          <p className="mt-1 text-[11px] leading-snug text-slate-500">{point.description}</p>
+          <p className="mt-1 text-[11px] leading-snug" style={{ color: "var(--color-text-muted)" }}>
+            {point.description}
+          </p>
         )}
       </div>
       <div
-        className={`absolute h-2 w-2 rotate-45 border-slate-200 bg-white ${
-          showBelow ? "-top-1 border-l border-t" : "-bottom-1 border-b border-r"
-        }`}
-        style={arrowLeftStyle}
+        className="absolute h-2 w-2 rotate-45"
+        style={{
+          backgroundColor: "var(--color-surface)",
+          borderColor: "var(--color-border)",
+          ...(showBelow
+            ? { top: "-4px", borderLeftWidth: "1px", borderTopWidth: "1px", borderStyle: "solid" }
+            : { bottom: "-4px", borderBottomWidth: "1px", borderRightWidth: "1px", borderStyle: "solid" }),
+          ...arrowLeftStyle,
+        }}
       />
     </div>
   );

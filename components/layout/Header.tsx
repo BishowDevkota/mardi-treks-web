@@ -163,7 +163,7 @@ export function Header({
   // logo or the auth actions are — this is what keeps it dead-center in
   // both the expanded (with top bar) and compact (scrolled) layouts.
   const desktopNav = (
-    <nav className="absolute left-1/2 hidden -translate-x-1/2 items-center gap-1 md:flex">
+    <nav className="ml-14 hidden items-center gap-1 md:flex">
       {navItems.map((item) => {
         const groupedTreks = getTreksGroupedByRegion(item.href);
         const hasDropdown = groupedTreks.length > 0;

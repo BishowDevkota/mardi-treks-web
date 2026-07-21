@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createBookingSchema } from "@/lib/validations";
 import { bookingRateLimit, checkRateLimit } from "@/lib/rate-limit";
+import { sendBookingNotification } from "@/lib/email";
 
 export async function POST(request: NextRequest) {
   try {
@@ -139,6 +140,33 @@ export async function POST(request: NextRequest) {
 
       return newBooking;
     });
+
+    // Send email notification (non-blocking)
+    try {
+      const user = await prisma.user.findUnique({ where: { id: userId }, select: { name: true, email: true } });
+      if (user) {
+        sendBookingNotification({
+          customerName: user.name || "Unknown",
+          customerEmail: user.email,
+          trekTitle,
+          startDate,
+          travelers: travelers.map((t) => ({
+            fullName: t.fullName,
+            email: t.email,
+            phone: t.phone,
+            nationality: t.nationality,
+            passportNumber: t.passportNumber,
+            age: t.age,
+          })),
+          groupSize,
+          totalPrice,
+          addons: addons || [],
+          specialRequests,
+        }).catch((err) => console.error("Failed to send booking email:", err));
+      }
+    } catch (err) {
+      console.error("Failed to send booking notification:", err);
+    }
 
     return NextResponse.json(
       {

@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import Image from "next/image";
 import { Mountain, Shield, Heart, Award, Globe, Users } from "lucide-react";
 import { WhyChooseUs } from "@/components/home/WhyChooseUs";
+import GallerySection from "@/components/trek/GallerySection";
 
 export const revalidate = 300;
 
@@ -23,6 +24,7 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title: about?.seo?.title || "About Us",
     description: about?.seo?.description || "Learn about Mardi Treks — Nepal's premier trekking and tour agency.",
+    alternates: { canonical: "https://marditreks.com/about" },
   };
 }
 
@@ -108,19 +110,11 @@ export default async function AboutPage() {
       {gallery.length > 0 && (
         <section className="bg-surface py-16">
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-            <h2 className="text-center text-2xl font-bold text-foreground">Legal Documents</h2>
-            <div className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-              {gallery.map((item: any, i: number) => (
-                <div key={i} className="overflow-hidden rounded-xl border border-border bg-white">
-                  {item.imageId && (
-                    <div className="relative aspect-[4/3]">
-                      <Image src={`https://res.cloudinary.com/dk7ggjvlw/image/upload/${item.imageId}`} alt={item.caption || ""} fill className="object-cover" />
-                    </div>
-                  )}
-                  {item.caption && <p className="p-3 text-xs text-text-muted">{item.caption}</p>}
-                </div>
-              ))}
-            </div>
+            <GallerySection
+              images={gallery}
+              heading="Legal Documents"
+              trekTitle="Mardi Treks"
+            />
           </div>
         </section>
       )}

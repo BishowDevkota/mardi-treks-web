@@ -20,6 +20,7 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title: contact?.seo?.title || "Contact Us",
     description: contact?.seo?.description || "Get in touch with Mardi Treks.",
+    alternates: { canonical: "https://marditreks.com/contact" },
   };
 }
 

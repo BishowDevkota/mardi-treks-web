@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
-import { ArrowLeft, Loader2, CreditCard, Landmark, Smartphone, CheckCircle } from "lucide-react";
+import { ArrowLeft, Loader2, CreditCard, Landmark, CheckCircle } from "lucide-react";
 
 const paymentMethods = [
   {
@@ -16,16 +16,6 @@ const paymentMethods = [
     bgColor: "bg-blue-50",
     textColor: "text-blue-700",
     borderColor: "border-blue-200",
-  },
-  {
-    id: "khalti",
-    name: "Khalti",
-    description: "Pay via Khalti digital wallet",
-    icon: Smartphone,
-    color: "from-purple-500 to-purple-600",
-    bgColor: "bg-purple-50",
-    textColor: "text-purple-700",
-    borderColor: "border-purple-200",
   },
   {
     id: "esewa",
@@ -101,31 +91,25 @@ export default function PaymentPage({ params }: { params: Promise<{ id: string }
       if (selectedMethod === "stripe") {
         // Redirect to a Stripe checkout page or use Elements
         router.push(`/payment/${bookingId}/stripe?clientSecret=${data.clientSecret}`);
-      } else if (data.paymentUrl) {
-        // eSewa/Khalti: redirect to their payment page
-        if (data.formData) {
-          // eSewa uses a form POST - create a form and submit it
-          const form = document.createElement("form");
-          form.method = "POST";
-          form.action = data.paymentUrl;
-          form.target = "_blank";
-          Object.entries(data.formData).forEach(([key, value]) => {
-            const input = document.createElement("input");
-            input.type = "hidden";
-            input.name = key;
-            input.value = value as string;
-            form.appendChild(input);
-          });
-          document.body.appendChild(form);
-          form.submit();
-          document.body.removeChild(form);
-          // Poll for payment completion
-          setProcessing(false);
-          router.push(`/payment/${bookingId}/processing?method=${selectedMethod}`);
-        } else {
-          // Khalti: direct redirect
-          window.location.href = data.paymentUrl;
-        }
+      } else if (data.paymentUrl && data.formData) {
+        // eSewa uses a form POST - create a form and submit it
+        const form = document.createElement("form");
+        form.method = "POST";
+        form.action = data.paymentUrl;
+        form.target = "_blank";
+        Object.entries(data.formData).forEach(([key, value]) => {
+          const input = document.createElement("input");
+          input.type = "hidden";
+          input.name = key;
+          input.value = value as string;
+          form.appendChild(input);
+        });
+        document.body.appendChild(form);
+        form.submit();
+        document.body.removeChild(form);
+        // Poll for payment completion
+        setProcessing(false);
+        router.push(`/payment/${bookingId}/processing?method=${selectedMethod}`);
       }
     } catch (err: any) {
       setError(err.message || "Failed to initiate payment");

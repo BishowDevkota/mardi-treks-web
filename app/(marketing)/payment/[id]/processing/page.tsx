@@ -22,7 +22,7 @@ export default function PaymentProcessingPage({ params }: { params: Promise<{ id
 
     const interval = setInterval(async () => {
       try {
-        // Try eSewa/Khalti verification first
+        // Try eSewa verification
         const verifyRes = await fetch(`/api/payments/esewa/verify`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },

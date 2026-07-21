@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
 import { getCachedOrFetch, cacheKeys } from "@/lib/redis";
 import { HeroCarousel } from "@/components/home/HeroCarousel";
@@ -12,6 +13,12 @@ import { LatestBlogPosts } from "@/components/home/LatestBlogPosts";
 import { ContactFormSection } from "@/components/home/ContactFormSection";
 
 export const revalidate = 300;
+
+export async function generateMetadata(): Promise<Metadata> {
+  return {
+    alternates: { canonical: "https://marditreks.com" },
+  };
+}
 
 export default async function HomePage() {
   const settings = await getCachedOrFetch(

@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
-import { ArrowLeft, Plus, Trash2, Loader2, Minus, Users } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Loader2, Minus, Users, Calendar, Package, AlertCircle } from "lucide-react";
 
 interface TravelerForm {
   fullName: string;
@@ -39,7 +39,7 @@ export default function BookingPage({
   searchParams,
 }: {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ travelers?: string; addons?: string }>;
+  searchParams: Promise<{ travelers?: string; addons?: string; startDate?: string }>;
 }) {
   const router = useRouter();
   const { data: session } = useSession();
@@ -53,6 +53,10 @@ export default function BookingPage({
   const [selectedAddons, setSelectedAddons] = useState<{ title: string; qty: number; pricePerUnit: number }[]>([]);
   const [travelerCount, setTravelerCount] = useState(1);
   const [travelers, setTravelers] = useState<TravelerForm[]>([]);
+
+  // Parse available addons from trek data
+  const trekAddons: { title: string; description: string; unit: string; pricePerUnit: number }[] =
+    trek?.addons ? (() => { try { return JSON.parse(trek.addons); } catch { return []; } })() : [];
 
   useEffect(() => {
     params.then((p) => setSlug(p.slug));
@@ -92,6 +96,7 @@ export default function BookingPage({
           age: "",
         },
       ]);
+      if (sp.startDate) setStartDate(sp.startDate);
       if (sp.addons) {
         try {
           setSelectedAddons(JSON.parse(decodeURIComponent(sp.addons)));
@@ -106,7 +111,22 @@ export default function BookingPage({
     }
   }, [session, loading, slug, router]);
 
-  const pricePerPerson = trek?.price || 0;
+  // Calculate price per person from pricing tiers based on group size
+  function getPriceForGroupSize(): number {
+    if (!trek?.pricingTiers?.length) return trek?.price || 0;
+    for (const tier of trek.pricingTiers) {
+      const match = tier.groupSize.match(/(\d+)/);
+      if (match) {
+        const min = parseInt(match[1]);
+        const maxMatch = tier.groupSize.match(/-?\s*(\d+)/g);
+        const max = maxMatch && maxMatch.length > 1 ? parseInt(maxMatch[1].replace(/[-\s]/g, '')) : min;
+        if (travelerCount >= min && travelerCount <= max) return tier.pricePerPerson;
+      }
+    }
+    return trek.pricingTiers[trek.pricingTiers.length - 1]?.pricePerPerson || trek.price || 0;
+  }
+
+  const pricePerPerson = getPriceForGroupSize();
   const addonsTotal = selectedAddons.reduce((sum, a) => sum + a.qty * a.pricePerUnit, 0);
   const totalPrice = pricePerPerson * travelerCount + addonsTotal;
 
@@ -156,7 +176,7 @@ export default function BookingPage({
         body: JSON.stringify({
           trekSlug: slug,
           trekTitle: trek.title,
-          trekPrice: trek.price,
+          trekPrice: pricePerPerson,
           trekDuration: trek.duration,
           startDate,
           groupSize: travelerCount,
@@ -187,221 +207,415 @@ export default function BookingPage({
 
   if (loading) {
     return (
-      <div className="flex min-h-[60vh] items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-teal-600" />
+      <div className="flex min-h-[60vh] items-center justify-center" style={{ backgroundColor: "var(--color-background)" }}>
+        <Loader2 className="h-8 w-8 animate-spin" style={{ color: "var(--color-primary)" }} />
       </div>
     );
   }
 
   if (!trek) {
     return (
-      <div className="flex min-h-[60vh] items-center justify-center">
-        <p className="text-text-muted">Trek not found</p>
+      <div className="flex min-h-[60vh] items-center justify-center" style={{ backgroundColor: "var(--color-background)" }}>
+        <p style={{ color: "var(--color-text-muted)" }}>Trek not found</p>
       </div>
     );
   }
 
+  const inputStyle = {
+    borderColor: "var(--color-border)",
+    backgroundColor: "var(--color-surface)",
+    color: "var(--color-foreground)",
+  };
+
+  const travelerInputStyle = {
+    borderColor: "var(--color-border)",
+    backgroundColor: "var(--color-surface-alt)",
+    color: "var(--color-foreground)",
+  };
+
   return (
-    <div className="mx-auto max-w-4xl px-4 py-12 sm:px-6 lg:px-8">
-      <Link
-        href={`/${trek.category?.slug || "treks"}/${slug}`}
-        className="mb-6 inline-flex items-center gap-1.5 text-sm font-medium text-text-muted hover:text-primary"
-      >
-        <ArrowLeft className="h-4 w-4" />
-        Back to {trek.title}
-      </Link>
+    <div className="min-h-screen" style={{ backgroundColor: "var(--color-background)" }}>
+      <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6 lg:px-8">
+        <Link
+          href={`/${trek.category?.slug || "treks"}/${slug}`}
+          className="mb-6 inline-flex items-center gap-1.5 text-sm font-medium transition-colors"
+          style={{ color: "var(--color-text-muted)" }}
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back to {trek.title}
+        </Link>
 
-      <h1 className="text-3xl font-bold text-foreground">Book Your Trek</h1>
-      <p className="mt-2 text-text-muted">{trek.title}</p>
+        <h1 className="text-3xl font-bold sm:text-4xl" style={{ color: "var(--color-secondary)" }}>
+          Book Your Trek
+        </h1>
+        <p className="mt-2" style={{ color: "var(--color-text-muted)" }}>{trek.title}</p>
 
-      <form onSubmit={handleSubmit} className="mt-8 space-y-8">
-        <div className="rounded-xl border border-border bg-white p-6 shadow-sm">
-          <h2 className="text-lg font-bold text-foreground">Booking Summary</h2>
-          <div className="mt-4 space-y-3">
-            <div className="flex items-center justify-between border-b border-border pb-3">
-              <span className="text-text">Trek</span>
-              <span className="font-medium text-foreground">{trek.title}</span>
-            </div>
-            <div className="flex items-center justify-between border-b border-border pb-3">
-              <span className="text-text">Duration</span>
-              <span className="font-medium text-foreground">{trek.duration} days</span>
-            </div>
-            <div className="flex items-center justify-between border-b border-border pb-3">
-              <span className="text-text">Price per person</span>
-              <span className="font-medium text-foreground">${pricePerPerson.toLocaleString()}</span>
-            </div>
-            <div className="flex items-center justify-between border-b border-border pb-3">
-              <span className="text-text">Travelers</span>
-              <span className="font-medium text-foreground">{travelerCount}</span>
-            </div>
-            {selectedAddons.map((addon, i) => (
-              <div key={i} className="flex items-center justify-between border-b border-border pb-3">
-                <span className="text-text">{addon.title} &times; {addon.qty}</span>
-                <span className="font-medium text-foreground">+${(addon.qty * addon.pricePerUnit).toLocaleString()}</span>
-              </div>
-            ))}
-            <div className="flex items-center justify-between text-lg font-bold pt-1">
-              <span className="text-foreground">Total</span>
-              <span className="text-primary">${totalPrice.toLocaleString()}</span>
-            </div>
-          </div>
-        </div>
+        <form onSubmit={handleSubmit} className="mt-8 grid grid-cols-1 gap-8 lg:grid-cols-3 lg:items-start">
+          {/* Main column */}
+          <div className="space-y-6 lg:col-span-2">
+            {/* Date & Travelers */}
+            <div
+              className="rounded-3xl border p-6 sm:p-7"
+              style={{ backgroundColor: "var(--color-surface)", borderColor: "var(--color-border)" }}
+            >
+              <h2 className="text-lg font-bold" style={{ color: "var(--color-secondary)" }}>
+                Date &amp; Travelers
+              </h2>
+              <div className="mt-5 grid gap-5 sm:grid-cols-2">
+                <div>
+                  <label className="mb-2 flex items-center gap-1.5 text-sm font-medium" style={{ color: "var(--color-foreground)" }}>
+                    <Calendar className="h-4 w-4" style={{ color: "var(--color-primary)" }} />
+                    Start Date *
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={startDate}
+                    min={new Date().toISOString().split("T")[0]}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="w-full rounded-xl border px-4 py-2.5 text-sm focus:outline-none focus:ring-2"
+                    style={inputStyle}
+                  />
+                </div>
 
-        <div className="rounded-xl border border-border bg-white p-6 shadow-sm">
-          <h2 className="text-lg font-bold text-foreground">Date &amp; Travelers</h2>
-          <div className="mt-4 space-y-6">
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-2">Start Date *</label>
-              {availableDates.length > 0 ? (
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                  {availableDates.map((ad) => (
+                <div>
+                  <label className="mb-2 flex items-center gap-1.5 text-sm font-medium" style={{ color: "var(--color-foreground)" }}>
+                    <Users className="h-4 w-4" style={{ color: "var(--color-primary)" }} />
+                    Number of Travelers
+                  </label>
+                  <div
+                    className="flex items-center justify-between rounded-xl border px-4 py-2"
+                    style={{ borderColor: "var(--color-border)", backgroundColor: "var(--color-surface-alt)" }}
+                  >
                     <button
-                      key={ad.date}
                       type="button"
-                      onClick={() => setStartDate(ad.date)}
-                      className={`rounded-lg border-2 p-3 text-left transition-all ${
-                        startDate === ad.date
-                          ? "border-teal-500 bg-teal-50"
-                          : "border-border hover:border-teal-300"
-                      }`}
+                      onClick={() => {
+                        const newCount = Math.max(1, travelerCount - 1);
+                        setTravelerCount(newCount);
+                        if (travelers.length > newCount) {
+                          setTravelers(travelers.slice(0, newCount));
+                        }
+                      }}
+                      disabled={travelerCount <= 1}
+                      className="flex h-8 w-8 items-center justify-center rounded-lg border transition-colors disabled:cursor-not-allowed disabled:opacity-40"
+                      style={{ borderColor: "var(--color-border)", backgroundColor: "var(--color-surface)", color: "var(--color-secondary)" }}
                     >
-                      <p className="text-sm font-semibold text-foreground">
-                        {new Date(ad.date + "T00:00:00").toLocaleDateString("en-US", {
-                          month: "short", day: "numeric", year: "numeric",
-                        })}
-                      </p>
-                      <p className="text-xs text-text-muted mt-0.5">
-                        {ad.seatsLeft} seat{ad.seatsLeft > 1 ? "s" : ""} left
-                      </p>
+                      <Minus className="h-4 w-4" />
                     </button>
-                  ))}
+                    <span className="text-xl font-bold tabular-nums" style={{ color: "var(--color-foreground)" }}>
+                      {travelerCount}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const newCount = Math.min(trek.maxGroupSize || 20, travelerCount + 1);
+                        setTravelerCount(newCount);
+                      }}
+                      disabled={travelerCount >= (trek.maxGroupSize || 20)}
+                      className="flex h-8 w-8 items-center justify-center rounded-lg border transition-colors disabled:cursor-not-allowed disabled:opacity-40"
+                      style={{ borderColor: "var(--color-border)", backgroundColor: "var(--color-surface)", color: "var(--color-secondary)" }}
+                    >
+                      <Plus className="h-4 w-4" />
+                    </button>
+                  </div>
+                  <p className="mt-1.5 text-xs" style={{ color: "var(--color-text-muted)" }}>
+                    Max {trek.maxGroupSize || 20} travelers per booking
+                  </p>
                 </div>
-              ) : (
-                <input
-                  type="date"
-                  required
-                  value={startDate}
-                  min={new Date().toISOString().split("T")[0]}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  className="w-full rounded-lg border border-border bg-background px-4 py-2.5 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-                />
-              )}
-            </div>
-
-            <div>
-              <label className="flex items-center gap-1.5 text-sm font-medium text-foreground mb-2">
-                <Users className="h-4 w-4 text-teal-600" />
-                Number of Travelers
-              </label>
-              <div className="flex items-center justify-between rounded-lg border border-border bg-surface px-4 py-2.5 max-w-xs">
-                <button
-                  type="button"
-                  onClick={() => {
-                    const newCount = Math.max(1, travelerCount - 1);
-                    setTravelerCount(newCount);
-                    if (travelers.length > newCount) {
-                      setTravelers(travelers.slice(0, newCount));
-                    }
-                  }}
-                  disabled={travelerCount <= 1}
-                  className="flex h-8 w-8 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-600 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  <Minus className="h-4 w-4" />
-                </button>
-                <span className="text-xl font-bold text-foreground tabular-nums">{travelerCount}</span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const newCount = Math.min(trek.maxGroupSize || 20, travelerCount + 1);
-                    setTravelerCount(newCount);
-                  }}
-                  disabled={travelerCount >= (trek.maxGroupSize || 20)}
-                  className="flex h-8 w-8 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-600 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  <Plus className="h-4 w-4" />
-                </button>
               </div>
-              <p className="text-xs text-text-muted mt-1">Max {trek.maxGroupSize || 20} travelers per booking</p>
             </div>
-          </div>
-        </div>
 
-        <div className="rounded-xl border border-border bg-white p-6 shadow-sm">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-bold text-foreground">Traveler Details</h2>
-            {travelers.length < travelerCount && (
-              <button type="button" onClick={addTraveler} className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:text-primary-dark">
-                <Plus className="h-4 w-4" /> Add Traveler ({travelers.length}/{travelerCount})
-              </button>
+            {/* Add-ons */}
+            {trekAddons.length > 0 && (
+              <div
+                className="rounded-3xl border p-6 sm:p-7"
+                style={{ backgroundColor: "var(--color-surface)", borderColor: "var(--color-border)" }}
+              >
+                <h2 className="mb-4 flex items-center gap-1.5 text-lg font-bold" style={{ color: "var(--color-secondary)" }}>
+                  <Package className="h-4 w-4" style={{ color: "var(--color-primary)" }} />
+                  Add-ons
+                </h2>
+                <div className="space-y-3">
+                  {trekAddons.map((addon, i) => {
+                    const qty = selectedAddons.find((a) => a.title === addon.title)?.qty || 0;
+                    return (
+                      <div
+                        key={i}
+                        className="flex items-center gap-3 rounded-2xl border p-3"
+                        style={{ borderColor: "var(--color-border)", backgroundColor: "var(--color-surface-alt)" }}
+                      >
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium" style={{ color: "var(--color-foreground)" }}>{addon.title}</p>
+                          {addon.description && (
+                            <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>{addon.description}</p>
+                          )}
+                          <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>${addon.pricePerUnit}/{addon.unit}</p>
+                        </div>
+                        <div className="flex shrink-0 items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedAddons((prev) => {
+                              const existing = prev.find((a) => a.title === addon.title);
+                              if (existing && existing.qty <= 1) return prev.filter((a) => a.title !== addon.title);
+                              return prev.map((a) => a.title === addon.title ? { ...a, qty: a.qty - 1 } : a);
+                            })}
+                            disabled={qty <= 0}
+                            className="flex h-7 w-7 items-center justify-center rounded-md border transition-colors disabled:cursor-not-allowed disabled:opacity-30"
+                            style={{ borderColor: "var(--color-border)", backgroundColor: "var(--color-surface)", color: "var(--color-secondary)" }}
+                          >
+                            <Minus className="h-3.5 w-3.5" />
+                          </button>
+                          <span className="w-6 text-center text-sm font-bold tabular-nums" style={{ color: "var(--color-foreground)" }}>
+                            {qty}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedAddons((prev) => {
+                              const existing = prev.find((a) => a.title === addon.title);
+                              if (existing) return prev.map((a) => a.title === addon.title ? { ...a, qty: a.qty + 1 } : a);
+                              return [...prev, { title: addon.title, qty: 1, pricePerUnit: addon.pricePerUnit }];
+                            })}
+                            className="flex h-7 w-7 items-center justify-center rounded-md border transition-colors"
+                            style={{ borderColor: "var(--color-border)", backgroundColor: "var(--color-surface)", color: "var(--color-secondary)" }}
+                          >
+                            <Plus className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                        <span className="w-16 shrink-0 text-right text-sm font-semibold tabular-nums" style={{ color: "var(--color-primary)" }}>
+                          ${(qty * addon.pricePerUnit).toLocaleString()}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             )}
-          </div>
-          <div className="mt-4 space-y-6">
-            {travelers.map((traveler, index) => (
-              <div key={index} className="rounded-lg border border-border bg-surface p-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-foreground">Traveler {index + 1}</span>
-                  {travelers.length > 1 && (
-                    <button type="button" onClick={() => removeTraveler(index)} className="text-error hover:text-red-700">
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  )}
-                </div>
-                <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                  <div>
-                    <label className="block text-xs font-medium text-text-muted">Full Name *</label>
-                    <input type="text" required value={traveler.fullName} onChange={(e) => updateTraveler(index, "fullName", e.target.value)}
-                      className="mt-1 w-full rounded-lg border border-border bg-white px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-text-muted">Email *</label>
-                    <input type="email" required value={traveler.email} onChange={(e) => updateTraveler(index, "email", e.target.value)}
-                      className="mt-1 w-full rounded-lg border border-border bg-white px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-text-muted">Phone *</label>
-                    <input type="tel" required value={traveler.phone} onChange={(e) => updateTraveler(index, "phone", e.target.value)}
-                      className="mt-1 w-full rounded-lg border border-border bg-white px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-text-muted">Nationality *</label>
-                    <input type="text" required value={traveler.nationality} onChange={(e) => updateTraveler(index, "nationality", e.target.value)}
-                      className="mt-1 w-full rounded-lg border border-border bg-white px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-text-muted">Passport / ID Number</label>
-                    <input type="text" value={traveler.passportNumber} onChange={(e) => updateTraveler(index, "passportNumber", e.target.value)}
-                      className="mt-1 w-full rounded-lg border border-border bg-white px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-text-muted">Age</label>
-                    <input type="number" min={1} max={120} value={traveler.age} onChange={(e) => updateTraveler(index, "age", e.target.value)}
-                      className="mt-1 w-full rounded-lg border border-border bg-white px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary" />
-                  </div>
-                </div>
-                {index === 0 && (
-                  <div className="mt-3">
-                    <label className="block text-xs font-medium text-text-muted">Special Requests</label>
-                    <textarea value={specialRequests} onChange={(e) => setSpecialRequests(e.target.value)} rows={2}
-                      placeholder="Dietary requirements, medical conditions, accommodation preferences..."
-                      className="mt-1 w-full rounded-lg border border-border bg-white px-3 py-2 text-sm text-foreground placeholder:text-text-muted focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary" />
-                  </div>
+
+            {/* Traveler Details */}
+            <div
+              className="rounded-3xl border p-6 sm:p-7"
+              style={{ backgroundColor: "var(--color-surface)", borderColor: "var(--color-border)" }}
+            >
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h2 className="text-lg font-bold" style={{ color: "var(--color-secondary)" }}>
+                  Traveler Details
+                </h2>
+                {travelers.length < travelerCount && (
+                  <button
+                    type="button"
+                    onClick={addTraveler}
+                    className="inline-flex items-center gap-1 text-sm font-semibold transition-colors"
+                    style={{ color: "var(--color-primary)" }}
+                  >
+                    <Plus className="h-4 w-4" /> Add Traveler ({travelers.length}/{travelerCount})
+                  </button>
                 )}
               </div>
-            ))}
+
+              <div className="mt-5 space-y-4">
+                {travelers.map((traveler, index) => (
+                  <div
+                    key={index}
+                    className="rounded-2xl border-2 p-5"
+                    style={{ borderColor: "var(--color-border)", backgroundColor: "var(--color-surface)" }}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="flex items-center gap-2 text-sm font-semibold" style={{ color: "var(--color-foreground)" }}>
+                        <span
+                          className="flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold"
+                          style={{ backgroundColor: "var(--color-accent-light)", color: "var(--color-secondary)" }}
+                        >
+                          {index + 1}
+                        </span>
+                        Traveler {index + 1}
+                      </span>
+                      {travelers.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => removeTraveler(index)}
+                          className="transition-colors"
+                          style={{ color: "var(--color-error)" }}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                      <div>
+                        <label className="block text-xs font-medium" style={{ color: "var(--color-text-muted)" }}>Full Name *</label>
+                        <input
+                          type="text"
+                          required
+                          value={traveler.fullName}
+                          onChange={(e) => updateTraveler(index, "fullName", e.target.value)}
+                          className="mt-1 w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2"
+                          style={travelerInputStyle}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium" style={{ color: "var(--color-text-muted)" }}>Email *</label>
+                        <input
+                          type="email"
+                          required
+                          value={traveler.email}
+                          onChange={(e) => updateTraveler(index, "email", e.target.value)}
+                          className="mt-1 w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2"
+                          style={travelerInputStyle}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium" style={{ color: "var(--color-text-muted)" }}>Phone *</label>
+                        <input
+                          type="tel"
+                          required
+                          value={traveler.phone}
+                          onChange={(e) => updateTraveler(index, "phone", e.target.value)}
+                          className="mt-1 w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2"
+                          style={travelerInputStyle}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium" style={{ color: "var(--color-text-muted)" }}>Nationality *</label>
+                        <input
+                          type="text"
+                          required
+                          value={traveler.nationality}
+                          onChange={(e) => updateTraveler(index, "nationality", e.target.value)}
+                          className="mt-1 w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2"
+                          style={travelerInputStyle}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium" style={{ color: "var(--color-text-muted)" }}>Passport / ID Number</label>
+                        <input
+                          type="text"
+                          value={traveler.passportNumber}
+                          onChange={(e) => updateTraveler(index, "passportNumber", e.target.value)}
+                          className="mt-1 w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2"
+                          style={travelerInputStyle}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium" style={{ color: "var(--color-text-muted)" }}>Age</label>
+                        <input
+                          type="number"
+                          min={1}
+                          max={120}
+                          value={traveler.age}
+                          onChange={(e) => updateTraveler(index, "age", e.target.value)}
+                          className="mt-1 w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2"
+                          style={travelerInputStyle}
+                        />
+                      </div>
+                    </div>
+
+                    {index === 0 && (
+                      <div className="mt-3">
+                        <label className="block text-xs font-medium" style={{ color: "var(--color-text-muted)" }}>Special Requests</label>
+                        <textarea
+                          value={specialRequests}
+                          onChange={(e) => setSpecialRequests(e.target.value)}
+                          rows={2}
+                          placeholder="Dietary requirements, medical conditions, accommodation preferences..."
+                          className="mt-1 w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2"
+                          style={travelerInputStyle}
+                        />
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {error && (
+              <div
+                className="flex items-start gap-2 rounded-2xl px-4 py-3 text-sm"
+                style={{ backgroundColor: "var(--color-accent-light)", color: "var(--color-error)" }}
+              >
+                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                {error}
+              </div>
+            )}
+
+            {/* Submit on mobile (summary card duplicates the button on desktop) */}
+            <button
+              type="submit"
+              disabled={isSubmitting || !startDate}
+              className="w-full rounded-full px-6 py-3.5 text-base font-semibold text-white shadow-sm transition-all hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50 lg:hidden"
+              style={{ backgroundColor: "var(--color-primary)" }}
+            >
+              {isSubmitting ? (
+                <span className="inline-flex items-center justify-center gap-2">
+                  <Loader2 className="h-5 w-5 animate-spin" /> Processing...
+                </span>
+              ) : (
+                `Book Now - $${totalPrice.toLocaleString()}`
+              )}
+            </button>
           </div>
-        </div>
 
-        {error && <div className="rounded-lg bg-red-50 p-4 text-sm text-error">{error}</div>}
+          {/* Summary sidebar */}
+          <div className="lg:sticky lg:top-6">
+            <div
+              className="rounded-3xl border p-6 sm:p-7"
+              style={{ backgroundColor: "var(--color-surface)", borderColor: "var(--color-border)" }}
+            >
+              <h2 className="text-lg font-bold" style={{ color: "var(--color-secondary)" }}>
+                Booking Summary
+              </h2>
+              <div className="mt-4 space-y-3 text-sm">
+                <div className="flex items-center justify-between border-b pb-3" style={{ borderColor: "var(--color-border)" }}>
+                  <span style={{ color: "var(--color-text)" }}>Trek</span>
+                  <span className="text-right font-medium" style={{ color: "var(--color-foreground)" }}>{trek.title}</span>
+                </div>
+                <div className="flex items-center justify-between border-b pb-3" style={{ borderColor: "var(--color-border)" }}>
+                  <span style={{ color: "var(--color-text)" }}>Duration</span>
+                  <span className="font-medium" style={{ color: "var(--color-foreground)" }}>{trek.duration} days</span>
+                </div>
+                <div className="flex items-center justify-between border-b pb-3" style={{ borderColor: "var(--color-border)" }}>
+                  <span style={{ color: "var(--color-text)" }}>Price per person</span>
+                  <span className="font-medium" style={{ color: "var(--color-foreground)" }}>${pricePerPerson.toLocaleString()}</span>
+                </div>
+                <div className="flex items-center justify-between border-b pb-3" style={{ borderColor: "var(--color-border)" }}>
+                  <span style={{ color: "var(--color-text)" }}>Travelers</span>
+                  <span className="font-medium" style={{ color: "var(--color-foreground)" }}>{travelerCount}</span>
+                </div>
+                {selectedAddons.map((addon, i) => (
+                  <div key={i} className="flex items-center justify-between border-b pb-3" style={{ borderColor: "var(--color-border)" }}>
+                    <span style={{ color: "var(--color-text)" }}>{addon.title} &times; {addon.qty}</span>
+                    <span className="font-medium" style={{ color: "var(--color-foreground)" }}>
+                      +${(addon.qty * addon.pricePerUnit).toLocaleString()}
+                    </span>
+                  </div>
+                ))}
+                <div className="flex items-center justify-between pt-1 text-lg font-bold">
+                  <span style={{ color: "var(--color-foreground)" }}>Total</span>
+                  <span style={{ color: "var(--color-primary)" }}>${totalPrice.toLocaleString()}</span>
+                </div>
+              </div>
 
-        <button type="submit" disabled={isSubmitting || !startDate}
-          className="w-full rounded-lg bg-primary px-6 py-3 text-base font-semibold text-white shadow-lg transition-all hover:bg-primary-dark disabled:cursor-not-allowed disabled:opacity-50">
-          {isSubmitting ? (
-            <span className="inline-flex items-center gap-2"><Loader2 className="h-5 w-5 animate-spin" /> Processing...</span>
-          ) : (
-            `Book Now - $${totalPrice.toLocaleString()}`
-          )}
-        </button>
-      </form>
+              <button
+                type="submit"
+                disabled={isSubmitting || !startDate}
+                className="mt-6 hidden w-full rounded-full px-6 py-3.5 text-base font-semibold text-white shadow-sm transition-all hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50 lg:block"
+                style={{ backgroundColor: "var(--color-primary)" }}
+              >
+                {isSubmitting ? (
+                  <span className="inline-flex items-center justify-center gap-2">
+                    <Loader2 className="h-5 w-5 animate-spin" /> Processing...
+                  </span>
+                ) : (
+                  `Book Now - $${totalPrice.toLocaleString()}`
+                )}
+              </button>
+              <p className="mt-3 text-center text-xs" style={{ color: "var(--color-text-muted)" }}>
+                No payment charged yet — you'll confirm on the next step
+              </p>
+            </div>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }

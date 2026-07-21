@@ -1,4 +1,8 @@
 import React from "react";
+import { Clock, Gauge, Mountain, Calendar, Tag, MapPin } from "lucide-react";
+import { Users, ArrowRight } from "lucide-react";
+import { Plus } from "lucide-react";
+
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
@@ -10,6 +14,9 @@ import { TrekMapWrapper } from "@/components/map/TrekMapWrapper";
 import { PricingCalculator } from "@/components/trek/PricingCalculator";
 import { AltitudeProfile } from "@/components/trek/AltitudeProfile";
 import { ReviewForm } from "@/components/trek/ReviewForm";
+import { SectionNav } from "@/components/trek/SectionNav";
+import GallerySection from "@/components/trek/GallerySection";
+import { GalleryProvider } from "@/components/trek/GalleryContext";
 import { ContactFormSection } from "@/components/home/ContactFormSection";
 
 async function getTrek(slug: string, categorySlug: string) {
@@ -44,7 +51,12 @@ export async function generateMetadata({ params }: { params: Promise<{ category:
   if (!trek) return {};
   const title = trek.metaTitle || `${trek.title} | Mardi Treks`;
   const description = trek.metaDescription || trek.overview?.slice(0, 160);
-  return { title, description, openGraph: { title, description, type: "article" } };
+  return {
+    title,
+    description,
+    alternates: { canonical: `https://marditreks.com/${catSlug}/${slug}` },
+    openGraph: { title, description, type: "article", url: `https://marditreks.com/${catSlug}/${slug}` },
+  };
 }
 
 export const revalidate = 300;
@@ -95,6 +107,18 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
   const sectionData: Record<string, { heading?: string; description?: string }> =
     typeof (trek as any).sectionData === "string" ? JSON.parse((trek as any).sectionData) : {};
 
+  // Section ordering — parse from saved data, fall back to default
+  const savedSectionOrder: string[] = (trek as any).sectionOrder
+    ? (() => { try { return JSON.parse((trek as any).sectionOrder); } catch { return []; } })()
+    : [];
+  // Map admin section IDs to client section IDs
+  const clientSectionIds = ["overview", "itinerary", "altitude", "inEx", "pricing", "addons", "map", "faqs", "reviews", "gallery", "contact"];
+  const sectionOrderList = savedSectionOrder.length > 0
+    ? savedSectionOrder
+    : clientSectionIds;
+  const sectionOrderMap: Record<string, number> = {};
+  sectionOrderList.forEach((id, i) => { sectionOrderMap[id] = i; });
+
   const minPrice = getMinPrice(pricingTiers);
   const maxAltitude = trek.maxAltitude || getMaxAltitude(itinerary);
   const avgRating = getAvgRating(reviews);
@@ -108,7 +132,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
   };
 
   return (
-    <React.Fragment>
+    <GalleryProvider>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
@@ -138,7 +162,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
       {/* ================================================================
           HERO SECTION — Full-screen parallax with search
       ================================================================ */}
-      <section className="relative flex h-screen w-full items-center overflow-hidden">
+      <section id="hero" className="relative flex h-screen w-full items-center overflow-hidden">
         {/* Background image with parallax */}
         <div
           className="hero-parallax absolute inset-0 bg-cover bg-center"
@@ -211,638 +235,588 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
       {/* ================================================================
           CONTENT WRAPPER
       ================================================================ */}
-      <div className="mx-auto max-w-screen-2xl px-3 sm:px-4 lg:px-6 py-8">
+      <div className="mx-auto max-w-screen-2xl px-3 sm:px-4 lg:px-6 py-8 pb-24">
         <div className="grid gap-12 lg:grid-cols-3">
           {/* ── MAIN CONTENT ── */}
-          <div className="space-y-0 lg:col-span-2">
-            {/* ===========================================================
-                OVERVIEW SECTION — Stats grid + description
-            ============================================================ */}
-            <section className="py-16 sm:py-20">
-              <h2
-                className="mb-10 text-3xl font-bold sm:text-4xl"
-                style={{ color: "var(--color-secondary)" }}
+          <div className="flex flex-col space-y-0 lg:col-span-2">
+            {/* Sections rendered in saved order */}
+            {(() => {
+              const sectionMap: Record<string, () => React.ReactNode> = {};
+              sectionMap["overview"] = () => <section id="overview" className="py-16 sm:py-20">
+  <h2
+    className="mb-10 text-3xl font-bold sm:text-4xl"
+    style={{ color: "var(--color-secondary)" }}
+  >
+    Trip Overview
+  </h2>
+
+  {/* Single unified stats grid */}
+  <div
+    className="mb-8 grid grid-cols-1 divide-y rounded-3xl border sm:grid-cols-3 sm:divide-x sm:divide-y-0 [&>*:nth-child(4)]:sm:border-t [&>*:nth-child(5)]:sm:border-t [&>*:nth-child(6)]:sm:border-t"
+    style={{
+      backgroundColor: "var(--color-surface-alt)",
+      borderColor: "var(--color-border)",
+    }}
+  >
+    <div className="flex items-center gap-4 p-6" style={{ borderColor: "var(--color-border)" }}>
+      <Clock className="h-6 w-6 shrink-0" style={{ color: "var(--color-primary)" }} />
+      <div>
+        <span
+          className="block text-xs font-semibold uppercase tracking-wider"
+          style={{ color: "var(--color-primary)" }}
+        >
+          Duration
+        </span>
+        <span className="text-2xl font-bold" style={{ color: "var(--color-secondary)" }}>
+          {trek.duration} Days
+        </span>
+      </div>
+    </div>
+
+    <div className="flex items-center gap-4 p-6" style={{ borderColor: "var(--color-border)" }}>
+      <Gauge className="h-6 w-6 shrink-0" style={{ color: "var(--color-primary)" }} />
+      <div>
+        <span
+          className="block text-xs font-semibold uppercase tracking-wider"
+          style={{ color: "var(--color-primary)" }}
+        >
+          Difficulty
+        </span>
+        <span className="text-2xl font-bold" style={{ color: "var(--color-secondary)" }}>
+          {trek.difficulty.charAt(0).toUpperCase() + trek.difficulty.slice(1)}
+        </span>
+      </div>
+    </div>
+
+    <div className="flex items-center gap-4 p-6" style={{ borderColor: "var(--color-border)" }}>
+      <Mountain className="h-6 w-6 shrink-0" style={{ color: "var(--color-primary)" }} />
+      <div>
+        <span
+          className="block text-xs font-semibold uppercase tracking-wider"
+          style={{ color: "var(--color-primary)" }}
+        >
+          Max Altitude
+        </span>
+        <span className="text-2xl font-bold" style={{ color: "var(--color-secondary)" }}>
+          {maxAltitude > 0 ? `${maxAltitude.toLocaleString()}m` : "\u2014"}
+        </span>
+      </div>
+    </div>
+
+    <div className="flex items-center gap-4 p-6" style={{ borderColor: "var(--color-border)" }}>
+      <Calendar className="h-6 w-6 shrink-0" style={{ color: "var(--color-primary)" }} />
+      <div>
+        <span
+          className="block text-xs font-semibold uppercase tracking-wider"
+          style={{ color: "var(--color-primary)" }}
+        >
+          Best Time
+        </span>
+        <span className="text-2xl font-bold" style={{ color: "var(--color-secondary)" }}>
+          {trek.bestTime || "\u2014"}
+        </span>
+      </div>
+    </div>
+
+    <div className="flex items-center gap-4 p-6" style={{ borderColor: "var(--color-border)" }}>
+      <Tag className="h-6 w-6 shrink-0" style={{ color: "var(--color-primary)" }} />
+      <div>
+        <span
+          className="block text-xs font-semibold uppercase tracking-wider"
+          style={{ color: "var(--color-primary)" }}
+        >
+          Min Price
+        </span>
+        <span className="text-2xl font-bold" style={{ color: "var(--color-secondary)" }}>
+          {minPrice > 0 ? `$${minPrice.toLocaleString()}` : "\u2014"}
+        </span>
+      </div>
+    </div>
+
+    <div className="flex items-center gap-4 p-6" style={{ borderColor: "var(--color-border)" }}>
+      <MapPin className="h-6 w-6 shrink-0" style={{ color: "var(--color-primary)" }} />
+      <div>
+        <span
+          className="block text-xs font-semibold uppercase tracking-wider"
+          style={{ color: "var(--color-primary)" }}
+        >
+          Region
+        </span>
+        <span className="text-2xl font-bold" style={{ color: "var(--color-secondary)" }}>
+          {trek.region || "\u2014"}
+        </span>
+      </div>
+    </div>
+  </div>
+
+  {/* Overview description */}
+  {trek.overview && (
+    <div
+      className="max-w-3xl text-lg leading-relaxed"
+      style={{ color: "var(--color-text)" }}
+      dangerouslySetInnerHTML={{ __html: trek.overview }}
+    />
+  )}
+              </section>;
+              sectionMap["itinerary"] = () => itinerary.length > 0 ? <section id="itinerary" className="py-16">
+    <h2
+      className="mb-2 text-2xl font-bold sm:text-3xl"
+      style={{ color: "var(--color-secondary)" }}
+    >
+      {sectionData.itinerary?.heading || "Itinerary"}
+    </h2>
+    {sectionData.itinerary?.description && (
+      <p className="mb-10 text-sm" style={{ color: "var(--color-text-muted)" }}>
+        {sectionData.itinerary.description}
+      </p>
+    )}
+
+    <div className="relative">
+      {/* connecting line running behind the day markers */}
+      <div
+        className="absolute left-[19px] top-2 bottom-2 w-px"
+        style={{ backgroundColor: "var(--color-border)" }}
+        aria-hidden="true"
+      />
+
+      <div className="space-y-3">
+        {itinerary.map((day: any, index: number) => (
+          <details
+            key={day.dayNumber}
+            className="group relative rounded-2xl border transition-colors"
+            style={{
+              backgroundColor: "var(--color-surface)",
+              borderColor: "var(--color-border)",
+            }}
+            open={index === 0}
+          >
+            <summary
+              className="flex cursor-pointer list-none items-start gap-4 rounded-2xl px-4 py-4 marker:content-none [&::-webkit-details-marker]:hidden"
+            >
+              {/* day marker */}
+              <span
+                className="relative z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-full border text-sm font-bold tabular-nums"
+                style={{
+                  backgroundColor: "var(--color-surface)",
+                  borderColor: "var(--color-border)",
+                  color: "var(--color-text-muted)",
+                }}
               >
-                Trip Overview
-              </h2>
-
-              {/* Stats Grid */}
-              <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                <div
-                  className="rounded-3xl border p-6 text-center"
-                  style={{
-                    backgroundColor: "var(--color-surface-alt)",
-                    borderColor: "var(--color-border)",
-                  }}
-                >
-                  <span
-                    className="mb-2 block text-xs font-semibold uppercase tracking-wider"
-                    style={{ color: "var(--color-primary)" }}
-                  >
-                    Duration
-                  </span>
-                  <span
-                    className="text-xl font-bold"
-                    style={{ color: "var(--color-secondary)" }}
-                  >
-                    {trek.duration} Days
-                  </span>
-                </div>
-
-                <div
-                  className="rounded-3xl border p-6 text-center"
-                  style={{
-                    backgroundColor: "var(--color-surface-alt)",
-                    borderColor: "var(--color-border)",
-                  }}
-                >
-                  <span
-                    className="mb-2 block text-xs font-semibold uppercase tracking-wider"
-                    style={{ color: "var(--color-primary)" }}
-                  >
-                    Difficulty
-                  </span>
-                  <span
-                    className="text-xl font-bold"
-                    style={{ color: "var(--color-secondary)" }}
-                  >
-                    {trek.difficulty.charAt(0).toUpperCase() + trek.difficulty.slice(1)}
-                  </span>
-                </div>
-
-                <div
-                  className="rounded-3xl border p-6 text-center"
-                  style={{
-                    backgroundColor: "var(--color-surface-alt)",
-                    borderColor: "var(--color-border)",
-                  }}
-                >
-                  <span
-                    className="mb-2 block text-xs font-semibold uppercase tracking-wider"
-                    style={{ color: "var(--color-primary)" }}
-                  >
-                    Max Altitude
-                  </span>
-                  <span
-                    className="text-xl font-bold"
-                    style={{ color: "var(--color-secondary)" }}
-                  >
-                    {maxAltitude > 0 ? `${maxAltitude.toLocaleString()}m` : "\u2014"}
-                  </span>
-                </div>
-
-                <div
-                  className="rounded-3xl border p-6 text-center"
-                  style={{
-                    backgroundColor: "var(--color-surface-alt)",
-                    borderColor: "var(--color-border)",
-                  }}
-                >
-                  <span
-                    className="mb-2 block text-xs font-semibold uppercase tracking-wider"
-                    style={{ color: "var(--color-primary)" }}
-                  >
-                    Best Time
-                  </span>
-                  <span
-                    className="text-xl font-bold"
-                    style={{ color: "var(--color-secondary)" }}
-                  >
-                    {trek.bestTime || "\u2014"}
-                  </span>
-                </div>
-
-                <div
-                  className="rounded-3xl border p-6 text-center"
-                  style={{
-                    backgroundColor: "var(--color-surface-alt)",
-                    borderColor: "var(--color-border)",
-                  }}
-                >
-                  <span
-                    className="mb-2 block text-xs font-semibold uppercase tracking-wider"
-                    style={{ color: "var(--color-primary)" }}
-                  >
-                    Min Price
-                  </span>
-                  <span
-                    className="text-xl font-bold"
-                    style={{ color: "var(--color-secondary)" }}
-                  >
-                    {minPrice > 0 ? `$${minPrice.toLocaleString()}` : "\u2014"}
-                  </span>
-                </div>
-
-                <div
-                  className="rounded-3xl border p-6 text-center"
-                  style={{
-                    backgroundColor: "var(--color-surface-alt)",
-                    borderColor: "var(--color-border)",
-                  }}
-                >
-                  <span
-                    className="mb-2 block text-xs font-semibold uppercase tracking-wider"
-                    style={{ color: "var(--color-primary)" }}
-                  >
-                    Region
-                  </span>
-                  <span
-                    className="text-xl font-bold"
-                    style={{ color: "var(--color-secondary)" }}
-                  >
-                    {trek.region || "\u2014"}
-                  </span>
-                </div>
-              </div>
-
-              {/* Overview description */}
-              {trek.overview && (
-                <div
-                  className="max-w-3xl text-lg leading-relaxed"
-                  style={{ color: "var(--color-text)" }}
-                  dangerouslySetInnerHTML={{ __html: trek.overview }}
+                <span className="group-open:hidden">{day.dayNumber}</span>
+                <span
+                  className="hidden h-2.5 w-2.5 rounded-full group-open:block"
+                  style={{ backgroundColor: "var(--color-primary)" }}
                 />
-              )}
-            </section>
+              </span>
 
-            {/* ===========================================================
-                CUSTOM SECTIONS
-            ============================================================ */}
-            {customSections.map((cs: any, idx: number) => (
-              <section key={cs.id || idx} className="py-16">
-                <h2
-                  className="mb-6 text-2xl font-bold"
-                  style={{ color: "var(--color-secondary)" }}
-                >
-                  {cs.data?.heading || "Custom Section"}
-                </h2>
-                {cs.data?.imageId && (
-                  <div className="relative mb-6 aspect-[16/9] overflow-hidden rounded-xl">
-                    <Image
-                      src={`https://res.cloudinary.com/dk7ggjvlw/image/upload/${cs.data.imageId}`}
-                      alt={cs.data.imageAlt || cs.data?.heading || "Section image"}
-                      fill
-                      className="object-cover"
-                      sizes="(max-width: 1024px) 100vw, 66vw"
-                    />
+              <div className="flex-1 min-w-0 pt-1.5">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <span
+                      className="text-[11px] font-semibold uppercase tracking-wide"
+                      style={{ color: "var(--color-primary)" }}
+                    >
+                      Day {day.dayNumber}
+                    </span>
+                    <h3
+                      className="text-base font-semibold leading-snug"
+                      style={{ color: "var(--color-foreground)" }}
+                    >
+                      {day.title}
+                    </h3>
                   </div>
-                )}
-                {cs.data?.content && (
-                  <div
-                    className="text-lg leading-relaxed"
-                    style={{ color: "var(--color-text)" }}
-                    dangerouslySetInnerHTML={{ __html: cs.data.content }}
+                  <ChevronDown
+                    className="mt-1 h-4 w-4 shrink-0 transition-transform duration-300 group-open:rotate-180"
+                    style={{ color: "var(--color-text-muted)" }}
                   />
-                )}
-              </section>
-            ))}
-
-            {/* ===========================================================
-                ITINERARY SECTION — Accordion style like template
-            ============================================================ */}
-            {itinerary.length > 0 && (
-              <section id="itinerary" className="py-16">
-                <h2
-                  className="mb-2 text-2xl font-bold sm:text-3xl"
-                  style={{ color: "var(--color-secondary)" }}
-                >
-                  {sectionData.itinerary?.heading || "Itinerary"}
-                </h2>
-                {sectionData.itinerary?.description && (
-                  <p className="mb-6 text-sm" style={{ color: "var(--color-text-muted)" }}>{sectionData.itinerary.description}</p>
-                )}
-                <div className="space-y-4">
-                  {itinerary.map((day: any) => (
-                    <details
-                      key={day.dayNumber}
-                      className="group cursor-pointer overflow-hidden rounded-3xl border transition-all duration-300"
-                      style={{
-                        backgroundColor: "var(--color-surface)",
-                        borderColor: "var(--color-border)",
-                      }}
-                    >
-                      <summary className="flex list-none items-center justify-between px-6 py-5 marker:content-none [&::-webkit-details-marker]:hidden">
-                        <div className="flex items-center gap-4">
-                          <span
-                            className="min-w-[70px] text-sm font-medium"
-                            style={{ color: "var(--color-primary-light)" }}
-                          >
-                            Day {day.dayNumber}
-                          </span>
-                          <span
-                            className="text-base font-semibold"
-                            style={{ color: "var(--color-foreground)" }}
-                          >
-                            {day.title}
-                          </span>
-                        </div>
-                        <ChevronDown
-                          className="h-4 w-4 transition-transform duration-300 group-open:rotate-180"
-                          style={{ color: "var(--color-secondary)" }}
-                        />
-                      </summary>
-                      <div
-                        className="border-t px-6 py-5"
-                        style={{ borderColor: "var(--color-border)" }}
-                      >
-                        <p className="text-sm leading-relaxed" style={{ color: "var(--color-text)" }}>
-                          {day.description}
-                        </p>
-                        {(day.elevation || day.accommodation) && (
-                          <div className="mt-3 flex flex-wrap gap-4 text-xs" style={{ color: "var(--color-text-muted)" }}>
-                            {day.elevation && <span>Elevation: {day.elevation}</span>}
-                            {day.accommodation && <span>Accommodation: {day.accommodation}</span>}
-                          </div>
-                        )}
-                      </div>
-                    </details>
-                  ))}
                 </div>
-              </section>
-            )}
-
-            {/* ===========================================================
-                ALTITUDE PROFILE
-            ============================================================ */}
-            {itinerary.length > 0 && (
-              <section className="py-16">
-                <AltitudeProfile itinerary={itinerary} />
-              </section>
-            )}
-
-            {/* ===========================================================
-                INCLUSIONS & EXCLUSIONS — Separate rows
-            ============================================================ */}
-            {(inclusions.length > 0 || exclusions.length > 0) && (
-              <section className="py-16">
-                <h2
-                  className="mb-2 text-2xl font-bold"
-                  style={{ color: "var(--color-secondary)" }}
-                >
-                  {sectionData.inEx?.heading || "Inclusions & Exclusions"}
-                </h2>
-                {sectionData.inEx?.description && (
-                  <p className="mb-6 text-sm" style={{ color: "var(--color-text-muted)" }}>{sectionData.inEx.description}</p>
-                )}
-                <div className="space-y-8">
-                  {inclusions.length > 0 && (
-                    <div>
-                      <h3
-                        className="mb-4 text-xl font-bold"
-                        style={{ color: "var(--color-secondary)" }}
-                      >
-                        What&apos;s Included
-                      </h3>
-                      <ul className="space-y-3">
-                        {inclusions.map((item: string, i: number) => (
-                          <li
-                            key={i}
-                            className="flex items-start gap-3 rounded-xl border p-4"
-                            style={{
-                              backgroundColor: "var(--color-surface-alt)",
-                              borderColor: "var(--color-border)",
-                            }}
-                          >
-                            <Check
-                              className="mt-0.5 h-5 w-5 shrink-0"
-                              style={{ color: "var(--color-success)" }}
-                            />
-                            <span className="text-sm" style={{ color: "var(--color-text)" }}>
-                              {item}
-                            </span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-
-                  {exclusions.length > 0 && (
-                    <div>
-                      <h3
-                        className="mb-4 text-xl font-bold"
-                        style={{ color: "var(--color-secondary)" }}
-                      >
-                        What&apos;s Excluded
-                      </h3>
-                      <ul className="space-y-3">
-                        {exclusions.map((item: string, i: number) => (
-                          <li
-                            key={i}
-                            className="flex items-start gap-3 rounded-xl border p-4"
-                            style={{
-                              backgroundColor: "var(--color-surface-alt)",
-                              borderColor: "var(--color-border)",
-                            }}
-                          >
-                            <XIcon
-                              className="mt-0.5 h-5 w-5 shrink-0"
-                              style={{ color: "var(--color-error)" }}
-                            />
-                            <span className="text-sm" style={{ color: "var(--color-text)" }}>
-                              {item}
-                            </span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                </div>
-              </section>
-            )}
-
-            {/* ===========================================================
-                PRICING
-            ============================================================ */}
-            {pricingTiers.length > 0 && (
-              <section id="pricing" className="py-16">
-                <h2
-                  className="mb-2 text-2xl font-bold"
-                  style={{ color: "var(--color-secondary)" }}
-                >
-                  {sectionData.pricing?.heading || "Pricing"}
-                </h2>
-                {sectionData.pricing?.description ? (
-                  <p className="mb-6 text-sm" style={{ color: "var(--color-text-muted)" }}>{sectionData.pricing.description}</p>
-                ) : (
-                  <p className="mb-6 text-sm" style={{ color: "var(--color-text-muted)" }}>Per-person pricing based on group size.</p>
-                )}
-                <div className="overflow-hidden rounded-2xl border" style={{ borderColor: "var(--color-border)" }}>
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr style={{ backgroundColor: "var(--color-surface-alt)" }}>
-                        <th className="px-5 py-3 text-left font-semibold" style={{ color: "var(--color-secondary)" }}>Group Size</th>
-                        <th className="px-5 py-3 text-right font-semibold" style={{ color: "var(--color-secondary)" }}>Price Per Person</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {pricingTiers.map((tier: any, i: number) => (
-                        <tr
-                          key={i}
-                          className="border-t"
-                          style={{ borderColor: "var(--color-border)" }}
-                        >
-                          <td className="px-5 py-3" style={{ color: "var(--color-text)" }}>{tier.groupSize}</td>
-                          <td className="px-5 py-3 text-right font-semibold" style={{ color: "var(--color-primary)" }}>
-                            ${tier.pricePerPerson.toLocaleString()}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </section>
-            )}
-
-            {/* ===========================================================
-                ADD-ONS
-            ============================================================ */}
-            {addons.length > 0 && (
-              <section id="addons" className="py-16">
-                <h2
-                  className="mb-2 text-2xl font-bold"
-                  style={{ color: "var(--color-secondary)" }}
-                >
-                  {sectionData.addons?.heading || "Add-ons"}
-                </h2>
-                {sectionData.addons?.description ? (
-                  <p className="mb-6 text-sm" style={{ color: "var(--color-text-muted)" }}>{sectionData.addons.description}</p>
-                ) : (
-                  <p className="mb-6 text-sm" style={{ color: "var(--color-text-muted)" }}>Optional extras to enhance your experience.</p>
-                )}
-                <div className="grid gap-4 sm:grid-cols-2">
-                  {addons.map((addon: any, i: number) => (
-                    <div
-                      key={i}
-                      className="rounded-2xl border p-5"
-                      style={{
-                        backgroundColor: "var(--color-surface-alt)",
-                        borderColor: "var(--color-border)",
-                      }}
-                    >
-                      <h3 className="text-base font-semibold" style={{ color: "var(--color-secondary)" }}>
-                        {addon.title}
-                      </h3>
-                      {addon.description && (
-                        <p className="mt-1 text-sm" style={{ color: "var(--color-text)" }}>
-                          {addon.description}
-                        </p>
-                      )}
-                      <p className="mt-2 text-sm font-bold" style={{ color: "var(--color-primary)" }}>
-                        ${addon.pricePerUnit?.toLocaleString()} / {addon.unit === "room" ? "room" : "person"}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              </section>
-            )}
-
-            {/* ===========================================================
-                MAP
-            ============================================================ */}
-            <section id="map" className="py-16">
-              <h2
-                className="mb-2 text-2xl font-bold"
-                style={{ color: "var(--color-secondary)" }}
-              >
-                {sectionData.map?.heading || "Route Map"}
-              </h2>
-              {sectionData.map?.description ? (
-                <p className="mb-4 text-sm" style={{ color: "var(--color-text-muted)" }}>{sectionData.map.description}</p>
-              ) : (
-                <p className="mb-4 text-sm" style={{ color: "var(--color-text-muted)" }}>Explore the terrain map showing the trek route.</p>
-              )}
-              <TrekMapWrapper
-                geoJsonUrl={trek.geoJsonUrl || undefined}
-                geoJsonData={trek.geoJsonData || null}
-                waypoints={waypoints?.length > 0 ? waypoints : undefined}
-                itinerary={itinerary?.length > 0 ? itinerary : undefined}
-                staticFallbackImage={trek.staticMapImage || undefined}
-              />
-            </section>
-
-            {/* ===========================================================
-                FAQs
-            ============================================================ */}
-            {faqs.length > 0 && (
-              <section className="py-16">
-                <h2
-                  className="mb-2 text-2xl font-bold"
-                  style={{ color: "var(--color-secondary)" }}
-                >
-                  {sectionData.faqs?.heading || "Frequently Asked Questions"}
-                </h2>
-                {sectionData.faqs?.description && (
-                  <p className="mb-6 text-sm" style={{ color: "var(--color-text-muted)" }}>{sectionData.faqs.description}</p>
-                )}
-                <div className="space-y-3">
-                  {faqs.map((faq: any, i: number) => (
-                    <details
-                      key={i}
-                      className="group overflow-hidden rounded-2xl border"
-                      style={{
-                        backgroundColor: "var(--color-surface)",
-                        borderColor: "var(--color-border)",
-                      }}
-                    >
-                      <summary className="flex cursor-pointer list-none items-center justify-between px-5 py-4 marker:content-none [&::-webkit-details-marker]:hidden">
-                        <span
-                          className="text-sm font-semibold"
-                          style={{ color: "var(--color-foreground)" }}
-                        >
-                          {faq.question}
-                        </span>
-                        <ChevronDown
-                          className="h-4 w-4 shrink-0 transition-transform duration-300 group-open:rotate-180"
-                          style={{ color: "var(--color-text-muted)" }}
-                        />
-                      </summary>
-                      <div
-                        className="border-t px-5 py-4"
-                        style={{ borderColor: "var(--color-border)" }}
-                      >
-                        <p className="text-sm leading-relaxed" style={{ color: "var(--color-text)" }}>
-                          {faq.answer}
-                        </p>
-                      </div>
-                    </details>
-                  ))}
-                </div>
-              </section>
-            )}
-
-            {/* ===========================================================
-                REVIEWS
-            ============================================================ */}
-            <section className="py-16">
-              <h2
-                className="mb-6 text-2xl font-bold"
-                style={{ color: "var(--color-secondary)" }}
-              >
-                Guest Reviews
-              </h2>
-
-              {avgRating > 0 && (
-                <div className="mb-6 flex items-center gap-3">
-                  <div className="flex">
-                    {Array.from({ length: 5 }).map((_, i) => (
-                      <Star
-                        key={i}
-                        className="h-5 w-5"
-                        style={{
-                          fill: i < Math.round(avgRating) ? "var(--color-warning)" : "var(--color-border)",
-                          color: i < Math.round(avgRating) ? "var(--color-warning)" : "var(--color-border)",
-                        }}
-                      />
-                    ))}
-                  </div>
-                  <span className="text-sm font-medium" style={{ color: "var(--color-text-muted)" }}>
-                    {avgRating.toFixed(1)} ({reviews.filter((r: any) => r.approved).length} reviews)
-                  </span>
-                </div>
-              )}
-
-              {reviews.filter((r: any) => r.approved).length > 0 && (
-                <div className="grid gap-4 sm:grid-cols-2">
-                  {reviews
-                    .filter((r: any) => r.approved)
-                    .map((review: any, i: number) => (
-                      <div
-                        key={i}
-                        className="rounded-2xl border p-5"
-                        style={{
-                          backgroundColor: "var(--color-surface-alt)",
-                          borderColor: "var(--color-border)",
-                        }}
-                      >
-                        <div className="flex items-center gap-1">
-                          {Array.from({ length: 5 }).map((_, j) => (
-                            <Star
-                              key={j}
-                              className="h-4 w-4"
-                              style={{
-                                fill: j < review.rating ? "var(--color-warning)" : "var(--color-border)",
-                                color: j < review.rating ? "var(--color-warning)" : "var(--color-border)",
-                              }}
-                            />
-                          ))}
-                        </div>
-                        <p className="mt-3 text-sm leading-relaxed" style={{ color: "var(--color-text)" }}>
-                          {review.text}
-                        </p>
-                        <p className="mt-3 text-xs font-medium" style={{ color: "var(--color-text-muted)" }}>
-                          — {review.author}
-                        </p>
-                      </div>
-                    ))}
-                </div>
-              )}
-
-              <div className="mt-8">
-                <ReviewForm trekId={trek.id} />
               </div>
-            </section>
+            </summary>
 
-            {/* ===========================================================
-                GALLERY
-            ============================================================ */}
-            {trek.galleryImages?.length > 0 && (
-              <section className="py-16">
-                <h2
-                  className="mb-2 text-2xl font-bold"
-                  style={{ color: "var(--color-secondary)" }}
+            <div
+              className="ml-14 mr-4 mb-5 border-t pt-4"
+              style={{ borderColor: "var(--color-border)" }}
+            >
+              <p className="text-sm leading-relaxed" style={{ color: "var(--color-text)" }}>
+                {day.description}
+              </p>
+              {(day.elevation || day.accommodation) && (
+                <div
+                  className="mt-3 flex flex-wrap gap-x-5 gap-y-1.5 text-xs"
+                  style={{ color: "var(--color-text-muted)" }}
                 >
-                  {sectionData.gallery?.heading || "Gallery"}
-                </h2>
-                {sectionData.gallery?.description && (
-                  <p className="mb-6 text-sm" style={{ color: "var(--color-text-muted)" }}>{sectionData.gallery.description}</p>
-                )}
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  {trek.galleryImages.map((img: any) => (
-                    <div
-                      key={img.id}
-                      className="group relative overflow-hidden rounded-2xl"
-                      style={{
-                        backgroundColor: "var(--color-surface-alt)",
-                        border: "1px solid var(--color-border)",
-                      }}
-                    >
-                      <div className="relative aspect-[4/3]">
-                        <Image
-                          src={`https://res.cloudinary.com/dk7ggjvlw/image/upload/${img.imageId}`}
-                          alt={img.alt || `${trek.title} trek photo`}
-                          fill
-                          className="object-cover transition-transform duration-300 group-hover:scale-105"
-                          sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-                        />
-                      </div>
-                      {img.caption && (
-                        <div className="px-3 py-2">
-                          <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>
-                            {img.caption}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  ))}
+                  {day.elevation && (
+                    <span className="flex items-center gap-1.5">
+                      <span
+                        className="h-1 w-1 rounded-full"
+                        style={{ backgroundColor: "var(--color-primary-light)" }}
+                      />
+                      Elevation: {day.elevation}
+                    </span>
+                  )}
+                  {day.accommodation && (
+                    <span className="flex items-center gap-1.5">
+                      <span
+                        className="h-1 w-1 rounded-full"
+                        style={{ backgroundColor: "var(--color-primary-light)" }}
+                      />
+                      Accommodation: {day.accommodation}
+                    </span>
+                  )}
                 </div>
-              </section>
-            )}
+              )}
+            </div>
+          </details>
+        ))}
+      </div>
+    </div>
+  </section> : null;
+              sectionMap["altitude"] = () => itinerary.length > 0 ? <section id="altitude" className="py-16"><AltitudeProfile itinerary={itinerary} /></section> : null;
+              sectionMap["inEx"] = () => (inclusions.length > 0 || exclusions.length > 0) ? <section id="inEx" className="py-16">
+    <h2
+      className="mb-2 text-2xl font-bold"
+      style={{ color: "var(--color-secondary)" }}
+    >
+      {sectionData.inEx?.heading || "Inclusions & Exclusions"}
+    </h2>
+    {sectionData.inEx?.description && (
+      <p className="mb-8 text-sm" style={{ color: "var(--color-text-muted)" }}>
+        {sectionData.inEx.description}
+      </p>
+    )}
 
-            {/* ===========================================================
-                CONTACT FORM
-            ============================================================ */}
-            <section className="py-16">
-              <ContactFormSection
-                heading={`Interested in ${trek.title}?`}
-                description="Fill in your details below and we'll reach out with more information, availability, and a personalized quote."
-              />
-            </section>
-
-            {/* ===========================================================
-                GALLERY (end of main content column)
-            ============================================================ */}
+    <div className="space-y-6">
+      {inclusions.length > 0 && (
+        <div
+          className="rounded-3xl border p-6 sm:p-7"
+          style={{
+            backgroundColor: "var(--color-surface-alt)",
+            borderColor: "var(--color-border)",
+          }}
+        >
+          <div className="mb-5 flex items-center gap-2.5">
+            <Check className="h-4 w-4 shrink-0" style={{ color: "var(--color-success)" }} />
+            <h3 className="text-lg font-bold" style={{ color: "var(--color-secondary)" }}>
+              What&apos;s Included
+            </h3>
           </div>
+          <ul className="divide-y" style={{ borderColor: "var(--color-border)" }}>
+            {inclusions.map((item: string, i: number) => (
+              <li key={i} className="flex items-start gap-3 py-3 first:pt-0 last:pb-0">
+                <Check
+                  className="mt-0.5 h-4 w-4 shrink-0"
+                  style={{ color: "var(--color-success)" }}
+                />
+                <span className="text-sm leading-relaxed" style={{ color: "var(--color-text)" }}>
+                  {item}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
+      {exclusions.length > 0 && (
+        <div
+          className="rounded-3xl border p-6 sm:p-7"
+          style={{
+            backgroundColor: "var(--color-surface-alt)",
+            borderColor: "var(--color-border)",
+          }}
+        >
+          <div className="mb-5 flex items-center gap-2.5">
+            <XIcon className="h-4 w-4 shrink-0" style={{ color: "var(--color-error)" }} />
+            <h3 className="text-lg font-bold" style={{ color: "var(--color-secondary)" }}>
+              What&apos;s Excluded
+            </h3>
+          </div>
+          <ul className="divide-y" style={{ borderColor: "var(--color-border)" }}>
+            {exclusions.map((item: string, i: number) => (
+              <li key={i} className="flex items-start gap-3 py-3 first:pt-0 last:pb-0">
+                <XIcon
+                  className="mt-0.5 h-4 w-4 shrink-0"
+                  style={{ color: "var(--color-error)" }}
+                />
+                <span className="text-sm leading-relaxed" style={{ color: "var(--color-text)" }}>
+                  {item}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  </section> : null;
+             sectionMap["pricing"] = () => pricingTiers.length > 0 ? <section id="pricing" className="py-16">
+  <h2 className="mb-2 text-2xl font-bold" style={{ color: "var(--color-secondary)" }}>{sectionData.pricing?.heading || "Pricing"}</h2>
+  <p className="mb-8 text-sm" style={{ color: "var(--color-text-muted)" }}>{sectionData.pricing?.description || "Per-person pricing based on group size."}</p>
+  <div className="overflow-hidden rounded-2xl border" style={{ borderColor: "var(--color-border)" }}>
+    <div className="grid grid-cols-3" style={{ backgroundColor: "var(--color-surface-alt)" }}>
+      <span className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--color-secondary)" }}>Group Size</span>
+      <span className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--color-secondary)" }}>Price Per Person</span>
+      <span className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--color-secondary)" }}></span>
+    </div>
+    {pricingTiers.map((tier: any, i: number) => (
+      <div key={i} className="grid grid-cols-3 items-center border-t" style={{ borderColor: "var(--color-border)" }}>
+        <span className="flex items-center gap-1.5 px-5 py-4 text-sm" style={{ color: "var(--color-text)" }}>
+          <Users className="h-3.5 w-3.5 shrink-0" style={{ color: "var(--color-primary)" }} />
+          {tier.groupSize}
+        </span>
+        <span className="px-5 py-4 text-right text-sm font-semibold" style={{ color: "var(--color-primary)" }}>
+          ${tier.pricePerPerson.toLocaleString()}
+        </span>
+        <span className="px-5 py-4 text-right">
+          <a
+            href="#contact"
+            className="inline-flex items-center gap-1 rounded-full px-4 py-1.5 text-xs font-semibold text-white transition-colors hover:opacity-90"
+            style={{ backgroundColor: "var(--color-primary)" }}
+          >
+            Book Now
+            <ArrowRight className="h-3 w-3" />
+          </a>
+        </span>
+      </div>
+    ))}
+  </div>
+</section> : null;
+sectionMap["addons"] = () => addons.length > 0 ? <section id="addons" className="py-16">
+  <h2 className="mb-2 text-2xl font-bold" style={{ color: "var(--color-secondary)" }}>{sectionData.addons?.heading || "Add-ons"}</h2>
+  <p className="mb-8 text-sm" style={{ color: "var(--color-text-muted)" }}>{sectionData.addons?.description || "Optional extras to enhance your experience."}</p>
+  <div className="overflow-hidden rounded-2xl border" style={{ borderColor: "var(--color-border)" }}>
+    <div className="grid grid-cols-[1fr_1.5fr_auto]" style={{ backgroundColor: "var(--color-surface-alt)" }}>
+      <span className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--color-secondary)" }}>Add-on</span>
+      <span className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--color-secondary)" }}>Description</span>
+      <span className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--color-secondary)" }}>Price</span>
+    </div>
+    {addons.map((addon: any, i: number) => (
+      <div key={i} className="grid grid-cols-[1fr_1.5fr_auto] items-center border-t" style={{ borderColor: "var(--color-border)" }}>
+        <span className="px-5 py-4 text-sm font-semibold" style={{ color: "var(--color-secondary)" }}>{addon.title}</span>
+        <span className="px-5 py-4 text-sm" style={{ color: "var(--color-text-muted)" }}>{addon.description || "\u2014"}</span>
+        <span className="whitespace-nowrap px-5 py-4 text-right text-sm font-bold" style={{ color: "var(--color-primary)" }}>
+          ${addon.pricePerUnit?.toLocaleString()} <span className="font-normal" style={{ color: "var(--color-text-muted)" }}>/ {addon.unit === "room" ? "room" : "person"}</span>
+        </span>
+      </div>
+    ))}
+  </div>
+</section> : null;
+sectionMap["map"] = () => <section id="map" className="py-16">
+  <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
+    <div>
+      <h2 className="mb-2 text-2xl font-bold" style={{ color: "var(--color-secondary)" }}>{sectionData.map?.heading || "Route Map"}</h2>
+      <p className="text-sm" style={{ color: "var(--color-text-muted)" }}>{sectionData.map?.description || "Explore the terrain map showing the trek route."}</p>
+    </div>
+    {waypoints?.length > 0 && (
+      <span
+        className="flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold"
+        style={{ borderColor: "var(--color-border)", color: "var(--color-primary)", backgroundColor: "var(--color-surface-alt)" }}
+      >
+        <MapPin className="h-3.5 w-3.5" />
+        {waypoints.length} waypoints
+      </span>
+    )}
+  </div>
+
+  <div className="overflow-hidden rounded-3xl border" style={{ borderColor: "var(--color-border)" }}>
+    <TrekMapWrapper
+      geoJsonUrl={trek.geoJsonUrl || undefined}
+      geoJsonData={trek.geoJsonData || null}
+      waypoints={waypoints?.length > 0 ? waypoints : undefined}
+      itinerary={itinerary?.length > 0 ? itinerary : undefined}
+      staticFallbackImage={trek.staticMapImage || undefined}
+    />
+  </div>
+</section>;
+sectionMap["faqs"] = () => faqs.length > 0 ? <section id="faqs" className="py-16">
+  <h2 className="mb-2 text-2xl font-bold" style={{ color: "var(--color-secondary)" }}>{sectionData.faqs?.heading || "Frequently Asked Questions"}</h2>
+  {sectionData.faqs?.description && <p className="mb-8 text-sm" style={{ color: "var(--color-text-muted)" }}>{sectionData.faqs.description}</p>}
+  <div className="divide-y overflow-hidden rounded-3xl border" style={{ backgroundColor: "var(--color-surface)", borderColor: "var(--color-border)" }}>
+    {faqs.map((faq: any, i: number) => (
+      <details key={i} className="group">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-6 py-5 marker:content-none [&::-webkit-details-marker]:hidden">
+          <span className="text-sm font-semibold" style={{ color: "var(--color-foreground)" }}>{faq.question}</span>
+          <span
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full transition-transform duration-300 group-open:rotate-45"
+            style={{ backgroundColor: "var(--color-surface-alt)" }}
+          >
+            <Plus className="h-3.5 w-3.5" style={{ color: "var(--color-primary)" }} />
+          </span>
+        </summary>
+        <div className="px-6 pb-5 -mt-1">
+          <p className="text-sm leading-relaxed" style={{ color: "var(--color-text)" }}>{faq.answer}</p>
+        </div>
+      </details>
+    ))}
+  </div>
+</section> : null;
+
+sectionMap["reviews"] = () => {
+  const approvedReviews = reviews.filter((r: any) => r.approved);
+  const ratingCounts = [5, 4, 3, 2, 1].map(
+    (star) => approvedReviews.filter((r: any) => r.rating === star).length
+  );
+  const maxCount = Math.max(...ratingCounts, 1);
+
+  return <section id="reviews" className="py-16">
+    <h2 className="mb-6 text-2xl font-bold" style={{ color: "var(--color-secondary)" }}>Guest Reviews</h2>
+
+    {avgRating > 0 && (
+      <div
+        className="mb-8 grid grid-cols-1 gap-8 rounded-3xl border p-8 sm:grid-cols-[auto_1fr] sm:items-center"
+        style={{ backgroundColor: "var(--color-surface-alt)", borderColor: "var(--color-border)" }}
+      >
+        <div className="flex flex-col items-center gap-2 sm:items-start sm:border-r sm:pr-8" style={{ borderColor: "var(--color-border)" }}>
+          <span className="text-5xl font-bold leading-none" style={{ color: "var(--color-secondary)" }}>
+            {avgRating.toFixed(1)}
+          </span>
+          <div className="flex">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <Star
+                key={i}
+                className="h-4 w-4"
+                style={{
+                  fill: i < Math.round(avgRating) ? "var(--color-warning)" : "var(--color-border)",
+                  color: i < Math.round(avgRating) ? "var(--color-warning)" : "var(--color-border)",
+                }}
+              />
+            ))}
+          </div>
+          <span className="text-xs" style={{ color: "var(--color-text-muted)" }}>
+            {approvedReviews.length} reviews
+          </span>
+        </div>
+
+        <div className="space-y-1.5">
+          {ratingCounts.map((count, idx) => {
+            const star = 5 - idx;
+            const pct = (count / maxCount) * 100;
+            return (
+              <div key={star} className="flex items-center gap-3">
+                <span className="w-3 shrink-0 text-xs font-medium" style={{ color: "var(--color-text-muted)" }}>{star}</span>
+                <Star className="h-3 w-3 shrink-0" style={{ fill: "var(--color-warning)", color: "var(--color-warning)" }} />
+                <div className="h-1.5 flex-1 overflow-hidden rounded-full" style={{ backgroundColor: "var(--color-border)" }}>
+                  <div
+                    className="h-full rounded-full"
+                    style={{ width: `${pct}%`, backgroundColor: "var(--color-warning)" }}
+                  />
+                </div>
+                <span className="w-6 shrink-0 text-right text-xs" style={{ color: "var(--color-text-muted)" }}>{count}</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    )}
+
+    {approvedReviews.length > 0 && (
+      <div className="grid gap-4 sm:grid-cols-2">
+        {approvedReviews.map((review: any, i: number) => (
+          <div
+            key={i}
+            className="relative overflow-hidden rounded-2xl border p-5 pl-6"
+            style={{ backgroundColor: "var(--color-surface)", borderColor: "var(--color-border)" }}
+          >
+            <span
+              className="absolute left-0 top-0 h-full w-1"
+              style={{ backgroundColor: "var(--color-primary)" }}
+            />
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <span
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold"
+                  style={{ backgroundColor: "var(--color-surface-alt)", color: "var(--color-primary)" }}
+                >
+                  {review.author?.charAt(0)?.toUpperCase() || "?"}
+                </span>
+                <span className="text-sm font-semibold" style={{ color: "var(--color-foreground)" }}>{review.author}</span>
+              </div>
+              <div className="flex shrink-0">
+                {Array.from({ length: 5 }).map((_, j) => (
+                  <Star
+                    key={j}
+                    className="h-3.5 w-3.5"
+                    style={{
+                      fill: j < review.rating ? "var(--color-warning)" : "var(--color-border)",
+                      color: j < review.rating ? "var(--color-warning)" : "var(--color-border)",
+                    }}
+                  />
+                ))}
+              </div>
+            </div>
+            <p className="mt-3 text-sm leading-relaxed" style={{ color: "var(--color-text)" }}>{review.text}</p>
+          </div>
+        ))}
+      </div>
+    )}
+
+    <div className="mt-8"><ReviewForm trekId={trek.id} /></div>
+  </section>;
+};
+sectionMap["gallery"] = () => trek.galleryImages?.length > 0 ? <GallerySection
+                images={trek.galleryImages}
+                heading={sectionData.gallery?.heading || "Gallery"}
+                description={sectionData.gallery?.description}
+                trekTitle={trek.title}
+              /> : null;
+
+              // Add custom sections to the map (they have unique IDs from admin)
+              for (const cs of customSections) {
+                if (cs.id) {
+                  sectionMap[cs.id] = () => (
+                    <section className="py-16">
+                      <h2 className="mb-6 text-2xl font-bold" style={{ color: "var(--color-secondary)" }}>{cs.data?.heading || "Custom Section"}</h2>
+                      {cs.data?.imageId && <div className="relative mb-6 aspect-[16/9] overflow-hidden rounded-xl">
+                        <Image src={`https://res.cloudinary.com/dk7ggjvlw/image/upload/${cs.data.imageId}`} alt={cs.data.imageAlt || cs.data?.heading || "Section image"} fill className="object-cover" sizes="(max-width: 1024px) 100vw, 66vw" />
+                      </div>}
+                      {cs.data?.content && <div className="text-lg leading-relaxed" style={{ color: "var(--color-text)" }} dangerouslySetInnerHTML={{ __html: cs.data.content }} />}
+                    </section>
+                  );
+                }
+              }
+
+              // Build ordered sections list
+              const ordered: React.ReactNode[] = [];
+              const rendered = new Set<string>();
+
+              // 1. Render sections in saved order (includes custom sections)
+              for (const id of sectionOrderList) {
+                if (sectionMap[id]) {
+                  const node = sectionMap[id]();
+                  if (node) {
+                    ordered.push(<React.Fragment key={id}>{node}<hr className="border-t border-slate-200" /></React.Fragment>);
+                    rendered.add(id);
+                  }
+                }
+              }
+
+              // 2. Render any remaining sections not in saved order
+              for (const [id, renderFn] of Object.entries(sectionMap)) {
+                if (!rendered.has(id)) {
+                  const node = renderFn();
+                  if (node) {
+                    ordered.push(<React.Fragment key={id}>{node}<hr className="border-t border-slate-200" /></React.Fragment>);
+                    rendered.add(id);
+                  }
+                }
+              }
+
+              // 3. Render any custom sections without IDs (edge case)
+              for (const cs of customSections) {
+                if (cs.id && rendered.has(cs.id)) continue;
+                ordered.push(<React.Fragment key={cs.id || Math.random()}>
+                  <section className="py-16">
+                    <h2 className="mb-6 text-2xl font-bold" style={{ color: "var(--color-secondary)" }}>{cs.data?.heading || "Custom Section"}</h2>
+                    {cs.data?.imageId && <div className="relative mb-6 aspect-[16/9] overflow-hidden rounded-xl">
+                      <Image src={`https://res.cloudinary.com/dk7ggjvlw/image/upload/${cs.data.imageId}`} alt={cs.data.imageAlt || cs.data?.heading || "Section image"} fill className="object-cover" sizes="(max-width: 1024px) 100vw, 66vw" />
+                    </div>}
+                    {cs.data?.content && <div className="text-lg leading-relaxed" style={{ color: "var(--color-text)" }} dangerouslySetInnerHTML={{ __html: cs.data.content }} />}
+                  </section>
+                  <hr className="border-t border-slate-200" />
+                </React.Fragment>);
+              }
+
+              return ordered;
+            })()}
+          </div>
           {/* ── SIDEBAR ── */}
           <div className="lg:col-span-1">
             <div className="sticky top-24 space-y-6">
@@ -864,6 +838,14 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
           __html: ".hero-parallax{animation:heroZoom 20s ease-out forwards}@keyframes heroZoom{0%{transform:scale(1)}100%{transform:scale(1.15)}}",
         }}
       />
-    </React.Fragment>
+
+      <SectionNav
+        hasItinerary={itinerary.length > 0}
+        hasInclusions={inclusions.length > 0 || exclusions.length > 0}
+        hasPricing={pricingTiers.length > 0}
+        hasFaqs={faqs.length > 0}
+        sectionOrder={sectionOrderList}
+      />
+    </GalleryProvider>
   );
 }

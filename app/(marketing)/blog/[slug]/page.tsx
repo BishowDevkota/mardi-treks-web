@@ -26,6 +26,7 @@ export async function generateMetadata({
   return {
     title: post.metaTitle || post.title,
     description: post.metaDescription || post.excerpt,
+    alternates: { canonical: `https://marditreks.com/blog/${slug}` },
   };
 }
 
