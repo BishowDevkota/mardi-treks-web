@@ -846,6 +846,13 @@ sectionMap["gallery"] = () => trek.galleryImages?.length > 0 ? <GallerySection
         hasFaqs={faqs.length > 0}
         sectionOrder={sectionOrderList}
       />
+
+      {/* Contact section — always present at the bottom of every trek page */}
+      <section className="bg-white pb-20 pt-16">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <ContactFormSection />
+        </div>
+      </section>
     </GalleryProvider>
   );
 }
