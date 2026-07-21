@@ -52,9 +52,9 @@ export default function PaymentSuccessPage() {
   if (status === "verifying") {
     return (
       <div className="mx-auto max-w-lg px-4 py-20 text-center">
-        <Loader2 className="mx-auto h-8 w-8 animate-spin text-teal-600" />
-        <h1 className="mt-6 text-2xl font-bold text-slate-900">Verifying Payment...</h1>
-        <p className="mt-2 text-sm text-slate-500">
+        <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" />
+        <h1 className="mt-6 text-2xl font-bold text-foreground">Verifying Payment...</h1>
+        <p className="mt-2 text-sm text-muted">
           Please wait while we confirm your payment.
         </p>
       </div>
@@ -64,23 +64,23 @@ export default function PaymentSuccessPage() {
   if (status === "error") {
     return (
       <div className="mx-auto max-w-lg px-4 py-20 text-center">
-        <h1 className="text-2xl font-bold text-slate-900">Payment Received</h1>
-        <p className="mt-2 text-sm text-slate-500">
+        <h1 className="text-2xl font-bold text-foreground">Payment Received</h1>
+        <p className="mt-2 text-sm text-muted">
           {error || "Your payment was processed, but verification is pending."}
         </p>
-        <p className="mt-1 text-sm text-slate-400">
+        <p className="mt-1 text-sm text-muted">
           Please check your dashboard for the latest booking status.
         </p>
         <div className="mt-8 flex items-center justify-center gap-4">
           <Link
             href="/dashboard"
-            className="rounded-xl bg-gradient-to-r from-teal-500 to-teal-600 px-6 py-2.5 text-sm font-semibold text-white shadow-sm hover:from-teal-600 hover:to-teal-700"
+            className="rounded-xl bg-gradient-to-r from-primary to-primary-dark px-6 py-2.5 text-sm font-semibold text-white shadow-sm hover:from-primary-dark hover:to-primary-dark"
           >
             View My Bookings
           </Link>
           <Link
             href="/treks"
-            className="rounded-xl border border-slate-200 px-6 py-2.5 text-sm font-medium text-slate-500 hover:bg-slate-50"
+            className="rounded-xl border border-border px-6 py-2.5 text-sm font-medium text-muted hover:bg-surface-alt"
           >
             Browse More Treks
           </Link>
@@ -91,11 +91,11 @@ export default function PaymentSuccessPage() {
 
   return (
     <div className="mx-auto max-w-lg px-4 py-20 text-center">
-      <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
-        <CheckCircle className="h-8 w-8 text-green-600" />
+      <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-success/10">
+        <CheckCircle className="h-8 w-8 text-success" />
       </div>
-      <h1 className="mt-6 text-2xl font-bold text-slate-900">Payment Successful!</h1>
-      <p className="mt-2 text-sm text-slate-500">
+      <h1 className="mt-6 text-2xl font-bold text-foreground">Payment Successful!</h1>
+      <p className="mt-2 text-sm text-muted">
         Your payment has been processed successfully. Booking #{bookingId?.slice(0, 8)} is confirmed.
       </p>
       <div className="mt-8 flex items-center justify-center gap-4">

@@ -120,7 +120,7 @@ export default function PaymentPage({ params }: { params: Promise<{ id: string }
   if (loading) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-teal-600" />
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
   }
@@ -128,11 +128,11 @@ export default function PaymentPage({ params }: { params: Promise<{ id: string }
   if (!session) {
     return (
       <div className="mx-auto max-w-lg px-4 py-20 text-center">
-        <h1 className="text-2xl font-bold text-slate-900">Sign in to continue</h1>
-        <p className="mt-2 text-sm text-slate-500">You need to sign in to complete payment.</p>
+        <h1 className="text-2xl font-bold text-foreground">Sign in to continue</h1>
+        <p className="mt-2 text-sm text-muted">You need to sign in to complete payment.</p>
         <Link
           href={`/login?callbackUrl=/payment/${bookingId}`}
-          className="mt-6 inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-teal-500 to-teal-600 px-6 py-2.5 text-sm font-semibold text-white shadow-sm hover:from-teal-600 hover:to-teal-700"
+          className="mt-6 inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-primary to-primary-dark px-6 py-2.5 text-sm font-semibold text-white shadow-sm hover:from-primary-dark hover:to-primary-dark"
         >
           Sign In
         </Link>
@@ -144,36 +144,36 @@ export default function PaymentPage({ params }: { params: Promise<{ id: string }
     <div className="mx-auto max-w-2xl px-4 py-12 sm:px-6 lg:px-8">
       <Link
         href="/dashboard"
-        className="mb-6 inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-slate-700"
+        className="mb-6 inline-flex items-center gap-1.5 text-sm font-medium text-muted hover:text-foreground"
       >
         <ArrowLeft className="h-4 w-4" />
         Back to Dashboard
       </Link>
 
-      <h1 className="text-3xl font-bold text-slate-900">Complete Payment</h1>
-      <p className="mt-2 text-sm text-slate-500">Choose your preferred payment method</p>
+      <h1 className="text-3xl font-bold text-foreground">Complete Payment</h1>
+      <p className="mt-2 text-sm text-muted">Choose your preferred payment method</p>
 
       {/* Booking Summary */}
       {booking && (
-        <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="mt-6 rounded-2xl border border-border bg-surface p-4 shadow-sm">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-slate-900">
+              <p className="text-sm font-medium text-foreground">
                 Booking #{bookingId.slice(0, 8)}...
               </p>
-              <p className="text-xs text-slate-500">
-                Status: <span className="font-medium text-amber-600">{booking.status?.replace(/_/g, " ")}</span>
+              <p className="text-xs text-muted">
+                Status: <span className="font-medium text-warning">{booking.status?.replace(/_/g, " ")}</span>
               </p>
             </div>
             {booking.totalPrice && (
-              <p className="text-xl font-bold text-teal-600">${booking.totalPrice.toLocaleString()}</p>
+              <p className="text-xl font-bold text-primary">${booking.totalPrice.toLocaleString()}</p>
             )}
           </div>
         </div>
       )}
 
       {error && (
-        <div className="mt-4 rounded-xl bg-red-50 border border-red-200 p-4 text-sm text-red-700">
+        <div className="mt-4 rounded-xl bg-error/10 border border-error/20 p-4 text-sm text-error">
           ⚠️ {error}
         </div>
       )}
@@ -181,37 +181,37 @@ export default function PaymentPage({ params }: { params: Promise<{ id: string }
       {/* Payment Type Selection */}
       {booking?.totalPrice && (
         <div className="mt-6 space-y-3">
-          <h2 className="text-sm font-semibold text-slate-900">Payment Amount</h2>
+          <h2 className="text-sm font-semibold text-foreground">Payment Amount</h2>
           <div className="grid grid-cols-2 gap-3">
             <button
               type="button"
               onClick={() => setPaymentType("ADVANCE")}
               className={`rounded-2xl border-2 p-4 text-left transition-all ${
                 paymentType === "ADVANCE"
-                  ? "border-teal-200 bg-teal-50 shadow-sm"
-                  : "border-slate-200 bg-white hover:border-slate-300"
+                  ? "border-primary/20 bg-primary/10 shadow-sm"
+                  : "border-border bg-surface hover:border-secondary-light"
               }`}
             >
-              <p className="text-xs font-medium text-slate-500">Pay 20% Advance</p>
-              <p className="mt-1 text-xl font-bold text-teal-600">
+              <p className="text-xs font-medium text-muted">Pay 20% Advance</p>
+              <p className="mt-1 text-xl font-bold text-primary">
                 ${(Math.round(booking.totalPrice * 0.2 * 100) / 100).toLocaleString()}
               </p>
-              <p className="mt-1 text-xs text-slate-400">Secure your booking</p>
+              <p className="mt-1 text-xs text-muted">Secure your booking</p>
             </button>
             <button
               type="button"
               onClick={() => setPaymentType("FULL")}
               className={`rounded-2xl border-2 p-4 text-left transition-all ${
                 paymentType === "FULL"
-                  ? "border-teal-200 bg-teal-50 shadow-sm"
-                  : "border-slate-200 bg-white hover:border-slate-300"
+                  ? "border-primary/20 bg-primary/10 shadow-sm"
+                  : "border-border bg-surface hover:border-secondary-light"
               }`}
             >
-              <p className="text-xs font-medium text-slate-500">Pay Full Amount</p>
-              <p className="mt-1 text-xl font-bold text-slate-900">
+              <p className="text-xs font-medium text-muted">Pay Full Amount</p>
+              <p className="mt-1 text-xl font-bold text-foreground">
                 ${booking.totalPrice.toLocaleString()}
               </p>
-              <p className="mt-1 text-xs text-slate-400">Pay entire amount now</p>
+              <p className="mt-1 text-xs text-muted">Pay entire amount now</p>
             </button>
           </div>
         </div>
@@ -230,22 +230,22 @@ export default function PaymentPage({ params }: { params: Promise<{ id: string }
               className={`w-full rounded-2xl border-2 p-4 text-left transition-all ${
                 selected
                   ? `${method.borderColor} ${method.bgColor} shadow-sm`
-                  : "border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm"
+                  : "border-border bg-surface hover:border-secondary-light hover:shadow-sm"
               }`}
             >
               <div className="flex items-center gap-4">
                 <div
                   className={`flex h-12 w-12 items-center justify-center rounded-xl ${
-                    selected ? `bg-gradient-to-br ${method.color} text-white shadow-sm` : "bg-slate-100 text-slate-400"
+                    selected ? `bg-gradient-to-br ${method.color} text-white shadow-sm` : "bg-surface-alt text-muted"
                   }`}
                 >
                   <Icon className="h-5 w-5" />
                 </div>
                 <div className="flex-1">
-                  <p className={`text-sm font-semibold ${selected ? method.textColor : "text-slate-900"}`}>
+                  <p className={`text-sm font-semibold ${selected ? method.textColor : "text-foreground"}`}>
                     {method.name}
                   </p>
-                  <p className="text-xs text-slate-500">{method.description}</p>
+                  <p className="text-xs text-muted">{method.description}</p>
                 </div>
                 {selected && <CheckCircle className={`h-5 w-5 ${method.textColor}`} />}
               </div>
@@ -259,7 +259,7 @@ export default function PaymentPage({ params }: { params: Promise<{ id: string }
         type="button"
         onClick={handlePay}
         disabled={!selectedMethod || processing}
-        className="mt-8 w-full rounded-xl bg-gradient-to-r from-teal-500 to-teal-600 px-6 py-3 text-sm font-semibold text-white shadow-sm transition-all hover:from-teal-600 hover:to-teal-700 hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+        className="mt-8 w-full rounded-xl bg-gradient-to-r from-primary to-primary-dark px-6 py-3 text-sm font-semibold text-white shadow-sm transition-all hover:from-primary-dark hover:to-primary-dark hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
       >
         {processing ? (
           <span className="inline-flex items-center gap-2">
@@ -272,7 +272,7 @@ export default function PaymentPage({ params }: { params: Promise<{ id: string }
         )}
       </button>
 
-      <p className="mt-4 text-center text-xs text-slate-400">
+      <p className="mt-4 text-center text-xs text-muted">
         Your payment is secure. We use encrypted payment processing.
       </p>
     </div>

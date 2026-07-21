@@ -221,8 +221,10 @@ export function NavigationForm({
     fd.set("navigation", JSON.stringify(navItems));
     fd.set("categoryDropdownTreks", JSON.stringify(selectedTreks));
     fd.set("logo", logoPublicId);
+    fd.set("previousLogo", logo); // pass the original logo for Cloudinary cleanup
     try {
       await updateNavigationSettings(fd);
+      router.refresh();
     } catch {
       setSaving(false);
     }

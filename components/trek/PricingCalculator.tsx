@@ -29,6 +29,7 @@ interface PricingCalculatorProps {
   pricingTiers: PricingTier[];
   addons?: Addon[];
   availableDates?: AvailableDate[];
+  maxGroupSize?: number;
 }
 
 function parseTierRange(label: string): { min: number; max: number } {
@@ -112,6 +113,7 @@ export function PricingCalculator({
   pricingTiers,
   addons = [],
   availableDates = [],
+  maxGroupSize = 20,
 }: PricingCalculatorProps) {
   const [travelers, setTravelers] = useState(1);
   const [startDate, setStartDate] = useState("");
@@ -161,8 +163,8 @@ export function PricingCalculator({
               </span>
               <button
                 type="button"
-                onClick={() => setTravelers(Math.min(20, travelers + 1))}
-                disabled={travelers >= 20}
+                onClick={() => setTravelers(Math.min(maxGroupSize, travelers + 1))}
+                disabled={travelers >= maxGroupSize}
                 className="flex h-6 w-6 items-center justify-center rounded-md border bg-white text-slate-600 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
                 style={{ borderColor: "var(--color-border)" }}
               >

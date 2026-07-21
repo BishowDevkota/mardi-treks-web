@@ -5,13 +5,14 @@ import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { ArrowLeft, Plus, Trash2, Loader2, Minus, Users, Calendar, Package, AlertCircle } from "lucide-react";
+import { travelerDetailSchema } from "@/lib/validations";
 
 interface TravelerForm {
   fullName: string;
   email: string;
   phone: string;
   nationality: string;
-  passportNumber: string;
+  emergencyContact: string;
   age: string;
 }
 
@@ -53,6 +54,8 @@ export default function BookingPage({
   const [selectedAddons, setSelectedAddons] = useState<{ title: string; qty: number; pricePerUnit: number }[]>([]);
   const [travelerCount, setTravelerCount] = useState(1);
   const [travelers, setTravelers] = useState<TravelerForm[]>([]);
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+  const [touchedFields, setTouchedFields] = useState<Set<string>>(new Set());
 
   // Parse available addons from trek data
   const trekAddons: { title: string; description: string; unit: string; pricePerUnit: number }[] =
@@ -92,7 +95,7 @@ export default function BookingPage({
           email: session?.user?.email || "",
           phone: "",
           nationality: "",
-          passportNumber: "",
+          emergencyContact: "",
           age: "",
         },
       ]);
@@ -139,12 +142,7 @@ export default function BookingPage({
         }))
     : [];
 
-  function addTraveler() {
-    if (travelers.length < travelerCount) {
-      setTravelers([...travelers, { fullName: "", email: "", phone: "", nationality: "", passportNumber: "", age: "" }]);
-    }
-  }
-
+  // Only one lead traveler form is shown; the traveler count is used for pricing only
   function removeTraveler(index: number) {
     if (travelers.length > 1) {
       setTravelers(travelers.filter((_, i) => i !== index));
@@ -155,14 +153,113 @@ export default function BookingPage({
     const updated = [...travelers];
     updated[index] = { ...updated[index], [field]: value };
     setTravelers(updated);
+    // Clear the error for this field when user types
+    const errorKey = `travelers.${index}.${field}`;
+    setFormErrors((prev) => {
+      const next = { ...prev };
+      delete next[errorKey];
+      return next;
+    });
+  }
+
+  function getFieldError(index: number, field: keyof TravelerForm): string | undefined {
+    return formErrors[`travelers.${index}.${field}`];
+  }
+
+  function isFieldTouched(index: number, field: keyof TravelerForm): boolean {
+    return touchedFields.has(`travelers.${index}.${field}`);
+  }
+
+  function markFieldTouched(index: number, field: keyof TravelerForm) {
+    setTouchedFields((prev) => {
+      const next = new Set(prev);
+      next.add(`travelers.${index}.${field}`);
+      return next;
+    });
+    // Validate the single field
+    const traveler = travelers[index];
+    const result = travelerDetailSchema.shape[field as keyof typeof travelerDetailSchema.shape]?.safeParse(
+      traveler[field]
+    );
+    if (!result?.success) {
+      const issue = result?.error?.issues?.[0];
+      setFormErrors((prev) => ({
+        ...prev,
+        [`travelers.${index}.${field}`]: issue?.message || "Invalid value",
+      }));
+    } else {
+      setFormErrors((prev) => {
+        const next = { ...prev };
+        delete next[`travelers.${index}.${field}`];
+        return next;
+      });
+    }
+  }
+
+  function validateForm(): boolean {
+    const errors: Record<string, string> = {};
+    const allTouched = new Set(touchedFields);
+
+    // Validate start date
+    if (!startDate) {
+      errors.startDate = "Please select a start date";
+    } else {
+      const selected = new Date(startDate);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      if (selected < today) {
+        errors.startDate = "Start date cannot be in the past";
+      }
+    }
+
+    // Validate each traveler
+    travelers.forEach((traveler, i) => {
+      const fields: (keyof TravelerForm)[] = ["fullName", "email", "phone", "nationality"];
+      fields.forEach((field) => {
+        const errorKey = `travelers.${i}.${field}`;
+        allTouched.add(errorKey);
+        const result = travelerDetailSchema.shape[field].safeParse(traveler[field]);
+        if (!result.success) {
+          errors[errorKey] = result.error.issues[0]?.message || "This field is required";
+        }
+      });
+
+      // Validate email separately with full email schema
+      if (traveler.email) {
+        const emailResult = travelerDetailSchema.shape.email.safeParse(traveler.email);
+        if (!emailResult.success) {
+          errors[`travelers.${i}.email`] = emailResult.error.issues[0]?.message || "Invalid email";
+        }
+      }
+
+      // Optional fields — only flag if they have a value that's invalid
+      if (traveler.age) {
+        const age = parseInt(traveler.age);
+        if (isNaN(age) || age < 1 || age > 120) {
+          errors[`travelers.${i}.age`] = "Age must be between 1 and 120";
+        }
+      }
+    });
+
+    setFormErrors(errors);
+    setTouchedFields(allTouched);
+    return Object.keys(errors).length === 0;
+  }
+
+  function scrollToFirstError() {
+    const firstErrorField = document.querySelector('[data-error="true"]');
+    if (firstErrorField) {
+      firstErrorField.scrollIntoView({ behavior: "smooth", block: "center" });
+      (firstErrorField as HTMLElement).focus();
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!session || !trek) return;
 
-    if (!startDate) {
-      setError("Please select a start date");
+    if (!validateForm()) {
+      scrollToFirstError();
       return;
     }
 
@@ -183,9 +280,12 @@ export default function BookingPage({
           addons: selectedAddons,
           specialRequests,
           travelers: travelers.map((t) => ({
-            ...t,
+            fullName: t.fullName,
+            email: t.email,
+            phone: t.phone,
+            nationality: t.nationality,
+            emergencyContact: t.emergencyContact || undefined,
             age: t.age ? parseInt(t.age) : null,
-            passportNumber: t.passportNumber || undefined,
           })),
         }),
       });
@@ -229,7 +329,7 @@ export default function BookingPage({
 
   const travelerInputStyle = {
     borderColor: "var(--color-border)",
-    backgroundColor: "var(--color-surface-alt)",
+    backgroundColor: "white",
     color: "var(--color-foreground)",
   };
 
@@ -272,10 +372,45 @@ export default function BookingPage({
                     required
                     value={startDate}
                     min={new Date().toISOString().split("T")[0]}
-                    onChange={(e) => setStartDate(e.target.value)}
+                    onChange={(e) => {
+                      setStartDate(e.target.value);
+                      setFormErrors((prev) => {
+                        const next = { ...prev };
+                        delete next.startDate;
+                        return next;
+                      });
+                    }}
+                    onBlur={() => {
+                      if (!startDate) {
+                        setFormErrors((prev) => ({ ...prev, startDate: "Please select a start date" }));
+                      } else {
+                        const selected = new Date(startDate);
+                        const today = new Date();
+                        today.setHours(0, 0, 0, 0);
+                        if (selected < today) {
+                          setFormErrors((prev) => ({ ...prev, startDate: "Start date cannot be in the past" }));
+                        } else {
+                          setFormErrors((prev) => {
+                            const next = { ...prev };
+                            delete next.startDate;
+                            return next;
+                          });
+                        }
+                      }
+                    }}
                     className="w-full rounded-xl border px-4 py-2.5 text-sm focus:outline-none focus:ring-2"
-                    style={inputStyle}
+                    style={{
+                      ...inputStyle,
+                      borderColor: formErrors.startDate ? "var(--color-error)" : "var(--color-border)",
+                    }}
+                    data-error={formErrors.startDate ? "true" : undefined}
                   />
+                  {formErrors.startDate && (
+                    <p className="mt-1.5 flex items-center gap-1 text-xs" style={{ color: "var(--color-error)" }}>
+                      <AlertCircle className="h-3 w-3" />
+                      {formErrors.startDate}
+                    </p>
+                  )}
                 </div>
 
                 <div>
@@ -285,16 +420,13 @@ export default function BookingPage({
                   </label>
                   <div
                     className="flex items-center justify-between rounded-xl border px-4 py-2"
-                    style={{ borderColor: "var(--color-border)", backgroundColor: "var(--color-surface-alt)" }}
+                    style={{ borderColor: "var(--color-border)", backgroundColor: "white" }}
                   >
                     <button
                       type="button"
                       onClick={() => {
                         const newCount = Math.max(1, travelerCount - 1);
                         setTravelerCount(newCount);
-                        if (travelers.length > newCount) {
-                          setTravelers(travelers.slice(0, newCount));
-                        }
                       }}
                       disabled={travelerCount <= 1}
                       className="flex h-8 w-8 items-center justify-center rounded-lg border transition-colors disabled:cursor-not-allowed disabled:opacity-40"
@@ -342,7 +474,7 @@ export default function BookingPage({
                       <div
                         key={i}
                         className="flex items-center gap-3 rounded-2xl border p-3"
-                        style={{ borderColor: "var(--color-border)", backgroundColor: "var(--color-surface-alt)" }}
+                        style={{ borderColor: "var(--color-border)", backgroundColor: "white" }}
                       >
                         <div className="min-w-0 flex-1">
                           <p className="text-sm font-medium" style={{ color: "var(--color-foreground)" }}>{addon.title}</p>
@@ -391,55 +523,27 @@ export default function BookingPage({
               </div>
             )}
 
-            {/* Traveler Details */}
+            {/* Lead Traveler Details — only one form, the count is used for pricing */}
             <div
               className="rounded-3xl border p-6 sm:p-7"
               style={{ backgroundColor: "var(--color-surface)", borderColor: "var(--color-border)" }}
             >
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <h2 className="text-lg font-bold" style={{ color: "var(--color-secondary)" }}>
-                  Traveler Details
-                </h2>
-                {travelers.length < travelerCount && (
-                  <button
-                    type="button"
-                    onClick={addTraveler}
-                    className="inline-flex items-center gap-1 text-sm font-semibold transition-colors"
-                    style={{ color: "var(--color-primary)" }}
-                  >
-                    <Plus className="h-4 w-4" /> Add Traveler ({travelers.length}/{travelerCount})
-                  </button>
-                )}
-              </div>
+              <h2 className="text-lg font-bold" style={{ color: "var(--color-secondary)" }}>
+                Lead Traveler Details
+              </h2>
+              <p className="mt-1 text-xs" style={{ color: "var(--color-text-muted)" }}>
+                {travelerCount > 1
+                  ? `You're booking for ${travelerCount} travelers. We only need the lead traveler's contact info.`
+                  : "We'll need some details for the booking."}
+              </p>
 
               <div className="mt-5 space-y-4">
-                {travelers.map((traveler, index) => (
+                {travelers.slice(0, 1).map((traveler, index) => (
                   <div
                     key={index}
                     className="rounded-2xl border-2 p-5"
                     style={{ borderColor: "var(--color-border)", backgroundColor: "var(--color-surface)" }}
                   >
-                    <div className="flex items-center justify-between">
-                      <span className="flex items-center gap-2 text-sm font-semibold" style={{ color: "var(--color-foreground)" }}>
-                        <span
-                          className="flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold"
-                          style={{ backgroundColor: "var(--color-accent-light)", color: "var(--color-secondary)" }}
-                        >
-                          {index + 1}
-                        </span>
-                        Traveler {index + 1}
-                      </span>
-                      {travelers.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => removeTraveler(index)}
-                          className="transition-colors"
-                          style={{ color: "var(--color-error)" }}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      )}
-                    </div>
 
                     <div className="mt-4 grid gap-3 sm:grid-cols-2">
                       <div>
@@ -449,9 +553,20 @@ export default function BookingPage({
                           required
                           value={traveler.fullName}
                           onChange={(e) => updateTraveler(index, "fullName", e.target.value)}
+                          onBlur={() => markFieldTouched(index, "fullName")}
                           className="mt-1 w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2"
-                          style={travelerInputStyle}
+                          style={{
+                            ...travelerInputStyle,
+                            borderColor: getFieldError(index, "fullName") ? "var(--color-error)" : "var(--color-border)",
+                          }}
+                          data-error={getFieldError(index, "fullName") ? "true" : undefined}
                         />
+                        {isFieldTouched(index, "fullName") && getFieldError(index, "fullName") && (
+                          <p className="mt-1 flex items-center gap-1 text-xs" style={{ color: "var(--color-error)" }}>
+                            <AlertCircle className="h-3 w-3" />
+                            {getFieldError(index, "fullName")}
+                          </p>
+                        )}
                       </div>
                       <div>
                         <label className="block text-xs font-medium" style={{ color: "var(--color-text-muted)" }}>Email *</label>
@@ -460,9 +575,20 @@ export default function BookingPage({
                           required
                           value={traveler.email}
                           onChange={(e) => updateTraveler(index, "email", e.target.value)}
+                          onBlur={() => markFieldTouched(index, "email")}
                           className="mt-1 w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2"
-                          style={travelerInputStyle}
+                          style={{
+                            ...travelerInputStyle,
+                            borderColor: getFieldError(index, "email") ? "var(--color-error)" : "var(--color-border)",
+                          }}
+                          data-error={getFieldError(index, "email") ? "true" : undefined}
                         />
+                        {isFieldTouched(index, "email") && getFieldError(index, "email") && (
+                          <p className="mt-1 flex items-center gap-1 text-xs" style={{ color: "var(--color-error)" }}>
+                            <AlertCircle className="h-3 w-3" />
+                            {getFieldError(index, "email")}
+                          </p>
+                        )}
                       </div>
                       <div>
                         <label className="block text-xs font-medium" style={{ color: "var(--color-text-muted)" }}>Phone *</label>
@@ -471,9 +597,20 @@ export default function BookingPage({
                           required
                           value={traveler.phone}
                           onChange={(e) => updateTraveler(index, "phone", e.target.value)}
+                          onBlur={() => markFieldTouched(index, "phone")}
                           className="mt-1 w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2"
-                          style={travelerInputStyle}
+                          style={{
+                            ...travelerInputStyle,
+                            borderColor: getFieldError(index, "phone") ? "var(--color-error)" : "var(--color-border)",
+                          }}
+                          data-error={getFieldError(index, "phone") ? "true" : undefined}
                         />
+                        {isFieldTouched(index, "phone") && getFieldError(index, "phone") && (
+                          <p className="mt-1 flex items-center gap-1 text-xs" style={{ color: "var(--color-error)" }}>
+                            <AlertCircle className="h-3 w-3" />
+                            {getFieldError(index, "phone")}
+                          </p>
+                        )}
                       </div>
                       <div>
                         <label className="block text-xs font-medium" style={{ color: "var(--color-text-muted)" }}>Nationality *</label>
@@ -482,16 +619,28 @@ export default function BookingPage({
                           required
                           value={traveler.nationality}
                           onChange={(e) => updateTraveler(index, "nationality", e.target.value)}
+                          onBlur={() => markFieldTouched(index, "nationality")}
                           className="mt-1 w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2"
-                          style={travelerInputStyle}
+                          style={{
+                            ...travelerInputStyle,
+                            borderColor: getFieldError(index, "nationality") ? "var(--color-error)" : "var(--color-border)",
+                          }}
+                          data-error={getFieldError(index, "nationality") ? "true" : undefined}
                         />
+                        {isFieldTouched(index, "nationality") && getFieldError(index, "nationality") && (
+                          <p className="mt-1 flex items-center gap-1 text-xs" style={{ color: "var(--color-error)" }}>
+                            <AlertCircle className="h-3 w-3" />
+                            {getFieldError(index, "nationality")}
+                          </p>
+                        )}
                       </div>
                       <div>
-                        <label className="block text-xs font-medium" style={{ color: "var(--color-text-muted)" }}>Passport / ID Number</label>
+                        <label className="block text-xs font-medium" style={{ color: "var(--color-text-muted)" }}>Emergency Contact</label>
                         <input
                           type="text"
-                          value={traveler.passportNumber}
-                          onChange={(e) => updateTraveler(index, "passportNumber", e.target.value)}
+                          value={traveler.emergencyContact}
+                          onChange={(e) => updateTraveler(index, "emergencyContact", e.target.value)}
+                          placeholder="Name &amp; phone number"
                           className="mt-1 w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2"
                           style={travelerInputStyle}
                         />
@@ -504,9 +653,20 @@ export default function BookingPage({
                           max={120}
                           value={traveler.age}
                           onChange={(e) => updateTraveler(index, "age", e.target.value)}
+                          onBlur={() => markFieldTouched(index, "age")}
                           className="mt-1 w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2"
-                          style={travelerInputStyle}
+                          style={{
+                            ...travelerInputStyle,
+                            borderColor: getFieldError(index, "age") ? "var(--color-error)" : "var(--color-border)",
+                          }}
+                          data-error={getFieldError(index, "age") ? "true" : undefined}
                         />
+                        {isFieldTouched(index, "age") && getFieldError(index, "age") && (
+                          <p className="mt-1 flex items-center gap-1 text-xs" style={{ color: "var(--color-error)" }}>
+                            <AlertCircle className="h-3 w-3" />
+                            {getFieldError(index, "age")}
+                          </p>
+                        )}
                       </div>
                     </div>
 
@@ -541,7 +701,7 @@ export default function BookingPage({
             {/* Submit on mobile (summary card duplicates the button on desktop) */}
             <button
               type="submit"
-              disabled={isSubmitting || !startDate}
+              disabled={isSubmitting}
               className="w-full rounded-full px-6 py-3.5 text-base font-semibold text-white shadow-sm transition-all hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50 lg:hidden"
               style={{ backgroundColor: "var(--color-primary)" }}
             >
@@ -597,7 +757,7 @@ export default function BookingPage({
 
               <button
                 type="submit"
-                disabled={isSubmitting || !startDate}
+                disabled={isSubmitting}
                 className="mt-6 hidden w-full rounded-full px-6 py-3.5 text-base font-semibold text-white shadow-sm transition-all hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50 lg:block"
                 style={{ backgroundColor: "var(--color-primary)" }}
               >

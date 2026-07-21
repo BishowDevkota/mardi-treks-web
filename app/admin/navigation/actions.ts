@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { invalidateCachePattern, cacheKeys } from "@/lib/redis";
+import { deleteFile } from "@/lib/cloudinary";
 
 interface RegionInput {
   id?: string;
@@ -18,8 +19,18 @@ export async function updateNavigationSettings(formData: FormData) {
   const navigation = JSON.parse((formData.get("navigation") as string) || "[]");
   const categoryDropdownTreks = JSON.parse((formData.get("categoryDropdownTreks") as string) || "{}");
   const logo = (formData.get("logo") as string) || null;
+  const previousLogo = (formData.get("previousLogo") as string) || null;
 
   const topBarContent = (formData.get("topBarContent") as string) || null;
+
+  // If the logo changed, delete the old one from Cloudinary
+  if (previousLogo && previousLogo !== logo) {
+    try {
+      await deleteFile(previousLogo);
+    } catch (err) {
+      console.error("Failed to delete old logo from Cloudinary:", err);
+    }
+  }
 
   await prisma.siteSetting.upsert({
     where: { id: "site-settings" },

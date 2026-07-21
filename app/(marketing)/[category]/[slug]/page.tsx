@@ -239,6 +239,17 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
         <div className="grid gap-12 lg:grid-cols-3">
           {/* ── MAIN CONTENT ── */}
           <div className="flex flex-col space-y-0 lg:col-span-2">
+            {/* Pricing calculator at the top on mobile (hidden on desktop) */}
+            <div className="lg:hidden mb-8">
+              <PricingCalculator
+                trekSlug={trek.slug}
+                basePrice={trek.price}
+                duration={trek.duration}
+                pricingTiers={pricingTiers}
+                addons={(typeof trek.addons === "string" ? JSON.parse(trek.addons) : trek.addons) || []}
+                maxGroupSize={trek.maxGroupSize}
+              />
+            </div>
             {/* Sections rendered in saved order */}
             {(() => {
               const sectionMap: Record<string, () => React.ReactNode> = {};
@@ -816,9 +827,14 @@ sectionMap["gallery"] = () => trek.galleryImages?.length > 0 ? <GallerySection
 
               return ordered;
             })()}
+
+            {/* Contact section — always present at the end of main content */}
+            <div id="contact" className="[&>section]:!px-0 [&>section>div]:!px-0">
+              <ContactFormSection />
+            </div>
           </div>
           {/* ── SIDEBAR ── */}
-          <div className="lg:col-span-1">
+          <div className="hidden lg:block lg:col-span-1">
             <div className="sticky top-24 space-y-6">
               <PricingCalculator
                 trekSlug={trek.slug}
@@ -826,6 +842,7 @@ sectionMap["gallery"] = () => trek.galleryImages?.length > 0 ? <GallerySection
                 duration={trek.duration}
                 pricingTiers={pricingTiers}
                 addons={(typeof trek.addons === "string" ? JSON.parse(trek.addons) : trek.addons) || []}
+                maxGroupSize={trek.maxGroupSize}
               />
             </div>
           </div>
@@ -847,12 +864,6 @@ sectionMap["gallery"] = () => trek.galleryImages?.length > 0 ? <GallerySection
         sectionOrder={sectionOrderList}
       />
 
-      {/* Contact section — always present at the bottom of every trek page */}
-      <section className="bg-white pb-20 pt-16">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <ContactFormSection />
-        </div>
-      </section>
     </GalleryProvider>
   );
 }

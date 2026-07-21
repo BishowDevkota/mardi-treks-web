@@ -58,6 +58,36 @@ export async function POST(request: NextRequest) {
       travelers,
     } = validated.data;
 
+    // Validate start date is not in the past
+    const parsedDate = new Date(startDate);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (parsedDate < today) {
+      return NextResponse.json(
+        { error: "Start date cannot be in the past" },
+        { status: 400 }
+      );
+    }
+
+    // Fetch the actual trek to validate against trek-specific constraints
+    const trek = await prisma.trek.findUnique({ where: { slug: trekSlug } });
+    if (!trek) {
+      return NextResponse.json(
+        { error: "Trek not found" },
+        { status: 404 }
+      );
+    }
+
+    // Validate group size doesn't exceed max group size
+    if (groupSize > trek.maxGroupSize) {
+      return NextResponse.json(
+        {
+          error: `Maximum ${trek.maxGroupSize} travelers allowed for this trek`,
+        },
+        { status: 400 }
+      );
+    }
+
     const addonsTotal = (addons || []).reduce((sum: number, a: any) => sum + a.qty * a.pricePerUnit, 0);
     const totalPrice = trekPrice * groupSize + addonsTotal;
 
@@ -118,7 +148,7 @@ export async function POST(request: NextRequest) {
               email: t.email,
               phone: t.phone,
               nationality: t.nationality,
-              passportNumber: t.passportNumber || null,
+              emergencyContact: t.emergencyContact || null,
               age: t.age || null,
             })),
           },
@@ -155,7 +185,7 @@ export async function POST(request: NextRequest) {
             email: t.email,
             phone: t.phone,
             nationality: t.nationality,
-            passportNumber: t.passportNumber,
+            emergencyContact: t.emergencyContact,
             age: t.age,
           })),
           groupSize,
@@ -216,7 +246,7 @@ export async function GET(request: NextRequest) {
           addons: true,
           specialRequests: true,
           travelerDetails: {
-            select: { fullName: true, email: true, phone: true, nationality: true, passportNumber: true, age: true },
+            select: { fullName: true, email: true, phone: true, nationality: true, emergencyContact: true, age: true },
           },
           payment: { select: { status: true, method: true, amount: true } },
         },

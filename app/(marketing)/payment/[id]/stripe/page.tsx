@@ -37,12 +37,12 @@ function CheckoutForm({ bookingId, onComplete }: { bookingId: string; onComplete
     <form onSubmit={handleSubmit} className="space-y-6">
       <PaymentElement />
       {error && (
-        <div className="rounded-xl bg-red-50 border border-red-200 p-4 text-sm text-red-700">⚠️ {error}</div>
+        <div className="rounded-xl bg-error/10 border border-error/20 p-4 text-sm text-error">⚠️ {error}</div>
       )}
       <button
         type="submit"
         disabled={!stripe || processing}
-        className="w-full rounded-xl bg-gradient-to-r from-teal-500 to-teal-600 px-6 py-3 text-sm font-semibold text-white shadow-sm hover:from-teal-600 hover:to-teal-700 disabled:opacity-50"
+        className="w-full rounded-xl bg-gradient-to-r from-primary to-primary-dark px-6 py-3 text-sm font-semibold text-white shadow-sm hover:from-primary-dark hover:to-primary-dark disabled:opacity-50"
       >
         {processing ? (
           <span className="inline-flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Processing...</span>
@@ -121,7 +121,7 @@ export default function StripePaymentPage({ params }: { params: Promise<{ id: st
   if (loading || !stripePromise) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-teal-600" />
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
   }
@@ -129,9 +129,9 @@ export default function StripePaymentPage({ params }: { params: Promise<{ id: st
   if (error) {
     return (
       <div className="mx-auto max-w-lg px-4 py-20 text-center">
-        <h1 className="text-2xl font-bold text-slate-900">Payment Error</h1>
-        <p className="mt-2 text-sm text-slate-500">{error}</p>
-        <Link href={`/payment/${bookingId}`} className="mt-6 inline-flex items-center gap-1.5 text-sm font-medium text-teal-600 hover:text-teal-700">
+        <h1 className="text-2xl font-bold text-foreground">Payment Error</h1>
+        <p className="mt-2 text-sm text-muted">{error}</p>
+        <Link href={`/payment/${bookingId}`} className="mt-6 inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:text-primary-dark">
           <ArrowLeft className="h-4 w-4" /> Back to payment options
         </Link>
       </div>
@@ -144,21 +144,21 @@ export default function StripePaymentPage({ params }: { params: Promise<{ id: st
     <div className="mx-auto max-w-lg px-4 py-12 sm:px-6 lg:px-8">
       <Link
         href={`/payment/${bookingId}`}
-        className="mb-6 inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-slate-700"
+        className="mb-6 inline-flex items-center gap-1.5 text-sm font-medium text-muted hover:text-foreground"
       >
         <ArrowLeft className="h-4 w-4" /> Back to payment options
       </Link>
 
-      <h1 className="text-2xl font-bold text-slate-900">Pay with Card</h1>
-      <p className="mt-1 text-sm text-slate-500">Enter your card details to complete payment</p>
+      <h1 className="text-2xl font-bold text-foreground">Pay with Card</h1>
+      <p className="mt-1 text-sm text-muted">Enter your card details to complete payment</p>
 
-      <div className="mt-8 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div className="mt-8 rounded-2xl border border-border bg-surface p-6 shadow-sm">
         <Elements stripe={stripePromise} options={{ clientSecret }}>
           <CheckoutForm bookingId={bookingId} onComplete={() => {}} />
         </Elements>
       </div>
 
-      <p className="mt-4 text-center text-xs text-slate-400">
+      <p className="mt-4 text-center text-xs text-muted">
         🔒 Secured by Stripe. Your card info is never stored on our servers.
       </p>
     </div>

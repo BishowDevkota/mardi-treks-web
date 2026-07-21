@@ -63,11 +63,11 @@ export default function PaymentProcessingPage({ params }: { params: Promise<{ id
   if (status === "CONFIRMED") {
     return (
       <div className="mx-auto max-w-lg px-4 py-20 text-center">
-        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
-          <CheckCircle className="h-8 w-8 text-green-600" />
+        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-success/10">
+          <CheckCircle className="h-8 w-8 text-success" />
         </div>
-        <h1 className="mt-6 text-2xl font-bold text-slate-900">Payment Confirmed!</h1>
-        <p className="mt-2 text-sm text-slate-500">Redirecting to confirmation...</p>
+        <h1 className="mt-6 text-2xl font-bold text-foreground">Payment Confirmed!</h1>
+        <p className="mt-2 text-sm text-muted">Redirecting to confirmation...</p>
       </div>
     );
   }
@@ -75,14 +75,14 @@ export default function PaymentProcessingPage({ params }: { params: Promise<{ id
   if (status === "FAILED" || status === "CANCELLED") {
     return (
       <div className="mx-auto max-w-lg px-4 py-20 text-center">
-        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-red-100">
-          <XCircle className="h-8 w-8 text-red-600" />
+        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-error/10">
+          <XCircle className="h-8 w-8 text-error" />
         </div>
-        <h1 className="mt-6 text-2xl font-bold text-slate-900">Payment Failed</h1>
-        <p className="mt-2 text-sm text-slate-500">Your payment was not completed. Please try again.</p>
+        <h1 className="mt-6 text-2xl font-bold text-foreground">Payment Failed</h1>
+        <p className="mt-2 text-sm text-muted">Your payment was not completed. Please try again.</p>
         <Link
           href={`/payment/${bookingId}`}
-          className="mt-6 inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-teal-500 to-teal-600 px-6 py-2.5 text-sm font-semibold text-white shadow-sm hover:from-teal-600 hover:to-teal-700"
+          className="mt-6 inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-primary to-primary-dark px-6 py-2.5 text-sm font-semibold text-white shadow-sm hover:from-primary-dark hover:to-primary-dark"
         >
           <ArrowLeft className="h-4 w-4" /> Try Again
         </Link>
@@ -92,16 +92,16 @@ export default function PaymentProcessingPage({ params }: { params: Promise<{ id
 
   return (
     <div className="mx-auto max-w-lg px-4 py-20 text-center">
-      <Loader2 className="mx-auto h-12 w-12 animate-spin text-teal-600" />
-      <h1 className="mt-6 text-2xl font-bold text-slate-900">Processing Payment</h1>
-      <p className="mt-2 text-sm text-slate-500">
+      <Loader2 className="mx-auto h-12 w-12 animate-spin text-primary" />
+      <h1 className="mt-6 text-2xl font-bold text-foreground">Processing Payment</h1>
+      <p className="mt-2 text-sm text-muted">
         Please complete the payment in the opened window.
         {polls > 0 && ` Waiting for confirmation... (${polls})`}
       </p>
       {polls > 10 && (
         <Link
           href={`/payment/${bookingId}`}
-          className="mt-6 inline-flex items-center gap-1.5 text-sm font-medium text-teal-600 hover:text-teal-700"
+          className="mt-6 inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:text-primary-dark"
         >
           <ArrowLeft className="h-4 w-4" /> Back to payment options
         </Link>

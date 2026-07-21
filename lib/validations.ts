@@ -29,7 +29,7 @@ export const travelerDetailSchema = z.object({
   email: z.string().email("Valid email is required").trim().toLowerCase(),
   phone: z.string().min(6, "Valid phone number is required").max(20).trim(),
   nationality: z.string().min(2, "Nationality is required").max(100).trim(),
-  passportNumber: z.string().max(50).optional().or(z.literal("")),
+  emergencyContact: z.string().max(200).optional().or(z.literal("")),
   age: z.number().int().min(1).max(120).optional().nullable(),
 });
 
@@ -47,13 +47,19 @@ export const createBookingSchema = z.object({
   startDate: z.string().refine((val) => !isNaN(Date.parse(val)), {
     message: "Invalid date",
   }),
-  groupSize: z.number().int().min(1, "At least 1 traveler").max(20),
+  groupSize: z.number().int().min(1, "At least 1 traveler"),
   addons: z.array(addonItemSchema).optional().default([]),
   specialRequests: z.string().max(2000).optional().or(z.literal("")),
   travelers: z
     .array(travelerDetailSchema)
-    .min(1, "At least one traveler is required")
-    .max(20),
+    .min(1, "At least one traveler is required"),
+});
+
+export const bookingFormSchema = z.object({
+  startDate: z.string().min(1, "Please select a start date"),
+  travelers: z
+    .array(travelerDetailSchema)
+    .min(1, "At least one traveler is required"),
 });
 
 export type CreateBookingInput = z.infer<typeof createBookingSchema>;

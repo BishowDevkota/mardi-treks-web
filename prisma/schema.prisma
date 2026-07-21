@@ -445,14 +445,15 @@ model Booking {
 }
 
 model TravelerDetail {
-  id              String  @id @default(cuid())
-  bookingId       String
-  fullName        String
-  email           String
-  phone           String
-  nationality     String
-  passportNumber  String?
-  age             Int?
+  id               String  @id @default(cuid())
+  bookingId        String
+  fullName         String
+  email            String
+  phone            String
+  nationality      String
+  passportNumber   String?
+  emergencyContact String?
+  age              Int?
 
   booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
 

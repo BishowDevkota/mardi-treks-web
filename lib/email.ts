@@ -15,7 +15,7 @@ export type TravelerInfo = {
   email: string;
   phone: string;
   nationality: string;
-  passportNumber?: string | null;
+  emergencyContact?: string | null;
   age?: number | null;
 };
 
@@ -56,7 +56,7 @@ export async function sendBookingNotification({
     <tr><td style="padding:4px 8px;color:#64748b;">Email</td><td style="padding:4px 8px;">${t.email}</td></tr>
     <tr><td style="padding:4px 8px;color:#64748b;">Phone</td><td style="padding:4px 8px;">${t.phone}</td></tr>
     <tr><td style="padding:4px 8px;color:#64748b;">Nationality</td><td style="padding:4px 8px;">${t.nationality}</td></tr>
-    <tr><td style="padding:4px 8px;color:#64748b;">Passport</td><td style="padding:4px 8px;">${t.passportNumber || "N/A"}</td></tr>
+    <tr><td style="padding:4px 8px;color:#64748b;">Emergency Contact</td><td style="padding:4px 8px;">${t.emergencyContact || "N/A"}</td></tr>
     <tr><td style="padding:4px 8px;color:#64748b;">Age</td><td style="padding:4px 8px;">${t.age ?? "N/A"}</td></tr>
   `).join("");
 
