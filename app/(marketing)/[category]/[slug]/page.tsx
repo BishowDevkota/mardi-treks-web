@@ -18,6 +18,7 @@ import { SectionNav } from "@/components/trek/SectionNav";
 import GallerySection from "@/components/trek/GallerySection";
 import { GalleryProvider } from "@/components/trek/GalleryContext";
 import { ContactFormSection } from "@/components/home/ContactFormSection";
+import { SearchBar } from "@/components/search/SearchBar";
 
 async function getTrek(slug: string, categorySlug: string) {
   const cacheKey = cacheKeys.trek(`${categorySlug}:${slug}`);
@@ -124,6 +125,17 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
   const maxAltitude = trek.maxAltitude || getMaxAltitude(itinerary);
   const avgRating = getAvgRating(reviews);
 
+  // Fetch all published treks for the search autocomplete
+  const allTreksForSearch = await getCachedOrFetch(
+    cacheKeys.searchTreks,
+    () => prisma.trek.findMany({
+      where: { status: "published" },
+      select: { title: true, slug: true, region: true, difficulty: true, duration: true, category: { select: { slug: true } } },
+      orderBy: { title: "asc" },
+    }),
+    300
+  );
+
   const difficultyColorMap: Record<string, { badge: string; dot: string }> = {
     easy: { badge: "bg-[#EEF3E8] text-[#4C6B45]", dot: "bg-[#6B8E5F]" },
     moderate: { badge: "bg-[#FBF0DE] text-[#9A6A1F]", dot: "bg-[#DB8A3A]" },
@@ -212,21 +224,9 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
                 <span style={{ color: "#ffffff" }}>{trek.title}</span>
               </nav>
 
-              {/* Search wrapper */}
-              <div
-                className="flex items-center rounded-full border px-5 py-4 backdrop-blur-md"
-                style={{
-                  maxWidth: "420px",
-                  background: "rgba(255, 255, 255, 0.15)",
-                  borderColor: "rgba(255, 255, 255, 0.2)",
-                }}
-              >
-                <Search className="mr-3 h-5 w-5 shrink-0 text-white" />
-                <input
-                  type="text"
-                  placeholder="Search other treks..."
-                  className="w-full bg-transparent text-base text-white outline-none placeholder:text-white/60"
-                />
+              {/* Search bar with autocomplete — like the homepage */}
+              <div style={{ maxWidth: "420px" }}>
+                <SearchBar treks={JSON.parse(JSON.stringify(allTreksForSearch))} />
               </div>
             </div>
           </div>
@@ -247,7 +247,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
                 basePrice={trek.price}
                 duration={trek.duration}
                 pricingTiers={pricingTiers}
-                addons={(typeof trek.addons === "string" ? JSON.parse(trek.addons) : trek.addons) || []}
+                addons={addons}
                 maxGroupSize={trek.maxGroupSize}
               />
             </div>
@@ -449,9 +449,11 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
               className="ml-14 mr-4 mb-5 border-t pt-4"
               style={{ borderColor: "var(--color-border)" }}
             >
-              <p className="text-sm leading-relaxed" style={{ color: "var(--color-text)" }}>
-                {day.description}
-              </p>
+              {day.description ? (
+                <div className="text-sm leading-relaxed prose prose-sm max-w-none" style={{ color: "var(--color-text)" }} dangerouslySetInnerHTML={{ __html: day.description }} />
+              ) : (
+                <p className="text-sm leading-relaxed" style={{ color: "var(--color-text-muted)" }}>No description available</p>
+              )}
               {(day.elevation || day.accommodation) && (
                 <div
                   className="mt-3 flex flex-wrap gap-x-5 gap-y-1.5 text-xs"
@@ -812,9 +814,10 @@ sectionMap["gallery"] = () => trek.galleryImages?.length > 0 ? <GallerySection
               }
 
               // 3. Render any custom sections without IDs (edge case)
+              let customIdx = 0;
               for (const cs of customSections) {
                 if (cs.id && rendered.has(cs.id)) continue;
-                ordered.push(<React.Fragment key={cs.id || Math.random()}>
+                ordered.push(<React.Fragment key={cs.id || `custom-${customIdx++}`}>
                   <section className="py-16">
                     <h2 className="mb-6 text-2xl font-bold" style={{ color: "var(--color-secondary)" }}>{cs.data?.heading || "Custom Section"}</h2>
                     {cs.data?.imageId && <div className="relative mb-6 aspect-[16/9] overflow-hidden rounded-xl">
@@ -842,7 +845,7 @@ sectionMap["gallery"] = () => trek.galleryImages?.length > 0 ? <GallerySection
                 basePrice={trek.price}
                 duration={trek.duration}
                 pricingTiers={pricingTiers}
-                addons={(typeof trek.addons === "string" ? JSON.parse(trek.addons) : trek.addons) || []}
+                addons={addons}
                 maxGroupSize={trek.maxGroupSize}
               />
             </div>

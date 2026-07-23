@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, startTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   Save, Loader2, Plus, Trash2, GripVertical, ImageIcon, X, Upload, ChevronDown, ChevronRight, Search, Menu,
@@ -8,6 +8,7 @@ import {
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Link from "@tiptap/extension-link";
+import { ImageUpload, type ImageUploadHandle } from "@/components/admin/trek-sections/ImageUpload";
 import { updateNavigationSettings } from "./actions";
 
 interface NavItem {
@@ -61,13 +62,9 @@ export function NavigationForm({
   topBarContent?: string;
 }) {
   const router = useRouter();
-  const imageInputRef = useRef<HTMLInputElement>(null);
   const [saving, setSaving] = useState(false);
-  const [uploading, setUploading] = useState(false);
   const [logoPublicId, setLogoPublicId] = useState(logo);
-  const [logoPreview, setLogoPreview] = useState<string | null>(
-    logo ? `https://res.cloudinary.com/dk7ggjvlw/image/upload/${logo}` : null
-  );
+  const logoUploadRef = useRef<ImageUploadHandle>(null);
   const [navItems, setNavItems] = useState<NavItem[]>(
     navigation.length > 0 ? navigation : defaultNavItems
   );
@@ -93,30 +90,6 @@ export function NavigationForm({
     }
     return initial;
   });
-
-  async function handleImageUpload(file: File) {
-    setUploading(true);
-    try {
-      const fd = new FormData();
-      fd.set("file", file);
-      fd.set("folder", "mardi-treks");
-      const res = await fetch("/api/upload", { method: "POST", body: fd });
-      const data = await res.json();
-      if (data.publicId) {
-        setLogoPublicId(data.publicId);
-        setLogoPreview(`https://res.cloudinary.com/dk7ggjvlw/image/upload/${data.publicId}`);
-      }
-    } catch (err) {
-      console.error("Upload failed", err);
-    }
-    setUploading(false);
-  }
-
-  function handleClearLogo() {
-    setLogoPublicId("");
-    setLogoPreview(null);
-    if (imageInputRef.current) imageInputRef.current.value = "";
-  }
 
   function addNavItem() {
     setNavItems([...navItems, { label: "", href: "" }]);
@@ -216,14 +189,20 @@ export function NavigationForm({
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    const form = e.currentTarget;
     setSaving(true);
-    const fd = new FormData(e.currentTarget);
+
+    // Upload pending logo to Cloudinary first
+    const uploadedId = await logoUploadRef.current?.save() ?? null;
+
+    const fd = new FormData(form);
     fd.set("navigation", JSON.stringify(navItems));
     fd.set("categoryDropdownTreks", JSON.stringify(selectedTreks));
-    fd.set("logo", logoPublicId);
+    fd.set("logo", uploadedId || logoPublicId);
     fd.set("previousLogo", logo); // pass the original logo for Cloudinary cleanup
     try {
       await updateNavigationSettings(fd);
+      setSaving(false);
       router.refresh();
     } catch {
       setSaving(false);
@@ -251,63 +230,7 @@ export function NavigationForm({
         </div>
         <div className="flex items-start gap-6">
           <div className="w-48 shrink-0">
-            {logoPreview ? (
-              <div className="relative group overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={logoPreview} alt="Logo" className="h-28 w-full object-contain" />
-                <div className="absolute inset-0 flex items-center justify-center gap-2 bg-black/40 opacity-0 transition-opacity group-hover:opacity-100">
-                  <button
-                    type="button"
-                    onClick={() => imageInputRef.current?.click()}
-                    disabled={uploading}
-                    className="rounded-lg bg-white/90 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-white"
-                  >
-                    {uploading ? "..." : "Change"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleClearLogo}
-                    className="rounded-lg bg-red-500/90 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-500"
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-                {uploading && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-white/60">
-                    <Loader2 className="h-6 w-6 animate-spin text-teal-600" />
-                  </div>
-                )}
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => imageInputRef.current?.click()}
-                disabled={uploading}
-                className="flex h-28 w-full items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 transition-colors hover:border-teal-300 hover:bg-teal-50"
-              >
-                {uploading ? (
-                  <div className="text-center">
-                    <Loader2 className="mx-auto h-6 w-6 animate-spin text-teal-600" />
-                    <p className="mt-1 text-xs text-slate-500">Uploading...</p>
-                  </div>
-                ) : (
-                  <div className="text-center">
-                    <ImageIcon className="mx-auto h-8 w-8 text-slate-400" />
-                    <p className="mt-1 text-xs font-medium text-slate-500">Upload Logo</p>
-                  </div>
-                )}
-              </button>
-            )}
-            <input
-              ref={imageInputRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) handleImageUpload(file);
-              }}
-            />
+            <ImageUpload ref={logoUploadRef} value={logoPublicId} onChange={setLogoPublicId} label="" folder="mardi-treks" />
           </div>
           <div className="flex-1">
             <label className="block text-xs font-medium text-slate-500 mb-1.5">
@@ -318,11 +241,6 @@ export function NavigationForm({
               value={logoPublicId}
               onChange={(e) => {
                 setLogoPublicId(e.target.value);
-                if (e.target.value) {
-                  setLogoPreview(`https://res.cloudinary.com/dk7ggjvlw/image/upload/${e.target.value}`);
-                } else {
-                  setLogoPreview(null);
-                }
               }}
               placeholder="e.g. mardi-treks/logo"
               className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-mono focus:border-teal-300 focus:outline-none focus:ring-2 focus:ring-teal-100"
@@ -688,7 +606,7 @@ function TopBarEditor({ initialContent }: { initialContent: string }) {
     },
   });
 
-  useEffect(() => setMounted(true), []);
+  useEffect(() => { startTransition(() => setMounted(true)); }, []);
 
   if (!mounted || !editor) {
     return (

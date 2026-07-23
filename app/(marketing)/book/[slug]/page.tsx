@@ -770,7 +770,7 @@ export default function BookingPage({
                 )}
               </button>
               <p className="mt-3 text-center text-xs" style={{ color: "var(--color-text-muted)" }}>
-                No payment charged yet — you'll confirm on the next step
+                No payment charged yet &mdash; you&apos;ll confirm on the next step
               </p>
             </div>
           </div>

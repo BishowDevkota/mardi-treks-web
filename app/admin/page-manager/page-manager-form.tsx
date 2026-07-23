@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { savePageContent } from "./actions";
 import { Plus, Trash2, Save, Loader2, GripVertical } from "lucide-react";
-import { ImageUpload } from "@/components/admin/trek-sections/ImageUpload";
+import { ImageUpload, type ImageUploadHandle } from "@/components/admin/trek-sections/ImageUpload";
 import { FeaturedTrekSelector } from "@/components/admin/FeaturedTrekSelector";
 
 const defaultWhyChooseUsItems = [
@@ -103,6 +103,12 @@ export function PageManagerForm({
   const [blogHero, setBlogHero] = useState(pc.blog?.hero || { heading: "Our Blog", description: "", backgroundImage: "" });
   const [blogSeo, setBlogSeo] = useState(pc.blog?.seo || { title: "", description: "", keywords: "" });
 
+  // ── Image upload refs (for deferred Cloudinary upload on save) ──
+  const imageRefs = useRef<Record<string, ImageUploadHandle | null>>({});
+  const setImageRef = useCallback((key: string) => {
+    return (el: ImageUploadHandle | null) => { imageRefs.current[key] = el; };
+  }, []);
+
   // ── Footer state ──
   const [footer, setFooter] = useState(pc.footer || {
     brandDescription: "Experience the Himalayas with Mardi Treks. Expert-guided trekking and tour packages in Nepal.",
@@ -119,19 +125,45 @@ export function PageManagerForm({
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    const form = e.currentTarget;
     setSaving(true);
+
+    // Upload any pending images to Cloudinary before saving — capture returned IDs
+    const uploadResults = await Promise.all(
+      Object.entries(imageRefs.current).map(async ([key, ref]) => {
+        const id = await ref?.save();
+        return { key, id };
+      })
+    );
+    const uploadedMap: Record<string, string> = {};
+    for (const { key, id } of uploadResults) {
+      if (id) uploadedMap[key] = id;
+    }
+
     // Use the form's own FormData so hidden inputs from FeaturedTrekSelector are included
-    const fd = new FormData(e.currentTarget);
+    const fd = new FormData(form);
+
+    // Helper: use uploaded ID if available, else fall back to state value
+    function orUploaded(key: string, stateVal: string): string {
+      return uploadedMap[key] || stateVal;
+    }
+    // Helper for gallery items: override imageId if uploaded
+    function overrideGallery(items: any[], sectionKey: string): any[] {
+      return items.map((item: any, i: number) => ({
+        ...item,
+        imageId: uploadedMap[`${sectionKey}-${i}`] || item.imageId || "",
+      }));
+    }
 
     // Home (override with state-managed values)
     fd.set("home_hero_title", homeHero.title);
     fd.set("home_hero_title_highlight", homeHero.titleHighlight);
     fd.set("home_hero_description", homeHero.description);
-    fd.set("home_hero_background", homeHero.backgroundImage);
+    fd.set("home_hero_background", orUploaded("homeHero", homeHero.backgroundImage));
     fd.set("home_sections", JSON.stringify(homeSections));
     fd.set("home_why_heading", homeWhy.heading);
     fd.set("home_why_subtitle", homeWhy.subtitle);
-    fd.set("home_why_bg", homeWhy.bgImage);
+    fd.set("home_why_bg", orUploaded("homeWhyBg", homeWhy.bgImage));
     fd.set("home_why_items", JSON.stringify(homeWhy.items));
     fd.set("home_contact_heading", homeContact.heading);
     fd.set("home_contact_description", homeContact.description);
@@ -143,7 +175,7 @@ export function PageManagerForm({
     // About
     fd.set("about_hero_heading", aboutHero.heading);
     fd.set("about_hero_description", aboutHero.description);
-    fd.set("about_hero_background", aboutHero.backgroundImage);
+    fd.set("about_hero_background", orUploaded("aboutHero", aboutHero.backgroundImage));
     fd.set("about_seo_title", aboutSeo.title);
     fd.set("about_seo_description", aboutSeo.description);
     fd.set("about_seo_keywords", aboutSeo.keywords || "");
@@ -151,14 +183,14 @@ export function PageManagerForm({
     fd.set("about_why_heading", aboutWhy.heading);
     fd.set("about_why_subtitle", aboutWhy.subtitle);
     fd.set("about_why_items", JSON.stringify(aboutWhy.items));
-    fd.set("about_why_bg", aboutWhy.bgImage);
+    fd.set("about_why_bg", orUploaded("aboutWhyBg", aboutWhy.bgImage));
     fd.set("about_team", JSON.stringify(aboutTeam));
-    fd.set("about_gallery", JSON.stringify(aboutGallery));
+    fd.set("about_gallery", JSON.stringify(overrideGallery(aboutGallery, "aboutGallery")));
 
     // Contact
     fd.set("contact_hero_heading", contactHero.heading);
     fd.set("contact_hero_description", contactHero.description);
-    fd.set("contact_hero_background", contactHero.backgroundImage);
+    fd.set("contact_hero_background", orUploaded("contactHero", contactHero.backgroundImage));
     fd.set("contact_seo_title", contactSeo.title);
     fd.set("contact_seo_description", contactSeo.description);
     fd.set("contact_seo_keywords", contactSeo.keywords || "");
@@ -168,7 +200,7 @@ export function PageManagerForm({
     // Blog
     fd.set("blog_hero_heading", blogHero.heading);
     fd.set("blog_hero_description", blogHero.description);
-    fd.set("blog_hero_background", blogHero.backgroundImage);
+    fd.set("blog_hero_background", orUploaded("blogHero", blogHero.backgroundImage));
     fd.set("blog_seo_title", blogSeo.title);
     fd.set("blog_seo_description", blogSeo.description);
     fd.set("blog_seo_keywords", blogSeo.keywords || "");
@@ -183,6 +215,7 @@ export function PageManagerForm({
 
     try {
       await savePageContent(fd);
+      // Images committed to DB successfully
     } catch {
       // redirect() throws NEXT_REDIRECT — that's expected
     }
@@ -271,7 +304,7 @@ export function PageManagerForm({
               </div>
               <div className="sm:col-span-2">
                 <label className="block text-xs font-medium text-slate-500 mb-1">Background Image</label>
-                <ImageUpload value={homeHero.backgroundImage} onChange={(id) => setHomeHeroField("backgroundImage", id)} label="Hero Image" />
+                <ImageUpload ref={setImageRef("homeHero")} value={homeHero.backgroundImage} onChange={(id) => setHomeHeroField("backgroundImage", id)} label="Hero Image" />
               </div>
             </div>
           </section>
@@ -344,7 +377,7 @@ export function PageManagerForm({
               </div>
               <div className="sm:col-span-2">
                 <label className="block text-xs font-medium text-slate-500 mb-1">Background Image</label>
-                <ImageUpload value={homeWhy.bgImage} onChange={(id) => setHomeWhy((prev: any) => ({ ...prev, bgImage: id }))} label="Background Image" />
+                <ImageUpload ref={setImageRef("homeWhyBg")} value={homeWhy.bgImage} onChange={(id) => setHomeWhy((prev: any) => ({ ...prev, bgImage: id }))} label="Background Image" />
               </div>
             </div>
             <div className="mt-4 space-y-2">
@@ -419,7 +452,7 @@ export function PageManagerForm({
             <div className="space-y-3">
               <input value={aboutHero.heading} onChange={(e) => setAboutHero({ ...aboutHero, heading: e.target.value })} placeholder="Heading" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
               <textarea rows={3} value={aboutHero.description} onChange={(e) => setAboutHero({ ...aboutHero, description: e.target.value })} placeholder="Description" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
-              <ImageUpload value={aboutHero.backgroundImage} onChange={(id) => setAboutHero({ ...aboutHero, backgroundImage: id })} label="Background Image" />
+              <ImageUpload ref={setImageRef("aboutHero")} value={aboutHero.backgroundImage} onChange={(id) => setAboutHero({ ...aboutHero, backgroundImage: id })} label="Background Image" />
             </div>
           </section>
 
@@ -431,7 +464,7 @@ export function PageManagerForm({
                 <input value={aboutWhy.heading} onChange={(e) => setAboutWhy({ ...aboutWhy, heading: e.target.value })} placeholder="Heading" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
                 <input value={aboutWhy.subtitle} onChange={(e) => setAboutWhy({ ...aboutWhy, subtitle: e.target.value })} placeholder="Subtitle" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
               </div>
-              <ImageUpload value={aboutWhy.bgImage} onChange={(id) => setAboutWhy({ ...aboutWhy, bgImage: id })} label="Background Image (optional)" />
+              <ImageUpload ref={setImageRef("aboutWhyBg")} value={aboutWhy.bgImage} onChange={(id) => setAboutWhy({ ...aboutWhy, bgImage: id })} label="Background Image (optional)" />
               <div className="space-y-2">
                 <p className="text-xs font-medium text-slate-500">Items</p>
                 {aboutWhy.items.map((item: any, i: number) => (
@@ -497,7 +530,7 @@ export function PageManagerForm({
                       className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-500"><Trash2 className="h-3.5 w-3.5" /></button>
                   </div>
                   <div className="space-y-2">
-                    <ImageUpload value={item.imageId} onChange={(id) => {
+                    <ImageUpload ref={(el) => { imageRefs.current[`aboutGallery-${i}`] = el; }} value={item.imageId} onChange={(id) => {
                       const next = [...aboutGallery]; next[i] = { ...next[i], imageId: id }; setAboutGallery(next);
                     }} label="Photo" />
                     <input value={item.caption || ""} onChange={(e) => {
@@ -571,7 +604,7 @@ export function PageManagerForm({
             <div className="space-y-3">
               <input value={contactHero.heading} onChange={(e) => setContactHero({ ...contactHero, heading: e.target.value })} placeholder="Heading" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
               <textarea rows={3} value={contactHero.description} onChange={(e) => setContactHero({ ...contactHero, description: e.target.value })} placeholder="Description" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
-              <ImageUpload value={contactHero.backgroundImage} onChange={(id) => setContactHero({ ...contactHero, backgroundImage: id })} label="Background Image" />
+              <ImageUpload ref={setImageRef("contactHero")} value={contactHero.backgroundImage} onChange={(id) => setContactHero({ ...contactHero, backgroundImage: id })} label="Background Image" />
             </div>
           </section>
 
@@ -638,7 +671,7 @@ export function PageManagerForm({
             <div className="space-y-3">
               <input value={blogHero.heading} onChange={(e) => setBlogHero({ ...blogHero, heading: e.target.value })} placeholder="Heading" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
               <textarea rows={3} value={blogHero.description} onChange={(e) => setBlogHero({ ...blogHero, description: e.target.value })} placeholder="Description" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
-              <ImageUpload value={blogHero.backgroundImage} onChange={(id) => setBlogHero({ ...blogHero, backgroundImage: id })} label="Background Image" />
+              <ImageUpload ref={setImageRef("blogHero")} value={blogHero.backgroundImage} onChange={(id) => setBlogHero({ ...blogHero, backgroundImage: id })} label="Background Image" />
             </div>
           </section>
         </div>

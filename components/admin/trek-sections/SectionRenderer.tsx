@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { GripVertical, Trash2, Eye, EyeOff, ChevronUp, ChevronDown, Upload, Check, X } from "lucide-react";
 import { TrekSection, DetailsData, OverviewData, ItineraryData, InExData, PricingData, AddonData, FaqsData, MapData, GalleryData, SeoData, CustomData } from "./types";
-import { ImageUpload } from "./ImageUpload";
+import { ImageUpload, type ImageUploadHandle } from "./ImageUpload";
+import type { RichTextEditorHandle } from "@/components/admin/RichTextEditor";
 import { MapPreview } from "./MapPreview";
 import dynamic from "next/dynamic";
 
@@ -31,6 +32,10 @@ interface Props {
   onMoveUp: (index: number) => void;
   onMoveDown: (index: number) => void;
   categories?: CategoryInfo[];
+  /** Callback to register ImageUpload handles for deferred upload (key = sectionId.fieldName) */
+  registerImageUpload?: (key: string, handle: ImageUploadHandle) => void;
+  /** Callback to register RichTextEditor handles for deferred image upload */
+  registerRichTextEditor?: (key: string, handle: RichTextEditorHandle) => void;
 }
 
 // ─── Section wrapper with controls ──────────────────────────────────
@@ -94,7 +99,7 @@ function AddBtn({ onClick, label }: { onClick: () => void; label: string }) {
 // ═════════════════════════════════════════════════════════════════════
 
 // ─── Details ────────────────────────────────────────────────────────
-function DetailsSection({ data, onChange, categories }: { data: DetailsData; onChange: (d: DetailsData) => void; categories?: CategoryInfo[] }) {
+function DetailsSection({ data, onChange, categories, registerImageUpload }: { data: DetailsData; onChange: (d: DetailsData) => void; categories?: CategoryInfo[]; registerImageUpload?: (key: string, h: ImageUploadHandle) => void }) {
   const set = (field: keyof DetailsData, value: any) => onChange({ ...data, [field]: value });
 
   // Compute available regions from the selected category's regions
@@ -141,18 +146,18 @@ function DetailsSection({ data, onChange, categories }: { data: DetailsData; onC
         </select>
       </Field>
       <div className="sm:col-span-2">
-        <ImageUpload value={data.heroImage} onChange={(id) => set("heroImage", id)} label="Hero Image" />
+        <ImageUpload ref={registerImageUpload ? (el) => { if (el) registerImageUpload("heroImage", el); } : undefined} value={data.heroImage} onChange={(id) => set("heroImage", id)} label="Hero Image" />
       </div>
     </div>
   );
 }
 
 // ─── Overview ───────────────────────────────────────────────────────
-function OverviewSection({ data, onChange }: { data: OverviewData; onChange: (d: OverviewData) => void }) {
+function OverviewSection({ data, onChange, registerRichTextEditor }: { data: OverviewData; onChange: (d: OverviewData) => void; registerRichTextEditor?: (key: string, h: RichTextEditorHandle) => void }) {
   const set = (field: string, val: any) => onChange({ ...data, [field]: val });
   return (
     <div className="space-y-4">
-      <RichTextEditor content={data.content} onChange={(html) => set("content", html)} placeholder="Describe the trek..." />
+      <RichTextEditor ref={registerRichTextEditor ? (el) => { if (el) registerRichTextEditor("content", el); } : undefined} content={data.content} onChange={(html) => set("content", html)} placeholder="Describe the trek..." />
 
       {/* Overview Stats Boxes */}
       <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-4">
@@ -185,7 +190,7 @@ function OverviewSection({ data, onChange }: { data: OverviewData; onChange: (d:
 }
 
 // ─── Itinerary ──────────────────────────────────────────────────────
-function ItinerarySection({ data, onChange }: { data: ItineraryData; onChange: (d: ItineraryData) => void }) {
+function ItinerarySection({ data, onChange, registerRichTextEditor }: { data: ItineraryData; onChange: (d: ItineraryData) => void; registerRichTextEditor?: (key: string, h: RichTextEditorHandle) => void }) {
   const set = (field: string, val: any) => onChange({ ...data, [field]: val });
   const items = data.items;
   const updateItem = (i: number, updates: Record<string, any>) => {
@@ -224,7 +229,9 @@ function ItinerarySection({ data, onChange }: { data: ItineraryData; onChange: (
           <div className="grid gap-2 sm:grid-cols-2">
             <input type="number" value={item.dayNumber || i + 1} onChange={(e) => updateItem(i, { dayNumber: parseInt(e.target.value) || i + 1 })} className="rounded border border-slate-200 px-2 py-1.5 text-sm" />
             <input value={item.title} onChange={(e) => updateItem(i, { title: e.target.value })} placeholder="Title" className="rounded border border-slate-200 px-2 py-1.5 text-sm" />
-            <textarea rows={2} value={item.description} onChange={(e) => updateItem(i, { description: e.target.value })} placeholder="Description" className="col-span-2 rounded border border-slate-200 px-2 py-1.5 text-sm" />
+            <div className="col-span-2">
+              <RichTextEditor ref={registerRichTextEditor ? (el) => { if (el) registerRichTextEditor(`itinerary.${i}`, el); } : undefined} content={item.description} onChange={(html) => updateItem(i, { description: html })} placeholder="Describe the day's trek..." />
+            </div>
             <input value={item.elevation} onChange={(e) => updateItem(i, { elevation: e.target.value })} placeholder="Elevation (e.g. 2,800m)" className="rounded border border-slate-200 px-2 py-1.5 text-sm" />
             <input value={item.accommodation} onChange={(e) => updateItem(i, { accommodation: e.target.value })} placeholder="Accommodation" className="rounded border border-slate-200 px-2 py-1.5 text-sm" />
             <input value={item.placeDescription || ""} onChange={(e) => updateItem(i, { placeDescription: e.target.value })} placeholder="Place description (e.g. Gateway to the Khumbu)" className="col-span-2 rounded border border-slate-200 px-2 py-1.5 text-sm" />
@@ -386,7 +393,7 @@ function AddonSection({ data, onChange }: { data: AddonData; onChange: (d: Addon
 }
 
 // ─── Gallery ───────────────────────────────────────────────────────
-function GallerySection({ data, onChange }: { data: GalleryData; onChange: (d: GalleryData) => void }) {
+function GallerySection({ data, onChange, registerImageUpload }: { data: GalleryData; onChange: (d: GalleryData) => void; registerImageUpload?: (key: string, h: ImageUploadHandle) => void }) {
   const set = (field: string, val: any) => onChange({ ...data, [field]: val });
   const items = data.items || [];
   const update = (i: number, field: string, val: any) => onChange({ items: items.map((item, idx) => idx === i ? { ...item, [field]: val } : item) });
@@ -409,7 +416,7 @@ function GallerySection({ data, onChange }: { data: GalleryData; onChange: (d: G
             <button type="button" onClick={() => remove(i)} className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-500"><Trash2 className="h-3.5 w-3.5" /></button>
           </div>
           <div className="space-y-2">
-            <ImageUpload value={item.imageId} onChange={(id) => update(i, "imageId", id)} label="Photo" />
+            <ImageUpload ref={registerImageUpload ? (el) => { if (el) registerImageUpload(`gallery.${i}`, el); } : undefined} value={item.imageId} onChange={(id) => update(i, "imageId", id)} label="Photo" />
             <input value={item.alt} onChange={(e) => update(i, "alt", e.target.value)} placeholder="Alt text (descriptive, for accessibility & SEO)" className="w-full rounded border border-slate-200 px-2 py-1.5 text-sm" />
             <input value={item.caption} onChange={(e) => update(i, "caption", e.target.value)} placeholder="Caption (optional, shown below image)" className="w-full rounded border border-slate-200 px-2 py-1.5 text-sm" />
           </div>
@@ -479,7 +486,7 @@ function MapSection({ data, onChange }: { data: MapData; onChange: (d: MapData) 
           <label className="text-xs font-medium text-slate-500">Actual Trek Route (GeoJSON)</label>
           <span className="text-[10px] text-slate-400">If empty, a dashed straight line is shown</span>
         </div>
-        <p className="text-xs text-amber-600 mb-1">⚠️ If you see "not valid GeoJSON" on the map, click Remove and re-upload your file.</p>
+        <p className="text-xs text-amber-600 mb-1">⚠️ If you see &quot;not valid GeoJSON&quot; on the map, click Remove and re-upload your file.</p>
         <GeoJsonUpload
           value={data.geoJsonUrl || ""}
           hasData={!!data.geoJsonUrl || !!data.geoJsonData}
@@ -501,28 +508,28 @@ function MapSection({ data, onChange }: { data: MapData; onChange: (d: MapData) 
 }
 
 // ─── SEO ────────────────────────────────────────────────────────────
-function SeoSection({ data, onChange }: { data: SeoData; onChange: (d: SeoData) => void }) {
+function SeoSection({ data, onChange, registerImageUpload }: { data: SeoData; onChange: (d: SeoData) => void; registerImageUpload?: (key: string, h: ImageUploadHandle) => void }) {
   const set = (field: keyof SeoData, value: any) => onChange({ ...data, [field]: value });
   return (
     <div className="space-y-3">
       <Field label="Meta Title"><input value={data.metaTitle} onChange={(e) => set("metaTitle", e.target.value)} className="w-full rounded border border-slate-200 px-2 py-1.5 text-sm" /></Field>
       <Field label="Meta Description"><textarea rows={3} value={data.metaDescription} onChange={(e) => set("metaDescription", e.target.value)} className="w-full rounded border border-slate-200 px-2 py-1.5 text-sm" /></Field>
       <Field label="Keywords"><input value={data.keywords} onChange={(e) => set("keywords", e.target.value)} placeholder="trekking, nepal, everest, himalaya" className="w-full rounded border border-slate-200 px-2 py-1.5 text-sm" /></Field>
-      <ImageUpload value={data.ogImage} onChange={(id) => set("ogImage", id)} label="OG Image (social sharing)" />
+      <ImageUpload ref={registerImageUpload ? (el) => { if (el) registerImageUpload("ogImage", el); } : undefined} value={data.ogImage} onChange={(id) => set("ogImage", id)} label="OG Image (social sharing)" />
     </div>
   );
 }
 
 // ─── Custom Section ─────────────────────────────────────────────────
-function CustomSection({ data, onChange }: { data: CustomData; onChange: (d: CustomData) => void }) {
+function CustomSection({ data, onChange, registerImageUpload, registerRichTextEditor }: { data: CustomData; onChange: (d: CustomData) => void; registerImageUpload?: (key: string, h: ImageUploadHandle) => void; registerRichTextEditor?: (key: string, h: RichTextEditorHandle) => void }) {
   const set = (field: string, val: any) => onChange({ ...data, [field]: val });
   return (
     <div className="space-y-3">
       <Field label="Heading"><input value={data.heading} onChange={(e) => set("heading", e.target.value)} placeholder="Section heading" className="w-full rounded border border-slate-200 px-2 py-1.5 text-sm" /></Field>
-      <Field label="Content"><RichTextEditor content={data.content} onChange={(html) => set("content", html)} placeholder="Write your section content..." /></Field>
+      <Field label="Content"><RichTextEditor ref={registerRichTextEditor ? (el) => { if (el) registerRichTextEditor("content", el); } : undefined} content={data.content} onChange={(html) => set("content", html)} placeholder="Write your section content..." /></Field>
       <div className="border-t border-slate-100 pt-3">
         <p className="mb-2 text-xs font-semibold text-slate-500">Optional Image</p>
-        <ImageUpload value={data.imageId || ""} onChange={(id) => set("imageId", id)} label="Section Image" />
+        <ImageUpload ref={registerImageUpload ? (el) => { if (el) registerImageUpload("customImage", el); } : undefined} value={data.imageId || ""} onChange={(id) => set("imageId", id)} label="Section Image" />
         <div className="mt-2">
           <input value={data.imageAlt || ""} onChange={(e) => set("imageAlt", e.target.value)} placeholder="Image alt text (for accessibility & SEO)" className="w-full rounded border border-slate-200 px-2 py-1.5 text-sm" />
         </div>
@@ -585,22 +592,30 @@ function GeoJsonUpload({ value, onChange, onContentChange, hasData }: {
 // MAIN RENDERER
 // ═════════════════════════════════════════════════════════════════════
 export function SectionRenderer(props: Props) {
-  const { section, onChange } = props;
+  const { section, onChange, registerImageUpload, registerRichTextEditor } = props;
   const upd = (data: any) => onChange(section.id, data);
+
+  // Wrap registration callbacks to prefix keys with section.id
+  const registerKeyed = registerImageUpload
+    ? (fieldKey: string, handle: ImageUploadHandle) => registerImageUpload(`${section.id}.${fieldKey}`, handle)
+    : undefined;
+  const registerEditorKeyed = registerRichTextEditor
+    ? (fieldKey: string, handle: RichTextEditorHandle) => registerRichTextEditor(`${section.id}.${fieldKey}`, handle)
+    : undefined;
 
   const content = (() => {
     switch (section.type) {
-      case "details":    return <DetailsSection data={section.data} onChange={upd} categories={props.categories} />;
-      case "overview":   return <OverviewSection data={section.data} onChange={upd} />;
-      case "itinerary":  return <ItinerarySection data={section.data} onChange={upd} />;
+      case "details":    return <DetailsSection data={section.data} onChange={upd} categories={props.categories} registerImageUpload={registerKeyed} />;
+      case "overview":   return <OverviewSection data={section.data} onChange={upd} registerRichTextEditor={registerEditorKeyed} />;
+      case "itinerary":  return <ItinerarySection data={section.data} onChange={upd} registerRichTextEditor={registerEditorKeyed} />;
       case "inEx":       return <InExSection data={section.data} onChange={upd} />;
       case "pricing":    return <PricingSection data={section.data} onChange={upd} />;
       case "addons":     return <AddonSection data={section.data} onChange={upd} />;
-      case "gallery":    return <GallerySection data={section.data} onChange={upd} />;
+      case "gallery":    return <GallerySection data={section.data} onChange={upd} registerImageUpload={registerKeyed} />;
       case "faqs":       return <FaqsSection data={section.data} onChange={upd} />;
       case "map":        return <MapSection data={section.data} onChange={upd} />;
-      case "seo":        return <SeoSection data={section.data} onChange={upd} />;
-      case "custom":     return <CustomSection data={section.data} onChange={upd} />;
+      case "seo":        return <SeoSection data={section.data} onChange={upd} registerImageUpload={registerKeyed} />;
+      case "custom":     return <CustomSection data={section.data} onChange={upd} registerImageUpload={registerKeyed} registerRichTextEditor={registerEditorKeyed} />;
       default:           return <p className="text-xs text-slate-400">Unknown section type</p>;
     }
   })();

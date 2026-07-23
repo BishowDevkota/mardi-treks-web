@@ -7,10 +7,15 @@ import { auth } from "@/lib/auth";
 import { invalidateCachePattern, cacheKeys } from "@/lib/redis";
 import { deleteFile } from "@/lib/cloudinary";
 
-function invalidateTrekCache() {
+function invalidateTrekCache(slug?: string, categorySlug?: string) {
   invalidateCachePattern(cacheKeys.pattern.treks);
   invalidateCachePattern(cacheKeys.pattern.home);
   invalidateCachePattern(cacheKeys.pattern.category);
+  // Revalidate individual trek detail pages
+  revalidatePath("/", "layout");
+  if (slug) {
+    revalidatePath(`/${categorySlug || "[category]"}/${slug}`, "page");
+  }
 }
 
 export async function createTrek(formData: FormData) {
@@ -85,8 +90,7 @@ export async function createTrek(formData: FormData) {
     },
   });
 
-  invalidateTrekCache();
-  revalidatePath("/", "layout");
+  invalidateTrekCache(data.slug);
   redirect("/admin/treks");
 }
 
@@ -196,8 +200,7 @@ export async function updateTrek(id: string, formData: FormData) {
     });
   });
 
-  invalidateTrekCache();
-  revalidatePath("/", "layout");
+  invalidateTrekCache(formData.get("slug") as string || undefined);
   redirect("/admin/treks");
 }
 
@@ -207,7 +210,7 @@ export async function deleteTrek(id: string) {
 
   const trek = await prisma.trek.findUnique({
     where: { id },
-    select: { heroImage: true, ogImage: true, staticMapImage: true },
+    select: { slug: true, heroImage: true, ogImage: true, staticMapImage: true },
   });
 
   // Delete Cloudinary images
@@ -225,7 +228,6 @@ export async function deleteTrek(id: string) {
   }
 
   await prisma.trek.delete({ where: { id } });
-  invalidateTrekCache();
-  revalidatePath("/", "layout");
+  invalidateTrekCache(trek?.slug);
   redirect("/admin/treks");
 }

@@ -1,7 +1,12 @@
 import type { CollectionConfig } from "payload";
+import { invalidateBlogCache } from "@/lib/payload-hooks";
 
 export const BlogPosts: CollectionConfig = {
   slug: "blog-posts",
+  hooks: {
+    afterChange: [() => { invalidateBlogCache(); }],
+    afterDelete: [() => { invalidateBlogCache(); }],
+  },
   admin: {
     useAsTitle: "title",
     group: "Content",

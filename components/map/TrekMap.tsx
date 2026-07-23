@@ -27,6 +27,10 @@ interface TrekMapProps {
   waypoints?: Array<{ lng: number; lat: number; label: string; description?: string }>;
   itinerary?: Array<{ dayNumber: number; title: string; elevation?: string | null }>;
   staticFallbackImage?: string;
+  /** When set, the map starts already expanded (fullscreen) */
+  startExpanded?: boolean;
+  /** When set, clicking the minimize button calls this instead of toggling locally */
+  onClose?: () => void;
 }
 
 export function TrekMap({
@@ -35,13 +39,15 @@ export function TrekMap({
   waypoints,
   itinerary,
   staticFallbackImage,
+  startExpanded,
+  onClose,
 }: TrekMapProps) {
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(startExpanded ?? false);
 
   return (
     <div
       className={`overflow-hidden rounded-xl border border-border transition-all ${
-        isExpanded ? "fixed inset-4 z-50 shadow-2xl" : "relative"
+        isExpanded ? "fixed inset-0 z-[60] shadow-2xl" : "relative"
       }`}
     >
       <div className={isExpanded ? "h-full" : "aspect-[21/9]"}>
@@ -70,7 +76,13 @@ export function TrekMap({
       {/* Controls overlay */}
       <div className="absolute right-3 top-3 z-10 flex gap-2">
         <button
-          onClick={() => setIsExpanded(!isExpanded)}
+          onClick={() => {
+            if (isExpanded && onClose) {
+              onClose();
+            } else {
+              setIsExpanded(!isExpanded);
+            }
+          }}
           className="rounded-lg bg-white/90 p-2 shadow-md backdrop-blur-sm transition-colors hover:bg-white"
           aria-label={isExpanded ? "Minimize map" : "Expand map"}
         >

@@ -6,11 +6,9 @@ import { getCachedOrFetch, cacheKeys } from "@/lib/redis";
 import { CategoryClient } from "./category-client";
 import {
   Star,
-  Search,
   SlidersHorizontal,
   X,
   ChevronDown,
-  Mountain,
 } from "lucide-react";
 
 const difficultyStyles: Record<string, { badge: string; dot: string }> = {
@@ -20,6 +18,31 @@ const difficultyStyles: Record<string, { badge: string; dot: string }> = {
   difficult: { badge: "bg-[#F8DEDE] text-[#9C3939]", dot: "bg-[#B23F3F]" },
   extreme: { badge: "bg-[#EBE1F2] text-[#6B4C8A]", dot: "bg-[#7E5AA3]" },
 };
+
+// Extracted to module level to avoid React "Components created during render" error
+function FilterSection({
+  title,
+  filterKey,
+  isActive,
+  children,
+}: {
+  title: string;
+  filterKey: string;
+  isActive: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <details className="group" open={isActive}>
+      <summary className="flex cursor-pointer list-none items-center justify-between py-1 marker:content-none [&::-webkit-details-marker]:hidden">
+        <h3 className="text-[13px] font-semibold uppercase tracking-wide text-text-muted group-open:text-secondary">
+          {title}
+        </h3>
+        <ChevronDown className="h-4 w-4 text-text-muted transition-transform duration-200 group-open:rotate-180 group-open:text-primary" />
+      </summary>
+      <div className="mt-3 space-y-1 pb-1">{children}</div>
+    </details>
+  );
+}
 
 export const revalidate = 300;
 
@@ -195,28 +218,6 @@ export default async function CategoryListingPage({
   if (filters.duration) activeChips.push({ key: "duration", label: durations.find((d) => d.value === filters.duration)?.label ?? filters.duration });
   if (filters.price) activeChips.push({ key: "price", label: priceRanges.find((p) => p.value === filters.price)?.label ?? filters.price });
   if (filters.rating) activeChips.push({ key: "rating", label: ratingOptions.find((r) => r.value === filters.rating)?.label ?? `${filters.rating}★ & up` });
-
-  const FilterSection = ({
-    title,
-    filterKey,
-    isActive,
-    children,
-  }: {
-    title: string;
-    filterKey: string;
-    isActive: boolean;
-    children: React.ReactNode;
-  }) => (
-    <details className="group" open={isActive}>
-      <summary className="flex cursor-pointer list-none items-center justify-between py-1 marker:content-none [&::-webkit-details-marker]:hidden">
-        <h3 className="text-[13px] font-semibold uppercase tracking-wide text-text-muted group-open:text-secondary">
-          {title}
-        </h3>
-        <ChevronDown className="h-4 w-4 text-text-muted transition-transform duration-200 group-open:rotate-180 group-open:text-primary" />
-      </summary>
-      <div className="mt-3 space-y-1 pb-1">{children}</div>
-    </details>
-  );
 
   return (
     <>

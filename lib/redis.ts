@@ -56,11 +56,19 @@ export async function getCachedOrFetch<T>(
   fetcher: () => Promise<T>,
   ttl = 300
 ): Promise<T> {
-  const cached = await redis.get<T>(key);
-  if (cached) return cached;
+  try {
+    const cached = await redis.get<T>(key);
+    if (cached) return cached;
+  } catch (error) {
+    console.warn(`Cache read failed for key "${key}", fetching fresh data:`, error);
+  }
 
   const fresh = await fetcher();
-  await redis.setex(key, ttl, JSON.stringify(fresh));
+  try {
+    await redis.setex(key, ttl, JSON.stringify(fresh));
+  } catch (error) {
+    console.warn(`Cache write failed for key "${key}":`, error);
+  }
   return fresh;
 }
 
@@ -69,8 +77,20 @@ export async function invalidateCache(key: string): Promise<void> {
 }
 
 export async function invalidateCachePattern(pattern: string): Promise<void> {
-  const keys = await redis.keys(pattern);
-  if (keys.length > 0) {
-    await redis.del(...keys);
+  try {
+    // Use SCAN instead of KEYS to avoid blocking Redis on large datasets
+    const keys: string[] = [];
+    let cursor: number | string = 0;
+    do {
+      const scanResult = await redis.scan(cursor, { match: pattern, count: 100 }) as [string, string[]];
+      cursor = scanResult[0];
+      keys.push(...scanResult[1]);
+    } while (Number(cursor) !== 0);
+
+    if (keys.length > 0) {
+      await redis.del(...keys);
+    }
+  } catch (error) {
+    console.error(`Failed to invalidate cache pattern "${pattern}":`, error);
   }
 }

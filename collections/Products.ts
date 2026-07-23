@@ -1,7 +1,12 @@
 import type { CollectionConfig } from "payload";
+import { invalidateTreksCache } from "@/lib/payload-hooks";
 
 export const Products: CollectionConfig = {
   slug: "products",
+  hooks: {
+    afterChange: [() => { invalidateTreksCache(); }],
+    afterDelete: [() => { invalidateTreksCache(); }],
+  },
   labels: {
     singular: "Product",
     plural: "Products",

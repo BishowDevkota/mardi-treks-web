@@ -10,12 +10,19 @@ import { getCachedOrFetch, cacheKeys } from "@/lib/redis";
 export const revalidate = 300;
 
 async function getPageContent() {
-  const settings = await prisma.siteSetting.findUnique({
-    where: { id: "site-settings" },
-    select: { pageContent: true },
-  });
-  if (!settings?.pageContent) return null;
-  try { return JSON.parse(settings.pageContent); } catch { return null; }
+  const raw = await getCachedOrFetch<string | null>(
+    "site:page-content",
+    async () => {
+      const settings = await prisma.siteSetting.findUnique({
+        where: { id: "site-settings" },
+        select: { pageContent: true },
+      });
+      return settings?.pageContent || null;
+    },
+    300
+  );
+  if (!raw) return null;
+  try { return JSON.parse(raw); } catch { return null; }
 }
 
 const iconMap: Record<string, any> = { Shield, Heart, Award, Globe, Users, Mountain };

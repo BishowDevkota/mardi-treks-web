@@ -1,11 +1,13 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { createTrek, updateTrek, deleteTrek } from "./actions";
 import { TrekSection } from "@/components/admin/trek-sections/types";
 import { createDefaultSection } from "@/components/admin/trek-sections/types";
 import { SectionRenderer } from "@/components/admin/trek-sections/SectionRenderer";
+import type { ImageUploadHandle } from "@/components/admin/trek-sections/ImageUpload";
+import type { RichTextEditorHandle } from "@/components/admin/RichTextEditor";
 import { Plus, Save, Loader2, ArrowUp, ArrowDown } from "lucide-react";
 
 // ─── Predefined section types the user can add ──────────────────────
@@ -26,6 +28,18 @@ export function TrekForm({ mode, trek, categories }: { mode: "create" | "edit"; 
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [showAddMenu, setShowAddMenu] = useState(false);
+
+  // ── Image upload refs (deferred Cloudinary upload on save) ────────
+  const imageUploadRefs = useRef<{ key: string; handle: ImageUploadHandle }[]>([]);
+  const registerImageUpload = useCallback((key: string, handle: ImageUploadHandle) => {
+    imageUploadRefs.current.push({ key, handle });
+  }, []);
+
+  // ── RichTextEditor refs (deferred image upload) ───────────────────
+  const editorRefs = useRef<{ key: string; handle: RichTextEditorHandle }[]>([]);
+  const registerRichTextEditor = useCallback((key: string, handle: RichTextEditorHandle) => {
+    editorRefs.current.push({ key, handle });
+  }, []);
 
   // ── Sections state ────────────────────────────────────────────────
   const [sections, setSections] = useState<TrekSection[]>(() => {
@@ -134,6 +148,53 @@ export function TrekForm({ mode, trek, categories }: { mode: "create" | "edit"; 
     setSaving(true);
     setError(null);
 
+    // Upload any pending images to Cloudinary and capture returned IDs
+    const uploadResults = await Promise.all([
+      ...imageUploadRefs.current.map(async ({ key, handle }) => {
+        const id = await handle.save();
+        return { key, id };
+      }),
+      ...editorRefs.current.map(async ({ key, handle }) => {
+        const html = await handle.processPendingImages();
+        return { key, id: html, isEditor: true as const };
+      }),
+    ]);
+    const uploadedMap: Record<string, string> = {};
+    const editorResultMap: Record<string, string> = {};
+    for (const result of uploadResults) {
+      if ("isEditor" in result && result.isEditor) {
+        if (result.id) editorResultMap[result.key] = result.id;
+      } else if (result.id) {
+        uploadedMap[result.key] = result.id;
+      }
+    }
+
+    // Helper: get editor-processed HTML for a section field (overview content, custom content)
+    function editorContent(sectionType: string, field: string): string | undefined {
+      const section = sections.find((s) => s.type === sectionType);
+      if (!section) return undefined;
+      return editorResultMap[`${section.id}.${field}`];
+    }
+
+    // Helper: get uploaded image ID for a section field, falling back to section data
+    function img(sectionType: string, field: string): string {
+      const section = sections.find((s) => s.type === sectionType);
+      if (!section) return "";
+      const key = `${section.id}.${field}`;
+      return uploadedMap[key] || (section.data as any)?.[field] || "";
+    }
+
+    // Helper: get gallery items with uploaded image IDs applied
+    function galleryItems(sectionType: string): any[] {
+      const section = sections.find((s) => s.type === sectionType);
+      if (!section) return [];
+      const items = (section.data as any)?.items || [];
+      return items.map((item: any, i: number) => ({
+        ...item,
+        imageId: uploadedMap[`${section.id}.gallery.${i}`] || item.imageId || "",
+      }));
+    }
+
     // Extract data from sections
     const details = sections.find((s) => s.type === "details")?.data || {};
     const overview = sections.find((s) => s.type === "overview")?.data || {};
@@ -142,7 +203,8 @@ export function TrekForm({ mode, trek, categories }: { mode: "create" | "edit"; 
     const pricing = sections.find((s) => s.type === "pricing")?.data || { items: [] };
     const addons = sections.find((s) => s.type === "addons")?.data || { items: [] };
     const faqs = sections.find((s) => s.type === "faqs")?.data || { items: [] };
-    const gallery = sections.find((s) => s.type === "gallery")?.data || { items: [] };
+    const rawGallery = sections.find((s) => s.type === "gallery")?.data || { items: [] };
+    const gallery = { ...rawGallery, items: galleryItems("gallery") };
     const mapData = sections.find((s) => s.type === "map")?.data || {};
     const seo = sections.find((s) => s.type === "seo")?.data || {};
 
@@ -174,7 +236,7 @@ export function TrekForm({ mode, trek, categories }: { mode: "create" | "edit"; 
     fd.set("title", details.title || "");
     fd.set("slug", details.slug || "");
     fd.set("categoryId", details.categoryId || "");
-    fd.set("heroImage", details.heroImage || "");
+    fd.set("heroImage", img("details", "heroImage"));
     fd.set("price", String(minPrice));
     fd.set("duration", String(duration));
     fd.set("difficulty", details.difficulty || "moderate");
@@ -183,8 +245,18 @@ export function TrekForm({ mode, trek, categories }: { mode: "create" | "edit"; 
     fd.set("status", details.status || "draft");
     fd.set("bestTime", overview.bestTime || "");
     fd.set("maxAltitude", String(maxAltitude));
-    fd.set("overview", overview.content || "");
-    fd.set("itinerary", JSON.stringify(itinerary.items));
+    fd.set("overview", editorContent("overview", "content") || overview.content || "");
+    // Itinerary — override each day's description with editor-processed HTML
+    const patchedItinerary = itinerary.items.map((item: any, i: number) => {
+      const overviewSection = sections.find((s) => s.type === "overview");
+      const section = sections.find((s) => s.type === "itinerary");
+      const key = section ? `${section.id}.itinerary.${i}` : "";
+      return {
+        ...item,
+        description: (key && editorResultMap[key]) || item.description || "",
+      };
+    });
+    fd.set("itinerary", JSON.stringify(patchedItinerary));
     // Inclusions & Exclusions from the merged inEx section
     const inExItems = inEx.items || [];
     fd.set("inclusions", JSON.stringify(inExItems.filter((i: any) => i.type === "included").map((i: any) => i.text)));
@@ -196,7 +268,7 @@ export function TrekForm({ mode, trek, categories }: { mode: "create" | "edit"; 
     fd.set("metaTitle", seo.metaTitle || "");
     fd.set("metaDescription", seo.metaDescription || "");
     fd.set("keywords", seo.keywords || "");
-    fd.set("ogImage", seo.ogImage || "");
+    fd.set("ogImage", img("seo", "ogImage"));
     fd.set("centerLat", String(mapData.centerLat || 28.5));
     fd.set("centerLng", String(mapData.centerLng || 83.9));
     fd.set("zoom", String(mapData.zoom || 7));
@@ -225,14 +297,29 @@ export function TrekForm({ mode, trek, categories }: { mode: "create" | "edit"; 
     }
     fd.set("sectionData", JSON.stringify(sectionData));
 
-    fd.set("customSections", JSON.stringify(customSections));
+    // Custom sections — override imageId with uploaded values and content with editor-processed HTML
+    const patchedCustomSections = customSections.map((cs: any) => ({
+      ...cs,
+      data: {
+        ...cs.data,
+        imageId: uploadedMap[`${cs.id}.customImage`] || cs.data?.imageId || "",
+        content: editorResultMap[`${cs.id}.content`] || cs.data?.content || "",
+      },
+    }));
+    fd.set("customSections", JSON.stringify(patchedCustomSections));
 
     // Section order — store ALL sections in their current order (including hidden)
     fd.set("sectionOrder", JSON.stringify(sections.map((s) => s.id)));
 
     try {
-      if (mode === "create") await createTrek(fd);
-      else if (trek) await updateTrek(trek.id, fd);
+      if (mode === "create") {
+        await createTrek(fd);
+        // createTrek redirects, so markSaved won't be needed
+      } else if (trek) {
+        await updateTrek(trek.id, fd);
+        // updateTrek redirects, so markSaved won't be needed
+      }
+      // handle.save() already uploaded images to Cloudinary — DB save succeeded
     } catch (err: any) {
       setError(err.message);
       setSaving(false);
@@ -282,6 +369,8 @@ export function TrekForm({ mode, trek, categories }: { mode: "create" | "edit"; 
             onMoveUp={moveUp}
             onMoveDown={moveDown}
             categories={categories}
+            registerImageUpload={registerImageUpload}
+            registerRichTextEditor={registerRichTextEditor}
           />
         ))}
       </div>

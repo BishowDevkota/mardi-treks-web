@@ -10,8 +10,14 @@ export const revalidate = 300;
 const iconMap: Record<string, any> = { Mail, Phone, MapPin, Clock, Send, Mountain };
 
 async function getPageContent() {
-  const settings = await prisma.siteSetting.findUnique({ where: { id: "site-settings" } });
-  const raw = (settings as any)?.pageContent;
+  const raw = await getCachedOrFetch<string | null>(
+    "site:page-content",
+    async () => {
+      const settings = await prisma.siteSetting.findUnique({ where: { id: "site-settings" } });
+      return (settings as any)?.pageContent || null;
+    },
+    300
+  );
   if (!raw) return null;
   try { return JSON.parse(raw); } catch { return null; }
 }

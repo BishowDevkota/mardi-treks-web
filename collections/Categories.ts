@@ -1,7 +1,12 @@
 import type { CollectionConfig } from "payload";
+import { invalidateCategoryCache } from "@/lib/payload-hooks";
 
 export const Categories: CollectionConfig = {
   slug: "categories",
+  hooks: {
+    afterChange: [() => { invalidateCategoryCache(); }],
+    afterDelete: [() => { invalidateCategoryCache(); }],
+  },
   admin: {
     useAsTitle: "name",
     group: "Content",

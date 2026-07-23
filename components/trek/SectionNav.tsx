@@ -104,22 +104,44 @@ export function SectionNav({
   }
 
   return (
-    <nav className={`fixed bottom-0 left-0 right-0 z-50 flex justify-center pointer-events-none transition-transform duration-300 ${isHeroVisible || isFooterVisible || isLightboxOpen ? "translate-y-full" : "translate-y-0"}`}>
-      <div className="flex w-full items-center justify-around overflow-x-auto px-1 py-2 sm:w-1/2 sm:rounded-t-2xl sm:shadow-[0_-2px_12px_rgba(0,0,0,0.12)] pointer-events-auto" style={{ backgroundColor: "var(--color-secondary)" }}>
-        {sections.map(({ id, label, icon: Icon }) => (
-          <button
-            key={id}
-            onClick={() => scrollToSection(id)}
-            className={`flex flex-col items-center gap-0.5 rounded-xl px-3 py-1.5 transition-all min-w-0 ${
-              activeId === id
-                ? "bg-white/15 text-white shadow-inner backdrop-blur-sm"
-                : "text-white/60 hover:text-white"
-            }`}
-          >
-            <Icon className="h-4 w-4 shrink-0" />
-            <span className="text-[9px] font-medium whitespace-nowrap">{label}</span>
-          </button>
-        ))}
+    <nav
+      className={`pointer-events-none fixed bottom-0 left-0 right-0 z-50 flex justify-center transition-all duration-300 ease-out ${
+        isHeroVisible || isFooterVisible || isLightboxOpen
+          ? "translate-y-full opacity-0"
+          : "translate-y-0 opacity-100"
+      }`}
+    >
+      <div
+        className="pointer-events-auto flex w-full items-center justify-around gap-0.5 overflow-x-auto bg-secondary px-2 py-2 shadow-[0_-4px_24px_rgba(0,0,0,0.18)] backdrop-blur-md sm:mb-4 sm:w-auto sm:gap-1 sm:rounded-full sm:px-2.5 sm:py-2 sm:shadow-[0_8px_32px_-8px_rgba(0,0,0,0.35)] sm:ring-1 sm:ring-white/10"
+        style={{ paddingBottom: "max(0.5rem, env(safe-area-inset-bottom))" }}
+      >
+        {sections.map(({ id, label, icon: Icon }) => {
+          const isActive = activeId === id;
+          return (
+            <button
+              key={id}
+              onClick={() => scrollToSection(id)}
+              className="group relative flex min-w-0 shrink-0 flex-col items-center gap-1 px-3 py-1.5 sm:px-3.5"
+            >
+              <span
+                className={`flex h-8 w-8 items-center justify-center rounded-full transition-all duration-300 ${
+                  isActive
+                    ? "-translate-y-0.5 bg-primary text-white shadow-md shadow-primary/30"
+                    : "text-white/55 group-hover:bg-white/10 group-hover:text-white"
+                }`}
+              >
+                <Icon className="h-4 w-4 shrink-0" strokeWidth={isActive ? 2.25 : 2} />
+              </span>
+              <span
+                className={`whitespace-nowrap text-[9.5px] font-semibold tracking-wide transition-colors duration-300 ${
+                  isActive ? "text-white" : "text-white/50 group-hover:text-white/80"
+                }`}
+              >
+                {label}
+              </span>
+            </button>
+          );
+        })}
       </div>
     </nav>
   );

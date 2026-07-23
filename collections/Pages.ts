@@ -1,7 +1,12 @@
 import type { CollectionConfig } from "payload";
+import { invalidatePagesCache } from "@/lib/payload-hooks";
 
 export const Pages: CollectionConfig = {
   slug: "pages",
+  hooks: {
+    afterChange: [() => { invalidatePagesCache(); }],
+    afterDelete: [() => { invalidatePagesCache(); }],
+  },
   admin: {
     useAsTitle: "title",
     group: "Content",

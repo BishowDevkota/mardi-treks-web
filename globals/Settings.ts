@@ -1,7 +1,11 @@
 import type { GlobalConfig } from "payload";
+import { invalidateSettingsCache } from "@/lib/payload-hooks";
 
 export const Settings: GlobalConfig = {
   slug: "settings",
+  hooks: {
+    afterChange: [() => { invalidateSettingsCache(); }],
+  },
   label: "Site Settings",
   admin: {
     group: "Content",

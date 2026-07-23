@@ -13,7 +13,12 @@ import {
   Quote, Undo, Redo, Code, Strikethrough, Underline as UnderlineIcon,
   Link, Image, AlignLeft, AlignCenter, AlignRight, Minus, Pilcrow, Loader2
 } from "lucide-react";
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect, forwardRef, useImperativeHandle } from "react";
+
+export interface RichTextEditorHandle {
+  /** Upload all pending (data URL) images to Cloudinary, replace them in the editor, and return the final HTML */
+  processPendingImages: () => Promise<string>;
+}
 
 interface RichTextEditorProps {
   content: string;
@@ -21,15 +26,42 @@ interface RichTextEditorProps {
   placeholder?: string;
 }
 
-export function RichTextEditor({ content, onChange, placeholder }: RichTextEditorProps) {
+/** Extract the Cloudinary publicId from a Cloudinary image URL */
+function publicIdFromUrl(url: string): string | null {
+  const match = url.match(/\/image\/upload\/(?:v\d+\/)?(.+)/);
+  return match ? match[1] : null;
+}
+
+/** Extract all <img src="..."> URLs from HTML */
+function extractImageUrls(html: string): string[] {
+  const urls: string[] = [];
+  const imgRegex = /<img[^>]+src=["']([^"']+)["']/g;
+  let match;
+  while ((match = imgRegex.exec(html)) !== null) {
+    urls.push(match[1]);
+  }
+  return urls;
+}
+
+export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorProps>(
+  function RichTextEditor({ content, onChange, placeholder }, ref) {
   const [linkUrl, setLinkUrl] = useState("");
   const [showLinkInput, setShowLinkInput] = useState(false);
+
+  // Track all image URLs currently in the editor content (Cloudinary + data URLs)
+  const trackedUrlsRef = useRef<string[]>(extractImageUrls(content));
+  // Track pending (data URL → File) for images not yet uploaded to Cloudinary
+  const pendingImagesRef = useRef<Record<string, File>>({});
+
+  // Sync tracked URLs when content changes externally
+  useEffect(() => {
+    trackedUrlsRef.current = extractImageUrls(content);
+  }, [content]);
 
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
         heading: { levels: [1, 2, 3] },
-        // Exclude these — we add them separately with custom config
         link: false,
         underline: false,
       }),
@@ -41,13 +73,76 @@ export function RichTextEditor({ content, onChange, placeholder }: RichTextEdito
       Placeholder.configure({ placeholder: placeholder || "Start writing..." }),
     ],
     content,
-    onUpdate: ({ editor }) => onChange(editor.getHTML()),
+    onUpdate: ({ editor }) => {
+      const newHtml = editor.getHTML();
+      const newUrls = extractImageUrls(newHtml);
+      const oldUrls = trackedUrlsRef.current;
+
+      // Detect Cloudinary images that were removed by the user and delete from Cloudinary
+      for (const url of oldUrls) {
+        if (!newUrls.includes(url) && !url.startsWith("data:")) {
+          const publicId = publicIdFromUrl(url);
+          if (publicId) {
+            fetch("/api/delete-image", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ publicId }),
+            }).catch(() => {});
+          }
+        }
+      }
+
+      // If a data URL was removed, stop tracking the pending file
+      for (const url of oldUrls) {
+        if (!newUrls.includes(url) && url.startsWith("data:")) {
+          delete pendingImagesRef.current[url];
+        }
+      }
+
+      trackedUrlsRef.current = newUrls;
+      onChange(newHtml);
+    },
     editorProps: {
       attributes: {
         class: "prose prose-sm max-w-none min-h-[300px] px-4 py-3 focus:outline-none",
       },
     },
   });
+
+  // Expose processPendingImages to parent forms
+  useImperativeHandle(ref, () => ({
+    async processPendingImages() {
+      if (!editor) return "";
+      const pending = pendingImagesRef.current;
+      const entries = Object.entries(pending);
+      if (entries.length === 0) return editor.getHTML();
+
+      let html = editor.getHTML();
+      for (const [dataUrl, file] of entries) {
+        try {
+          const fd = new FormData();
+          fd.set("file", file);
+          fd.set("folder", "mardi-treks/content");
+          const res = await fetch("/api/upload", { method: "POST", body: fd });
+          const data = await res.json();
+          const cloudinaryUrl = data.publicId
+            ? `https://res.cloudinary.com/dk7ggjvlw/image/upload/${data.publicId}`
+            : data.url;
+
+          if (cloudinaryUrl) {
+            html = html.replaceAll(dataUrl, cloudinaryUrl);
+          }
+        } catch (err) {
+          console.error("Failed to upload pending editor image", err);
+        }
+      }
+
+      // Update editor content with Cloudinary URLs (triggers onUpdate → onChange)
+      editor.commands.setContent(html);
+      pendingImagesRef.current = {};
+      return html;
+    },
+  }), [editor, onChange]);
 
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -56,30 +151,26 @@ export function RichTextEditor({ content, onChange, placeholder }: RichTextEdito
     fileInputRef.current?.click();
   }, []);
 
-  const handleFileSelected = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelected = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !editor) return;
 
     setUploading(true);
-    try {
-      const fd = new FormData();
-      fd.set("file", file);
-      fd.set("folder", "mardi-treks/content");
-
-      const res = await fetch("/api/upload", { method: "POST", body: fd });
-      const data = await res.json();
-
-      const imageUrl = data.publicId
-        ? `https://res.cloudinary.com/dk7ggjvlw/image/upload/${data.publicId}`
-        : data.url;
-
-      if (imageUrl) {
-        editor.chain().focus().setImage({ src: imageUrl }).run();
-      }
-    } catch (err) {
-      console.error("Image upload failed", err);
-    }
-    setUploading(false);
+    // Read file as data URL for local preview — no Cloudinary upload yet
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result as string;
+      editor.chain().focus().setImage({ src: dataUrl }).run();
+      // Track for later upload
+      pendingImagesRef.current[dataUrl] = file;
+      trackedUrlsRef.current = extractImageUrls(editor.getHTML());
+      setUploading(false);
+    };
+    reader.onerror = () => {
+      console.error("Failed to read file");
+      setUploading(false);
+    };
+    reader.readAsDataURL(file);
     // Reset input so same file can be selected again
     if (fileInputRef.current) fileInputRef.current.value = "";
   }, [editor]);
@@ -264,4 +355,4 @@ export function RichTextEditor({ content, onChange, placeholder }: RichTextEdito
       <EditorContent editor={editor} />
     </div>
   );
-}
+});

@@ -7,9 +7,13 @@ import { auth } from "@/lib/auth";
 import { invalidateCachePattern, cacheKeys } from "@/lib/redis";
 import { deleteFile } from "@/lib/cloudinary";
 
-function invalidateBlogCache() {
+function invalidateBlogCache(slug?: string) {
   invalidateCachePattern(cacheKeys.pattern.blog);
   invalidateCachePattern(cacheKeys.pattern.home);
+  revalidatePath("/", "layout");
+  if (slug) {
+    revalidatePath(`/blog/${slug}`, "page");
+  }
 }
 
 export async function createPost(formData: FormData) {
@@ -32,8 +36,7 @@ export async function createPost(formData: FormData) {
       publishedDate: new Date(),
     },
   });
-  invalidateBlogCache();
-  revalidatePath("/blog", "layout");
+  invalidateBlogCache(formData.get("slug") as string || undefined);
   redirect("/admin/blog");
 }
 
@@ -76,8 +79,7 @@ export async function updatePost(id: string, formData: FormData) {
       ogImage: newOgImage,
     },
   });
-  invalidateBlogCache();
-  revalidatePath("/blog", "layout");
+  invalidateBlogCache(formData.get("slug") as string || undefined);
   redirect("/admin/blog");
 }
 
@@ -99,5 +101,6 @@ export async function deletePost(id: string) {
   await prisma.blogPost.delete({ where: { id } });
   invalidateBlogCache();
   revalidatePath("/blog");
+  revalidatePath("/", "layout");
   redirect("/admin/blog");
 }

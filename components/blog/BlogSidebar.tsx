@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, startTransition } from "react";
 
 type TocItem = {
   id: string;
@@ -33,7 +33,7 @@ export default function BlogSidebar({ tocItems: providedItems }: BlogSidebarProp
       items.push({ id, title: el.textContent || "", level: parseInt(el.tagName[1]) });
     });
 
-    setAutoItems(items);
+    startTransition(() => setAutoItems(items));
   }, [providedItems]);
 
   const tocItems = providedItems ?? autoItems;

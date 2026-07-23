@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { createPost, updatePost, deletePost } from "./actions";
-import { RichTextEditor } from "@/components/admin/RichTextEditor";
-import { ImageUpload } from "@/components/admin/trek-sections/ImageUpload";
+import { RichTextEditor, type RichTextEditorHandle } from "@/components/admin/RichTextEditor";
+import { ImageUpload, type ImageUploadHandle } from "@/components/admin/trek-sections/ImageUpload";
 
 export function BlogForm({ mode, post }: { mode: "create" | "edit"; post?: any }) {
   const router = useRouter();
@@ -12,17 +12,33 @@ export function BlogForm({ mode, post }: { mode: "create" | "edit"; post?: any }
   const [heroImage, setHeroImage] = useState(post?.heroImage || "");
   const [ogImage, setOgImage] = useState(post?.ogImage || "");
   const [saving, setSaving] = useState(false);
+  const heroImageRef = useRef<ImageUploadHandle>(null);
+  const ogImageRef = useRef<ImageUploadHandle>(null);
+  const editorRef = useRef<RichTextEditorHandle>(null);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    const form = e.currentTarget;
     setSaving(true);
-    const fd = new FormData(e.currentTarget);
-    fd.set("content", content);
-    fd.set("heroImage", heroImage);
-    fd.set("ogImage", ogImage);
+
+    // Upload any pending images to Cloudinary before saving
+    const [heroId, ogId, finalContent] = await Promise.all([
+      heroImageRef.current?.save() ?? Promise.resolve(null),
+      ogImageRef.current?.save() ?? Promise.resolve(null),
+      editorRef.current?.processPendingImages() ?? Promise.resolve(content),
+    ]);
+
+    const fd = new FormData(form);
+    fd.set("content", finalContent);
+    fd.set("heroImage", heroId || heroImage);
+    fd.set("ogImage", ogId || ogImage);
     try {
-      if (mode === "create") await createPost(fd);
-      else if (post) await updatePost(post.id, fd);
+      if (mode === "create") {
+        await createPost(fd);
+      } else if (post) {
+        await updatePost(post.id, fd);
+      }
+      // Images are already on Cloudinary — no cleanup needed
     } catch { setSaving(false); }
   }
 
@@ -59,11 +75,11 @@ export function BlogForm({ mode, post }: { mode: "create" | "edit"; post?: any }
                 <textarea name="excerpt" rows={2} defaultValue={post?.excerpt || ""} placeholder="Brief summary of the post..." className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:border-teal-300 focus:outline-none focus:ring-2 focus:ring-teal-100" />
               </div>
               <div>
-                <ImageUpload value={heroImage} onChange={setHeroImage} label="Hero Image" folder="mardi-treks/blog" />
+                <ImageUpload ref={heroImageRef} value={heroImage} onChange={setHeroImage} label="Hero Image" folder="mardi-treks/blog" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-500 mb-1.5">Body</label>
-                <RichTextEditor content={content} onChange={setContent} placeholder="Write your blog post..." />
+                <RichTextEditor ref={editorRef} content={content} onChange={setContent} placeholder="Write your blog post..." />
               </div>
             </div>
           </section>
@@ -82,7 +98,7 @@ export function BlogForm({ mode, post }: { mode: "create" | "edit"; post?: any }
               <div>
                 <label className="block text-xs font-medium text-slate-500 mb-1.5">Tags (JSON)</label>
                 <input name="tags" defaultValue={post?.tags || "[]"} className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:border-teal-300 focus:outline-none focus:ring-2 focus:ring-teal-100" />
-                <p className="mt-1 text-xs text-slate-400">e.g. ["trekking", "nepal", "everest"]</p>
+                <p className="mt-1 text-xs text-slate-400">e.g. [&quot;trekking&quot;, &quot;nepal&quot;, &quot;everest&quot;]</p>
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-500 mb-1.5">Status</label>
@@ -116,7 +132,7 @@ export function BlogForm({ mode, post }: { mode: "create" | "edit"; post?: any }
                 <input name="keywords" defaultValue={post?.keywords || ""} placeholder="trekking, nepal, everest, guide" className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:border-teal-300 focus:outline-none focus:ring-2 focus:ring-teal-100" />
               </div>
               <div>
-                <ImageUpload value={ogImage} onChange={setOgImage} label="OG Image (social share)" folder="mardi-treks/blog" />
+                <ImageUpload ref={ogImageRef} value={ogImage} onChange={setOgImage} label="OG Image (social share)" folder="mardi-treks/blog" />
               </div>
             </div>
           </section>

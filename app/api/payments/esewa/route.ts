@@ -101,7 +101,7 @@ export async function GET(request: NextRequest) {
   const data = searchParams.get("data"); // base64-encoded response from eSewa
 
   // Determine payment type and bookingId from URL params
-  let paymentType = (searchParams.get("type") || "FULL") as "ADVANCE" | "FULL";
+  const paymentType = (searchParams.get("type") || "FULL") as "ADVANCE" | "FULL";
   let bookingId = searchParams.get("bookingId") || "";
 
   // If eSewa sends data as base64 (v2 form)

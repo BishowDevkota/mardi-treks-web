@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
+import { Maximize2, Minimize2 } from "lucide-react";
 
 interface MapContentProps {
   geoJsonUrl?: string;
@@ -21,6 +23,12 @@ export default function MapContent({
   const map = useRef<maplibregl.Map | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     if (!mapContainer.current || map.current) return;
@@ -31,9 +39,8 @@ export default function MapContent({
       return;
     }
 
-    // Helper to draw a GeoJSON route on the map
     function drawGeoJsonRoute(m: maplibregl.Map, data: any) {
-      if (m.getSource("route")) return; // already drawn
+      if (m.getSource("route")) return;
 
       m.addSource("route", { type: "geojson", data });
 
@@ -71,7 +78,6 @@ export default function MapContent({
       if (!bounds.isEmpty()) m.fitBounds(bounds, { padding: 60 });
     }
 
-    // Helper to draw a dashed straight-line route between waypoints
     function drawWaypointRoute(m: maplibregl.Map, wps: Array<{ lng: number; lat: number }>) {
       const coords = wps.map((wp) => [wp.lng, wp.lat]);
       const geojson: any = {
@@ -80,7 +86,7 @@ export default function MapContent({
         properties: {},
       };
 
-      if (m.getSource("wp-route")) return; // already drawn
+      if (m.getSource("wp-route")) return;
 
       m.addSource("wp-route", { type: "geojson", data: geojson });
       m.addLayer({
@@ -105,7 +111,6 @@ export default function MapContent({
     }
 
     try {
-      // Clean satellite view — like Google Maps, no 3D terrain distortion
       const style: any = {
         version: 8,
         sources: {
@@ -127,16 +132,13 @@ export default function MapContent({
       const newMap = new maplibregl.Map({
         container: mapContainer.current,
         style,
-        center: [83.9, 28.5], // Central Nepal
+        center: [83.9, 28.5],
         zoom: 8,
         pitch: 0,
         bearing: 0,
       });
 
       newMap.on("load", () => {
-        // Flat 2D satellite view — no terrain distortion
-
-        // If we have inline GeoJSON data (stored in DB), use it directly
         if (geoJsonData) {
           try {
             const data = JSON.parse(geoJsonData);
@@ -145,7 +147,6 @@ export default function MapContent({
             }
           } catch {}
         }
-        // Otherwise fetch from URL via proxy
         if (!geoJsonData && geoJsonUrl) {
           fetch(`/api/geojson-proxy?url=${encodeURIComponent(geoJsonUrl)}`)
             .then((res) => res.json())
@@ -159,12 +160,8 @@ export default function MapContent({
             })
             .then((data) => {
               if (!data) return;
-              newMap.addSource("route", {
-                type: "geojson",
-                data,
-              });
+              newMap.addSource("route", { type: "geojson", data });
 
-              // Glow layer under route
               newMap.addLayer({
                 id: "route-glow",
                 type: "line",
@@ -177,7 +174,6 @@ export default function MapContent({
                 },
               });
 
-              // Main route line
               newMap.addLayer({
                 id: "route-line",
                 type: "line",
@@ -190,7 +186,6 @@ export default function MapContent({
                 },
               });
 
-              // Route label
               newMap.addLayer({
                 id: "route-label",
                 type: "symbol",
@@ -209,7 +204,6 @@ export default function MapContent({
                 },
               });
 
-              // Fit map to route bounds
               const bounds = new maplibregl.LngLatBounds();
               data.features?.forEach((feature: any) => {
                 if (feature.geometry?.type === "LineString") {
@@ -224,48 +218,49 @@ export default function MapContent({
             })
             .catch((err) => {
               console.error("Failed to load GeoJSON:", err);
-              // Fall back to straight-line waypoint route
               if (waypoints && waypoints.length >= 2) {
                 drawWaypointRoute(newMap, waypoints);
               }
             });
         }
 
-        // Draw straight-line waypoint route as fallback when no GeoJSON is available
         if (waypoints && waypoints.length >= 2 && !newMap.getSource("route") && !newMap.getSource("wp-route")) {
           drawWaypointRoute(newMap, waypoints);
         }
 
-        // Add waypoint markers
         if (waypoints) {
           waypoints.forEach((wp, i) => {
             const el = document.createElement("div");
             el.className =
-              "flex h-8 w-8 items-center justify-center rounded-full bg-primary text-xs font-bold text-white shadow-lg border-2 border-white cursor-pointer transition-transform hover:scale-110";
+              "flex h-8 w-8 items-center justify-center rounded-full bg-primary text-xs font-bold text-white shadow-lg border-2 border-white cursor-pointer";
             el.textContent = `${i + 1}`;
-
-            // Build popup HTML with label + description
-            const popupHtml = [
-              `<div class="text-left max-w-[200px]">`,
-              wp.label ? `<strong class="text-sm block">${wp.label}</strong>` : "",
-              wp.description ? `<p class="text-xs text-slate-500 mt-1">${wp.description}</p>` : "",
-              `<span class="text-[10px] text-slate-400 mt-1 block">${wp.lat.toFixed(4)}, ${wp.lng.toFixed(4)}</span>`,
-              `</div>`,
-            ].join("");
-
-            const popup = new maplibregl.Popup({ offset: 25, closeButton: false, maxWidth: "280px" }).setHTML(popupHtml);
 
             new maplibregl.Marker({ element: el })
               .setLngLat([wp.lng, wp.lat])
               .addTo(newMap);
 
-            // Show popup on hover, hide on leave
-            el.addEventListener("mouseenter", () => popup.setLngLat([wp.lng, wp.lat]).addTo(newMap));
-            el.addEventListener("mouseleave", () => popup.remove());
+            let currentPopup: maplibregl.Popup | null = null;
+            el.addEventListener("mouseenter", () => {
+              currentPopup?.remove();
+              const html = [
+                `<div class="text-left max-w-[200px]">`,
+                wp.label ? `<strong class="text-sm block">${wp.label}</strong>` : "",
+                wp.description ? `<p class="text-xs text-slate-500 mt-1">${wp.description}</p>` : "",
+                `<span class="text-[10px] text-slate-400 mt-1 block">${wp.lat.toFixed(4)}, ${wp.lng.toFixed(4)}</span>`,
+                `</div>`,
+              ].join("");
+              currentPopup = new maplibregl.Popup({ offset: 25, closeButton: false, maxWidth: "280px" })
+                .setLngLat([wp.lng, wp.lat])
+                .setHTML(html)
+                .addTo(newMap);
+            });
+            el.addEventListener("mouseleave", () => {
+              currentPopup?.remove();
+              currentPopup = null;
+            });
           });
         }
 
-        // Add itinerary day markers if waypoints not provided
         if (!waypoints && itinerary) {
           // Placeholder: itinerary day markers would need lat/lng from CMS
         }
@@ -289,6 +284,62 @@ export default function MapContent({
     };
   }, [geoJsonUrl, waypoints, itinerary]);
 
+  useEffect(() => {
+    const id = requestAnimationFrame(() => map.current?.resize());
+    return () => cancelAnimationFrame(id);
+  }, [isFullscreen]);
+
+  // Lock scrolling everywhere fullscreen is open, close on Escape, and
+  // force the background to black. We lock BOTH <body> and <html> because
+  // on many setups (Next.js layouts, Tailwind resets, wrapper divs with
+  // their own overflow) the actual scrolling element is <html>, not
+  // <body> — locking only body leaves its scrollbar gutter visible as a
+  // thin strip on the side. setProperty(..., "important") ensures this
+  // can't be silently overridden by a global stylesheet rule with higher
+  // specificity.
+  useEffect(() => {
+    if (!isFullscreen) return;
+
+    const html = document.documentElement;
+    const body = document.body;
+
+    const prev = {
+      htmlOverflow: html.style.overflow,
+      htmlBg: html.style.backgroundColor,
+      bodyOverflow: body.style.overflow,
+      bodyBg: body.style.backgroundColor,
+    };
+
+    html.style.setProperty("overflow", "hidden", "important");
+    body.style.setProperty("overflow", "hidden", "important");
+    html.style.setProperty("background-color", "#000000", "important");
+    body.style.setProperty("background-color", "#000000", "important");
+
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") setIsFullscreen(false);
+    }
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      html.style.overflow = prev.htmlOverflow;
+      html.style.backgroundColor = prev.htmlBg;
+      body.style.overflow = prev.bodyOverflow;
+      body.style.backgroundColor = prev.bodyBg;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isFullscreen]);
+
+  const fullscreenToggle = (
+    <button
+      onClick={() => setIsFullscreen((prev) => !prev)}
+      aria-label={isFullscreen ? "Exit full screen" : "View full screen"}
+      title={isFullscreen ? "Exit full screen" : "View full screen"}
+      className="absolute right-3 top-3 z-10 flex h-9 w-9 items-center justify-center rounded-lg bg-surface/90 text-foreground shadow-md backdrop-blur-sm transition-colors hover:bg-surface"
+    >
+      {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+    </button>
+  );
+
   if (error) {
     return (
       <div className="flex aspect-[21/9] items-center justify-center bg-surface">
@@ -297,7 +348,36 @@ export default function MapContent({
     );
   }
 
+  const mapBody = <div ref={mapContainer} className="h-full w-full bg-black" />;
+
+  if (isFullscreen && mounted) {
+    return createPortal(
+      <div
+        className="fixed inset-0 z-[9999] bg-black"
+        style={{
+          position: "fixed",
+          top: 0,
+          right: 0,
+          bottom: 0,
+          left: 0,
+          height: "100dvh",
+          width: "100dvw",
+          margin: 0,
+          padding: 0,
+          backgroundColor: "#000000",
+        }}
+      >
+        {fullscreenToggle}
+        {mapBody}
+      </div>,
+      document.body
+    );
+  }
+
   return (
-    <div ref={mapContainer} className="h-full w-full" />
+    <div className="relative h-full w-full">
+      {fullscreenToggle}
+      {mapBody}
+    </div>
   );
 }

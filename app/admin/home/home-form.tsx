@@ -79,6 +79,7 @@ export function HomeForm({
   const imageInputRef = useRef<HTMLInputElement>(null);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [pendingHeroFile, setPendingHeroFile] = useState<File | null>(null);
   const [featuredIds, setFeaturedIds] = useState<string[]>(initialFeaturedIds);
   const [featuredSectionIds, setFeaturedSectionIds] = useState<string[]>(initialFeaturedSectionIds);
   const [search, setSearch] = useState("");
@@ -186,25 +187,39 @@ export function HomeForm({
     setFeaturedSectionIds(newIds);
   }
 
-  async function handleImageUpload(file: File) {
+  function handleImageUpload(file: File) {
+    // Just store the file and show local preview — no Cloudinary upload yet
+    setPendingHeroFile(file);
+    setHeroImagePreview(URL.createObjectURL(file));
+  }
+
+  async function uploadPendingHeroImage(): Promise<string | null> {
+    if (!pendingHeroFile) return null;
     setUploading(true);
     try {
       const fd = new FormData();
-      fd.set("file", file);
+      fd.set("file", pendingHeroFile);
       fd.set("folder", "mardi-treks");
       const res = await fetch("/api/upload", { method: "POST", body: fd });
       const data = await res.json();
       if (data.publicId) {
         setHeroImage(data.publicId);
         setHeroImagePreview(`https://res.cloudinary.com/dk7ggjvlw/image/upload/${data.publicId}`);
+        setPendingHeroFile(null);
+        return data.publicId;
       }
     } catch (err) {
       console.error("Upload failed", err);
     }
     setUploading(false);
+    return null;
   }
 
   function handleClearImage() {
+    if (pendingHeroFile) {
+      if (heroImagePreview) URL.revokeObjectURL(heroImagePreview);
+      setPendingHeroFile(null);
+    }
     setHeroImage("");
     setHeroImagePreview(null);
     if (imageInputRef.current) imageInputRef.current.value = "";
@@ -212,11 +227,16 @@ export function HomeForm({
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    const form = e.currentTarget;
     setSaving(true);
-    const fd = new FormData(e.currentTarget);
+
+    // Upload pending hero image to Cloudinary first
+    const uploadedId = await uploadPendingHeroImage();
+
+    const fd = new FormData(form);
     fd.set("featuredTrekIds", JSON.stringify(featuredIds));
     fd.set("featuredSectionTrekIds", JSON.stringify(featuredSectionIds));
-    fd.set("heroImage", heroImage);
+    fd.set("heroImage", uploadedId || heroImage);
     fd.set("whyChooseUsItems", JSON.stringify(whyChooseItems));
     try {
       await updateHomeSettings(fd);

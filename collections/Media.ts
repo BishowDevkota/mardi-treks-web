@@ -1,7 +1,12 @@
 import type { CollectionConfig } from "payload";
+import { invalidateMediaCache } from "@/lib/payload-hooks";
 
 export const Media: CollectionConfig = {
   slug: "media",
+  hooks: {
+    afterChange: [() => { invalidateMediaCache(); }],
+    afterDelete: [() => { invalidateMediaCache(); }],
+  },
   admin: {
     group: "Content",
   },

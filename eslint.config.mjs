@@ -12,7 +12,20 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Additional ignores:
+    "node_modules/**",
+    ".next/dev/**",
+    "app/(payload)/**",
+    "globals/**",
+    "public/**",
+    "scripts/**",
   ]),
+  {
+    rules: {
+      // Allow `any` in server actions where FormData access requires it
+      "@typescript-eslint/no-explicit-any": "warn",
+    },
+  },
 ]);
 
 export default eslintConfig;

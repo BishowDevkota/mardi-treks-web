@@ -144,6 +144,16 @@ export function HeroCarousel({ treks, heroContent, allTreks }: Props) {
     goTo((current - 1 + total) % total);
   }, [current, total, goTo]);
 
+  // Close fullscreen on Escape key
+  useEffect(() => {
+    if (!fullscreenView) return;
+    function handleKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setFullscreenView(null);
+    }
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [fullscreenView]);
+
   // Auto-play — paused while a fullscreen panel is open or the user is hovering the trail
   useEffect(() => {
     if (!autoplayActive) return;
@@ -332,7 +342,7 @@ export function HeroCarousel({ treks, heroContent, allTreks }: Props) {
     <MapPin className="h-4 w-4 text-primary" />
   </div>
 
-  <button onClick={() => setFullscreenView("map")} className="relative block h-[180px] w-full overflow-hidden px-4 pb-4">
+  <button onClick={() => setFullscreenView((prev) => prev === "map" ? null : "map")} className="relative block h-[180px] w-full overflow-hidden px-4 pb-4">
     <div className="h-full w-full overflow-hidden rounded-xl transition-opacity group-hover:opacity-90">
       <MiniMap
         geoJsonUrl={trek.geoJsonUrl}
@@ -361,7 +371,7 @@ export function HeroCarousel({ treks, heroContent, allTreks }: Props) {
       <Layers className="h-4 w-4 text-primary" />
     </div>
 
-    <button onClick={() => setFullscreenView("altitude")} className="relative block h-[180px] w-full overflow-hidden px-4 pb-4">
+    <button onClick={() => setFullscreenView((prev) => prev === "altitude" ? null : "altitude")} className="relative block h-[180px] w-full overflow-hidden px-4 pb-4">
       <div className="h-full w-full overflow-hidden rounded-xl transition-opacity group-hover:opacity-90">
         <MiniAltitudeProfile itinerary={trek.itinerary} />
       </div>
@@ -377,30 +387,34 @@ export function HeroCarousel({ treks, heroContent, allTreks }: Props) {
         </div>
       </div>
 
-      {/* Fullscreen Modal */}
+      {/* Fullscreen Modal — edge-to-edge like product page */}
       {fullscreenView && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md">
-          <div className="relative h-[85vh] w-[90vw]">
-            <button onClick={() => setFullscreenView(null)}
-              className="absolute -top-11 right-0 z-10 inline-flex items-center gap-1.5 rounded-lg bg-white/10 px-4 py-2 text-sm text-white/80 backdrop-blur-sm transition-colors hover:text-white">
-              <X className="h-4 w-4" /> Close
-            </button>
-            {fullscreenView === "map" ? (
-              <div className="h-full w-full overflow-hidden rounded-2xl border border-white/20 shadow-2xl">
-                <FullScreenMap
-                  geoJsonUrl={trek.geoJsonUrl || undefined}
-                  geoJsonData={trek.geoJsonData}
-                  waypoints={waypoints}
-                  itinerary={trek.itinerary}
-                  staticFallbackImage={trek.heroImage ? `https://res.cloudinary.com/dk7ggjvlw/image/upload/${trek.heroImage}` : undefined}
-                />
+        <div className="fixed inset-0 z-50 bg-black">
+          {fullscreenView === "map" ? (
+            <FullScreenMap
+              geoJsonUrl={trek.geoJsonUrl || undefined}
+              geoJsonData={trek.geoJsonData}
+              waypoints={waypoints}
+              itinerary={trek.itinerary}
+              staticFallbackImage={trek.heroImage ? `https://res.cloudinary.com/dk7ggjvlw/image/upload/${trek.heroImage}` : undefined}
+              startExpanded={true}
+              onClose={() => setFullscreenView(null)}
+            />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center p-8">
+              <div className="relative h-[85vh] w-[90vw] max-w-5xl">
+                <button
+                  onClick={() => setFullscreenView(null)}
+                  className="absolute -top-11 right-0 z-10 inline-flex items-center gap-1.5 rounded-lg bg-white/10 px-4 py-2 text-sm text-white/80 backdrop-blur-sm transition-colors hover:text-white"
+                >
+                  <X className="h-4 w-4" /> Close
+                </button>
+                <div className="h-full w-full overflow-auto rounded-2xl border border-white/20 bg-white p-6 shadow-2xl">
+                  <FullScreenAltitude itinerary={trek.itinerary || []} />
+                </div>
               </div>
-            ) : (
-              <div className="h-full w-full overflow-auto rounded-2xl border border-white/20 bg-white p-6 shadow-2xl">
-                <FullScreenAltitude itinerary={trek.itinerary || []} />
-              </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       )}
 

@@ -1,20 +1,26 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { createPage, updatePage, deletePage } from "./actions";
-import { RichTextEditor } from "@/components/admin/RichTextEditor";
+import { RichTextEditor, type RichTextEditorHandle } from "@/components/admin/RichTextEditor";
 
 export function PageForm({ mode, page }: { mode: "create" | "edit"; page?: any }) {
   const router = useRouter();
   const [content, setContent] = useState(page?.content || "");
   const [saving, setSaving] = useState(false);
+  const editorRef = useRef<RichTextEditorHandle>(null);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    const form = e.currentTarget;
     setSaving(true);
-    const fd = new FormData(e.currentTarget);
-    fd.set("content", content);
+
+    // Process pending editor images before saving
+    const finalContent = await editorRef.current?.processPendingImages() ?? content;
+
+    const fd = new FormData(form);
+    fd.set("content", finalContent);
     try {
       if (mode === "create") await createPage(fd);
       else if (page) await updatePage(page.id, fd);
@@ -49,7 +55,7 @@ export function PageForm({ mode, page }: { mode: "create" | "edit"; page?: any }
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-500">Body</label>
-                <RichTextEditor content={content} onChange={setContent} placeholder="Write page content..." />
+                <RichTextEditor ref={editorRef} content={content} onChange={setContent} placeholder="Write page content..." />
               </div>
             </div>
           </section>
