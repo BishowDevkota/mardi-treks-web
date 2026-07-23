@@ -54,6 +54,7 @@ export async function generateMetadata({ params }: { params: Promise<{ category:
   return {
     title,
     description,
+    keywords: trek.keywords || undefined,
     alternates: { canonical: `https://marditreks.com/${catSlug}/${slug}` },
     openGraph: { title, description, type: "article", url: `https://marditreks.com/${catSlug}/${slug}` },
   };

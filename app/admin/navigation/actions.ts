@@ -56,7 +56,7 @@ export async function updateNavigationSettings(formData: FormData) {
 
   invalidateCachePattern(cacheKeys.pattern.layout);
   invalidateCachePattern(cacheKeys.pattern.category);
-  revalidatePath("/");
+  revalidatePath("/", "layout");
   revalidatePath("/admin/navigation");
 }
 

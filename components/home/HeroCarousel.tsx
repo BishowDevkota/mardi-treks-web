@@ -43,10 +43,8 @@ interface HeroSlide {
   type: "company" | "trek";
   // Company slide
   company?: {
-    badge?: string;
     title?: string;
     titleHighlight?: string;
-    subtitle?: string;
     description?: string;
     image?: string;
   };
@@ -89,10 +87,8 @@ interface Props {
   treks: FeaturedTrek[];
   heroContent?: {
     enabled: boolean;
-    badge: string;
     title: string;
     titleHighlight: string;
-    subtitle: string;
     description: string;
     image: string;
   };
@@ -121,10 +117,8 @@ export function HeroCarousel({ treks, heroContent, allTreks }: Props) {
     slides.push({
       type: "company",
       company: {
-        badge: heroContent.badge,
         title: heroContent.title,
         titleHighlight: heroContent.titleHighlight,
-        subtitle: heroContent.subtitle,
         description: heroContent.description,
         image: heroContent.image,
       },

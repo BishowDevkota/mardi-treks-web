@@ -507,6 +507,7 @@ function SeoSection({ data, onChange }: { data: SeoData; onChange: (d: SeoData) 
     <div className="space-y-3">
       <Field label="Meta Title"><input value={data.metaTitle} onChange={(e) => set("metaTitle", e.target.value)} className="w-full rounded border border-slate-200 px-2 py-1.5 text-sm" /></Field>
       <Field label="Meta Description"><textarea rows={3} value={data.metaDescription} onChange={(e) => set("metaDescription", e.target.value)} className="w-full rounded border border-slate-200 px-2 py-1.5 text-sm" /></Field>
+      <Field label="Keywords"><input value={data.keywords} onChange={(e) => set("keywords", e.target.value)} placeholder="trekking, nepal, everest, himalaya" className="w-full rounded border border-slate-200 px-2 py-1.5 text-sm" /></Field>
       <ImageUpload value={data.ogImage} onChange={(id) => set("ogImage", id)} label="OG Image (social sharing)" />
     </div>
   );

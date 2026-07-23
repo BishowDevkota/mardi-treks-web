@@ -15,7 +15,22 @@ import { ContactFormSection } from "@/components/home/ContactFormSection";
 export const revalidate = 300;
 
 export async function generateMetadata(): Promise<Metadata> {
+  // Read home SEO keywords from pageContent
+  const settings = await prisma.siteSetting.findUnique({
+    where: { id: "site-settings" },
+    select: { pageContent: true },
+  });
+  let homeSeo: { title?: string; description?: string; keywords?: string } = {};
+  if (settings?.pageContent) {
+    try {
+      const pc = JSON.parse(settings.pageContent);
+      homeSeo = pc.home?.seo || {};
+    } catch {}
+  }
   return {
+    title: homeSeo.title || undefined,
+    description: homeSeo.description || undefined,
+    keywords: homeSeo.keywords || undefined,
     alternates: { canonical: "https://marditreks.com" },
   };
 }
@@ -90,10 +105,8 @@ export default async function HomePage() {
   const heroContent = settings
     ? {
         enabled: settings.heroEnabled ?? true,
-        badge: settings.heroBadge ?? "",
         title: settings.heroTitle ?? "",
         titleHighlight: settings.heroTitleHighlight ?? "",
-        subtitle: settings.heroSubtitle ?? "",
         description: settings.heroDescription ?? "",
         image: settings.heroImage ?? "",
       }

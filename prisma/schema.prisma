@@ -158,6 +158,7 @@ model Trek {
   // SEO
   metaTitle       String?
   metaDescription String?
+  keywords        String?
   ogImage         String?
 
   // Map
@@ -293,6 +294,7 @@ model BlogPost {
   tags          String   // JSON array
   metaTitle     String?
   metaDescription String?
+  keywords      String?
   ogImage       String?
   status        String   @default("draft") // draft | published
   createdAt     DateTime @default(now())
@@ -340,6 +342,7 @@ model SiteSetting {
   categoryDropdownTreks String? // JSON object: { categorySlug: [trekId, ...] }
   defaultMetaTitle String?
   defaultMetaDescription String?
+  defaultKeywords String?
   defaultOgImage String?
   // Dynamic page content (About, Contact, Blog, Footer)
   pageContent   String?  // JSON object with content for each page
@@ -359,10 +362,8 @@ model HomePageSettings {
 
   // Static company hero slide
   heroEnabled        Boolean @default(true)
-  heroBadge          String?  // e.g. "Nepal's Premier Trekking Agency"
   heroTitle          String?  // Main title text (before highlight)
   heroTitleHighlight String?  // Highlighted portion of title (e.g. "Himalayas")
-  heroSubtitle       String?  // Text below the title
   heroDescription    String?  // Description paragraph
   heroImage          String?  // Cloudinary public ID for background
 

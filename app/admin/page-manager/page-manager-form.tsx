@@ -6,6 +6,7 @@ import Link from "next/link";
 import { savePageContent } from "./actions";
 import { Plus, Trash2, Save, Loader2, GripVertical } from "lucide-react";
 import { ImageUpload } from "@/components/admin/trek-sections/ImageUpload";
+import { FeaturedTrekSelector } from "@/components/admin/FeaturedTrekSelector";
 
 const defaultWhyChooseUsItems = [
   { icon: "Shield", title: "Safety First", description: "Every guide is wilderness first-aid certified with years of high-altitude experience." },
@@ -37,7 +38,29 @@ const defaultSocialLinks = [
 
 type SectionBlock = { id: string; type: string; heading: string; description: string; content?: string };
 
-export function PageManagerForm({ pageContent: saved }: { pageContent: any }) {
+interface Trek {
+  id: string;
+  title: string;
+  slug: string;
+  region: string;
+  difficulty: string;
+  duration: number;
+  price: number;
+  heroImage?: string | null;
+  _count?: { reviews: number };
+}
+
+export function PageManagerForm({
+  pageContent: saved,
+  treks = [],
+  initialFeaturedIds = [],
+  initialFeaturedSectionIds = [],
+}: {
+  pageContent: any;
+  treks?: Trek[];
+  initialFeaturedIds?: string[];
+  initialFeaturedSectionIds?: string[];
+}) {
   const router = useRouter();
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState("about");
@@ -47,7 +70,7 @@ export function PageManagerForm({ pageContent: saved }: { pageContent: any }) {
 
   // ── About state ──
   const [aboutHero, setAboutHero] = useState(pc.about?.hero || { heading: "About Mardi Treks", description: "", backgroundImage: "" });
-  const [aboutSeo, setAboutSeo] = useState(pc.about?.seo || { title: "", description: "" });
+  const [aboutSeo, setAboutSeo] = useState(pc.about?.seo || { title: "", description: "", keywords: "" });
   const [aboutWhy, setAboutWhy] = useState(pc.about?.whyChooseUs || { heading: "Why Trek With Us?", subtitle: "Discover the Difference", items: defaultWhyChooseUsItems, bgImage: "" });
   const [aboutTeam, setAboutTeam] = useState(pc.about?.team || defaultTeam);
   const [aboutGallery, setAboutGallery] = useState(pc.about?.gallery || []);
@@ -55,7 +78,7 @@ export function PageManagerForm({ pageContent: saved }: { pageContent: any }) {
 
   // ── Contact state ──
   const [contactHero, setContactHero] = useState(pc.contact?.hero || { heading: "Contact Us", description: "", backgroundImage: "" });
-  const [contactSeo, setContactSeo] = useState(pc.contact?.seo || { title: "", description: "" });
+  const [contactSeo, setContactSeo] = useState(pc.contact?.seo || { title: "", description: "", keywords: "" });
   const [contactMapIframe, setContactMapIframe] = useState(pc.contact?.mapIframe || "");
   const [contactInfoCards, setContactInfoCards] = useState(pc.contact?.infoCards || defaultInfoCards);
 
@@ -73,9 +96,12 @@ export function PageManagerForm({ pageContent: saved }: { pageContent: any }) {
   function updateHomeInfoCard(i: number, field: string, val: any) { setHomeContact((prev: any) => { const cards = [...prev.infoCards]; cards[i] = { ...cards[i], [field]: val }; return { ...prev, infoCards: cards }; }); }
   function removeHomeInfoCard(i: number) { setHomeContact((prev: any) => ({ ...prev, infoCards: prev.infoCards.filter((_: any, idx: number) => idx !== i) })); }
 
+  // ── Home SEO ──
+  const [homeSeo, setHomeSeo] = useState(pc.home?.seo || { title: "", description: "", keywords: "" });
+
   // ── Blog state ──
   const [blogHero, setBlogHero] = useState(pc.blog?.hero || { heading: "Our Blog", description: "", backgroundImage: "" });
-  const [blogSeo, setBlogSeo] = useState(pc.blog?.seo || { title: "", description: "" });
+  const [blogSeo, setBlogSeo] = useState(pc.blog?.seo || { title: "", description: "", keywords: "" });
 
   // ── Footer state ──
   const [footer, setFooter] = useState(pc.footer || {
@@ -94,13 +120,12 @@ export function PageManagerForm({ pageContent: saved }: { pageContent: any }) {
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setSaving(true);
-    const fd = new FormData();
+    // Use the form's own FormData so hidden inputs from FeaturedTrekSelector are included
+    const fd = new FormData(e.currentTarget);
 
-    // Home
-    fd.set("home_hero_badge", homeHero.badge);
+    // Home (override with state-managed values)
     fd.set("home_hero_title", homeHero.title);
     fd.set("home_hero_title_highlight", homeHero.titleHighlight);
-    fd.set("home_hero_subtitle", homeHero.subtitle);
     fd.set("home_hero_description", homeHero.description);
     fd.set("home_hero_background", homeHero.backgroundImage);
     fd.set("home_sections", JSON.stringify(homeSections));
@@ -111,6 +136,9 @@ export function PageManagerForm({ pageContent: saved }: { pageContent: any }) {
     fd.set("home_contact_heading", homeContact.heading);
     fd.set("home_contact_description", homeContact.description);
     fd.set("home_contact_info_cards", JSON.stringify(homeContact.infoCards));
+    fd.set("home_seo_title", homeSeo.title || "");
+    fd.set("home_seo_description", homeSeo.description || "");
+    fd.set("home_seo_keywords", homeSeo.keywords || "");
 
     // About
     fd.set("about_hero_heading", aboutHero.heading);
@@ -118,6 +146,7 @@ export function PageManagerForm({ pageContent: saved }: { pageContent: any }) {
     fd.set("about_hero_background", aboutHero.backgroundImage);
     fd.set("about_seo_title", aboutSeo.title);
     fd.set("about_seo_description", aboutSeo.description);
+    fd.set("about_seo_keywords", aboutSeo.keywords || "");
     fd.set("about_sections", JSON.stringify(aboutSections));
     fd.set("about_why_heading", aboutWhy.heading);
     fd.set("about_why_subtitle", aboutWhy.subtitle);
@@ -132,6 +161,7 @@ export function PageManagerForm({ pageContent: saved }: { pageContent: any }) {
     fd.set("contact_hero_background", contactHero.backgroundImage);
     fd.set("contact_seo_title", contactSeo.title);
     fd.set("contact_seo_description", contactSeo.description);
+    fd.set("contact_seo_keywords", contactSeo.keywords || "");
     fd.set("contact_map_iframe", contactMapIframe);
     fd.set("contact_info_cards", JSON.stringify(contactInfoCards));
 
@@ -141,6 +171,7 @@ export function PageManagerForm({ pageContent: saved }: { pageContent: any }) {
     fd.set("blog_hero_background", blogHero.backgroundImage);
     fd.set("blog_seo_title", blogSeo.title);
     fd.set("blog_seo_description", blogSeo.description);
+    fd.set("blog_seo_keywords", blogSeo.keywords || "");
 
     // Footer
     fd.set("footer_brand_description", footer.brandDescription);
@@ -150,7 +181,11 @@ export function PageManagerForm({ pageContent: saved }: { pageContent: any }) {
     fd.set("footer_social_links", JSON.stringify(footer.socialLinks));
     fd.set("footer_copyright", footer.copyright);
 
-    await savePageContent(fd);
+    try {
+      await savePageContent(fd);
+    } catch {
+      // redirect() throws NEXT_REDIRECT — that's expected
+    }
     setSaving(false);
     setSuccess(true);
     setTimeout(() => setSuccess(false), 3000);
@@ -185,6 +220,25 @@ export function PageManagerForm({ pageContent: saved }: { pageContent: any }) {
       {/* ───────────── HOME TAB ───────────── */}
       {activeTab === "home" && (
         <div className="space-y-8">
+          {/* SEO */}
+          <section className="rounded-2xl border border-slate-200 bg-white p-6">
+            <h3 className="text-sm font-bold text-slate-900 mb-4">SEO / Meta</h3>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">Meta Title</label>
+                <input value={homeSeo.title} onChange={(e) => setHomeSeo({ ...homeSeo, title: e.target.value })} placeholder="Mardi Treks | Premier Trekking & Tour Agency" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">Meta Description</label>
+                <textarea rows={2} value={homeSeo.description} onChange={(e) => setHomeSeo({ ...homeSeo, description: e.target.value })} placeholder="Experience the Himalayas with Mardi Treks..." className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-medium text-slate-500 mb-1">Keywords</label>
+                <input value={homeSeo.keywords} onChange={(e) => setHomeSeo({ ...homeSeo, keywords: e.target.value })} placeholder="trekking nepal, everest base camp, annapurna" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+              </div>
+            </div>
+          </section>
+
           {/* Hero Section */}
           <section className="rounded-2xl border border-slate-200 bg-white p-6">
             <div className="flex items-center justify-between mb-4">
@@ -192,13 +246,17 @@ export function PageManagerForm({ pageContent: saved }: { pageContent: any }) {
                 <h3 className="text-sm font-bold text-slate-900">Hero Section</h3>
                 <p className="text-xs text-slate-400">The company slide in the hero carousel</p>
               </div>
-              <Link href="/admin/home" className="text-xs font-medium text-teal-600 hover:text-teal-700 underline">Advanced: Manage featured treks →</Link>
+              <label className="flex items-center gap-2 text-xs text-slate-500">
+                <input
+                  type="checkbox"
+                  name="heroEnabled"
+                  defaultChecked={homeHero.heroEnabled !== false}
+                  className="h-4 w-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500"
+                />
+                Show company slide
+              </label>
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
-              <div>
-                <label className="block text-xs font-medium text-slate-500 mb-1">Badge</label>
-                <input value={homeHero.badge} onChange={(e) => setHomeHeroField("badge", e.target.value)} placeholder="e.g. Adventure Awaits" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
-              </div>
               <div>
                 <label className="block text-xs font-medium text-slate-500 mb-1">Title</label>
                 <input value={homeHero.title} onChange={(e) => setHomeHeroField("title", e.target.value)} placeholder="e.g. Discover the Himalayas" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
@@ -206,10 +264,6 @@ export function PageManagerForm({ pageContent: saved }: { pageContent: any }) {
               <div>
                 <label className="block text-xs font-medium text-slate-500 mb-1">Title Highlight</label>
                 <input value={homeHero.titleHighlight} onChange={(e) => setHomeHeroField("titleHighlight", e.target.value)} placeholder="Highlighted word in title" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-slate-500 mb-1">Subtitle</label>
-                <input value={homeHero.subtitle} onChange={(e) => setHomeHeroField("subtitle", e.target.value)} placeholder="Short subtitle" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
               </div>
               <div className="sm:col-span-2">
                 <label className="block text-xs font-medium text-slate-500 mb-1">Description</label>
@@ -221,6 +275,13 @@ export function PageManagerForm({ pageContent: saved }: { pageContent: any }) {
               </div>
             </div>
           </section>
+
+          {/* Trek Selectors */}
+          <FeaturedTrekSelector
+            treks={treks}
+            initialFeaturedIds={initialFeaturedIds}
+            initialFeaturedSectionIds={initialFeaturedSectionIds}
+          />
 
           {/* Section Headings */}
           <section className="rounded-2xl border border-slate-200 bg-white p-6">
@@ -344,6 +405,10 @@ export function PageManagerForm({ pageContent: saved }: { pageContent: any }) {
               <div>
                 <label className="block text-xs font-medium text-slate-500 mb-1">Meta Description</label>
                 <textarea rows={2} value={aboutSeo.description} onChange={(e) => setAboutSeo({ ...aboutSeo, description: e.target.value })} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-medium text-slate-500 mb-1">Keywords</label>
+                <input value={aboutSeo.keywords} onChange={(e) => setAboutSeo({ ...aboutSeo, keywords: e.target.value })} placeholder="about, mardi treks, nepal, team" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
               </div>
             </div>
           </section>
@@ -493,6 +558,10 @@ export function PageManagerForm({ pageContent: saved }: { pageContent: any }) {
                 <label className="block text-xs font-medium text-slate-500 mb-1">Meta Description</label>
                 <textarea rows={2} value={contactSeo.description} onChange={(e) => setContactSeo({ ...contactSeo, description: e.target.value })} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
               </div>
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-medium text-slate-500 mb-1">Keywords</label>
+                <input value={contactSeo.keywords} onChange={(e) => setContactSeo({ ...contactSeo, keywords: e.target.value })} placeholder="contact, mardi treks, nepal, support" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+              </div>
             </div>
           </section>
 
@@ -555,6 +624,10 @@ export function PageManagerForm({ pageContent: saved }: { pageContent: any }) {
               <div>
                 <label className="block text-xs font-medium text-slate-500 mb-1">Meta Description</label>
                 <textarea rows={2} value={blogSeo.description} onChange={(e) => setBlogSeo({ ...blogSeo, description: e.target.value })} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-medium text-slate-500 mb-1">Keywords</label>
+                <input value={blogSeo.keywords} onChange={(e) => setBlogSeo({ ...blogSeo, keywords: e.target.value })} placeholder="trekking blog, nepal travel, himalayas" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
               </div>
             </div>
           </section>

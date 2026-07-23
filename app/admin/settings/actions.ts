@@ -26,6 +26,7 @@ export async function updateSettings(formData: FormData) {
       navigation: navigation.length > 0 ? JSON.stringify(navigation) : null,
       defaultMetaTitle: formData.get("defaultMetaTitle") as string || null,
       defaultMetaDescription: formData.get("defaultMetaDescription") as string || null,
+      defaultKeywords: formData.get("defaultKeywords") as string || null,
       defaultOgImage: formData.get("defaultOgImage") as string || null,
     },
     create: {
@@ -36,5 +37,5 @@ export async function updateSettings(formData: FormData) {
 
   invalidateCachePattern(cacheKeys.pattern.layout);
   invalidateCachePattern(cacheKeys.pattern.site);
-  revalidatePath("/");
+  revalidatePath("/", "layout");
 }

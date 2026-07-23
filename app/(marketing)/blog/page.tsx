@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import { Calendar, Clock, ArrowRight, FileText, Mountain } from "lucide-react";
+import { Mountain } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { getCachedOrFetch, cacheKeys } from "@/lib/redis";
+import { BlogCard } from "@/components/blog/BlogCard";
+import { PageHero } from "@/components/layout/PageHero";
+import { Pagination } from "@/components/ui/Pagination";
 
-export const revalidate = 300;
+const POSTS_PER_PAGE = 9;
 
 async function getPageContent() {
   return getCachedOrFetch(
@@ -22,17 +24,37 @@ async function getPageContent() {
 export async function generateMetadata(): Promise<Metadata> {
   const pc = await getPageContent();
   const blog = pc?.blog;
+  const seo = blog?.seo;
   return {
-    title: blog?.seo?.title || "Blog",
-    description: blog?.seo?.description || "Read our trekking guides and stories from the Himalayas.",
+    title: seo?.title || "Blog",
+    description: seo?.description || "Read our trekking guides and stories from the Himalayas.",
+    keywords: seo?.keywords || undefined,
     alternates: { canonical: "https://marditreks.com/blog" },
   };
 }
 
-export default async function BlogPage() {
+export default async function BlogPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
+  const { page: pageStr } = await searchParams;
+  const currentPage = Math.max(1, parseInt(pageStr || "1", 10) || 1);
+
   const pc = await getPageContent();
   const blog = pc?.blog || {};
   const hero = blog.hero || {};
+
+  // Fetch treks for the search bar
+  const allTreksForSearch = await getCachedOrFetch(
+    cacheKeys.searchTreks,
+    () => prisma.trek.findMany({
+      where: { status: "published" },
+      select: { title: true, slug: true, region: true, difficulty: true, duration: true, category: { select: { slug: true } } },
+      orderBy: { title: "asc" },
+    }),
+    300
+  );
 
   const posts = await getCachedOrFetch(
     cacheKeys.blogPosts,
@@ -46,6 +68,7 @@ export default async function BlogPage() {
         author: true,
         publishedDate: true,
         tags: true,
+        heroImage: true,
       },
     }),
     300
@@ -55,8 +78,17 @@ export default async function BlogPage() {
     const wordCount = post.excerpt ? post.excerpt.split(/\s+/).length : 0;
     const readTimeMinutes = Math.max(1, Math.round(wordCount / 200));
     return {
-      ...post,
-      date: post.publishedDate.toISOString().split("T")[0],
+      slug: post.slug,
+      title: post.title,
+      excerpt: post.excerpt,
+      author: post.author,
+      heroImage: post.heroImage,
+      date: (() => {
+        const d = post.publishedDate;
+        if (!d) return "TBD";
+        const dateStr = typeof d === "string" ? d : d.toISOString();
+        return dateStr.split("T")[0];
+      })(),
       readTime: `${readTimeMinutes} min read`,
       tags: (() => {
         try {
@@ -68,86 +100,56 @@ export default async function BlogPage() {
       })(),
     };
   });
+  const totalPages = Math.ceil(postsWithReadTime.length / POSTS_PER_PAGE);
+  const paginatedPosts = postsWithReadTime.slice(
+    (currentPage - 1) * POSTS_PER_PAGE,
+    currentPage * POSTS_PER_PAGE
+  );
+
   return (
     <>
-      {/* Hero */}
-      <section
-        className="relative flex items-center py-16"
-        style={hero.backgroundImage ? {
-          backgroundImage: `url(https://res.cloudinary.com/dk7ggjvlw/image/upload/${hero.backgroundImage})`,
-          backgroundSize: "cover",
-          backgroundPosition: "center",
-        } : {}}
-      >
-        {hero.backgroundImage && <div className="absolute inset-0 bg-black/50" />}
-        <div className="relative z-10 mx-auto max-w-3xl px-4 text-center sm:px-6 lg:px-8">
-          <Mountain className="mx-auto h-12 w-12 text-primary-light" />
-          <h1 className="mt-4 text-4xl font-bold tracking-tight text-white sm:text-5xl">
-            {hero.heading || "Blog"}
-          </h1>
-          {hero.description && (
-            <p className="mt-4 text-lg text-slate-300">{hero.description}</p>
-          )}
-        </div>
-      </section>
+      <PageHero
+        heading={hero.heading || "Blog"}
+        description={hero.description}
+        backgroundImage={hero.backgroundImage}
+        treks={allTreksForSearch}
+      />
 
       {/* Posts */}
-      <section className="py-12">
-        <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
-          {postsWithReadTime.length === 0 ? (
-            <div className="flex flex-col items-center py-16 text-center">
-              <FileText className="h-12 w-12 text-slate-300" />
-              <p className="mt-4 text-sm font-medium text-slate-600">No published posts yet</p>
-              <p className="mt-1 text-xs text-slate-400">Check back soon for new articles!</p>
+      <section className="bg-background py-16 sm:py-20">
+        <div className="mx-auto max-w-7xl px-3 sm:px-4 lg:px-6">
+          {paginatedPosts.length === 0 ? (
+            <div className="flex flex-col items-center py-20 text-center">
+              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-surface-alt">
+                <Mountain className="h-8 w-8 text-text-muted" />
+              </div>
+              <p className="mt-5 text-lg font-semibold text-foreground">
+                {currentPage > 1 ? "This page has no posts yet" : "No published posts yet"}
+              </p>
+              <p className="mt-1 text-sm text-text-muted">Check back soon for new articles!</p>
             </div>
           ) : (
-          <div className="space-y-8">
-            {postsWithReadTime.map((post) => (
-              <article
-                key={post.slug}
-                className="group rounded-xl border border-border bg-white p-6 shadow-sm transition-all hover:shadow-md"
-              >
-                <div className="flex flex-wrap items-center gap-3 text-xs text-text-muted">
-                  <span className="flex items-center gap-1">
-                    <Calendar className="h-3.5 w-3.5" />
-                    {new Date(post.date).toLocaleDateString("en-US", {
-                      month: "long",
-                      day: "numeric",
-                      year: "numeric",
-                    })}
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <Clock className="h-3.5 w-3.5" />
-                    {post.readTime}
-                  </span>
-                  {post.tags.map((tag) => (
-                    <span
-                      key={tag}
-                      className="rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary"
-                    >
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-                <Link href={`/blog/${post.slug}`}>
-                  <h2 className="mt-3 text-xl font-bold text-foreground group-hover:text-primary">
-                    {post.title}
-                  </h2>
-                </Link>
-                <p className="mt-2 text-sm leading-relaxed text-text">{post.excerpt}</p>
-                <div className="mt-4 flex items-center justify-between">
-                  <span className="text-xs text-text-muted">By {post.author}</span>
-                  <Link
-                    href={`/blog/${post.slug}`}
-                    className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:text-primary-dark"
-                  >
-                    Read More
-                    <ArrowRight className="h-4 w-4" />
-                  </Link>
-                </div>
-              </article>
-            ))}
-          </div>
+            <>
+              <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                {paginatedPosts.map((post) => (
+                  <BlogCard
+                    key={post.slug}
+                    slug={post.slug}
+                    title={post.title}
+                    excerpt={post.excerpt}
+                    heroImage={post.heroImage}
+                    tags={post.tags}
+                    date={post.date}
+                    readTime={post.readTime}
+                  />
+                ))}
+              </div>
+              <Pagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                basePath="/blog"
+              />
+            </>
           )}
         </div>
       </section>

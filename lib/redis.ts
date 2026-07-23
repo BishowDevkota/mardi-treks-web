@@ -19,6 +19,7 @@ export const cacheKeys = {
   // Blog
   blogPosts: "blog:list",
   blogPost: (slug: string) => `blog:${slug}`,
+  blogPostMeta: (slug: string) => `blog:${slug}:meta`,
 
   // Layout
   categories: "layout:categories",

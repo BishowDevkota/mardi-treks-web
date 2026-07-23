@@ -112,6 +112,10 @@ export function BlogForm({ mode, post }: { mode: "create" | "edit"; post?: any }
                 <textarea name="metaDescription" rows={3} defaultValue={post?.metaDescription || ""} className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:border-teal-300 focus:outline-none focus:ring-2 focus:ring-teal-100" />
               </div>
               <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1.5">Keywords</label>
+                <input name="keywords" defaultValue={post?.keywords || ""} placeholder="trekking, nepal, everest, guide" className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:border-teal-300 focus:outline-none focus:ring-2 focus:ring-teal-100" />
+              </div>
+              <div>
                 <ImageUpload value={ogImage} onChange={setOgImage} label="OG Image (social share)" folder="mardi-treks/blog" />
               </div>
             </div>

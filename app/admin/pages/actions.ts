@@ -22,7 +22,7 @@ export async function createPage(formData: FormData) {
   });
 
   invalidateCachePattern(cacheKeys.pattern.site);
-  revalidatePath("/");
+  revalidatePath("/", "layout");
   redirect("/admin/pages");
 }
 
@@ -43,7 +43,7 @@ export async function updatePage(id: string, formData: FormData) {
   });
 
   invalidateCachePattern(cacheKeys.pattern.site);
-  revalidatePath("/");
+  revalidatePath("/", "layout");
   redirect("/admin/pages");
 }
 
@@ -52,6 +52,6 @@ export async function deletePage(id: string) {
   if (!session || (session.user as any).role !== "admin") throw new Error("Unauthorized");
 
   await prisma.page.delete({ where: { id } });
-  revalidatePath("/");
+  revalidatePath("/", "layout");
   redirect("/admin/pages");
 }

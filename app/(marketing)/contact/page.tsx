@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
 import { Mail, Phone, MapPin, Clock, Send, Mountain } from "lucide-react";
 import { ContactFormSection } from "@/components/home/ContactFormSection";
+import { PageHero } from "@/components/layout/PageHero";
+import { getCachedOrFetch, cacheKeys } from "@/lib/redis";
 
 export const revalidate = 300;
 
@@ -17,9 +19,11 @@ async function getPageContent() {
 export async function generateMetadata(): Promise<Metadata> {
   const pc = await getPageContent();
   const contact = pc?.contact;
+  const seo = contact?.seo;
   return {
-    title: contact?.seo?.title || "Contact Us",
-    description: contact?.seo?.description || "Get in touch with Mardi Treks.",
+    title: seo?.title || "Contact Us",
+    description: seo?.description || "Get in touch with Mardi Treks.",
+    keywords: seo?.keywords || undefined,
     alternates: { canonical: "https://marditreks.com/contact" },
   };
 }
@@ -31,31 +35,28 @@ export default async function ContactPage() {
   const infoCards = contact.infoCards || [];
   const mapIframe = contact.mapIframe || "";
 
+  // Fetch treks for the search bar
+  const allTreksForSearch = await getCachedOrFetch(
+    cacheKeys.searchTreks,
+    () => prisma.trek.findMany({
+      where: { status: "published" },
+      select: { title: true, slug: true, region: true, difficulty: true, duration: true, category: { select: { slug: true } } },
+      orderBy: { title: "asc" },
+    }),
+    300
+  );
+
   return (
     <>
-      {/* ── Hero ── */}
-      <section
-        className="relative flex items-center py-16"
-        style={hero.backgroundImage ? {
-          backgroundImage: `url(https://res.cloudinary.com/dk7ggjvlw/image/upload/${hero.backgroundImage})`,
-          backgroundSize: "cover",
-          backgroundPosition: "center",
-        } : {}}
-      >
-        {hero.backgroundImage && <div className="absolute inset-0 bg-black/50" />}
-        <div className="relative z-10 mx-auto max-w-3xl px-4 text-center sm:px-6 lg:px-8">
-          <Mountain className="mx-auto h-12 w-12 text-primary-light" />
-          <h1 className="mt-4 text-4xl font-bold tracking-tight text-white sm:text-5xl">
-            {hero.heading || "Contact Us"}
-          </h1>
-          {hero.description && (
-            <p className="mt-4 text-lg text-slate-300">{hero.description}</p>
-          )}
-        </div>
-      </section>
+      <PageHero
+        heading={hero.heading || "Contact Us"}
+        description={hero.description}
+        backgroundImage={hero.backgroundImage}
+        treks={allTreksForSearch}
+      />
 
       <section className="py-12">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-7xl px-3 sm:px-4 lg:px-6">
           <div className="grid gap-12 lg:grid-cols-2">
             {/* Contact Form */}
             <div>

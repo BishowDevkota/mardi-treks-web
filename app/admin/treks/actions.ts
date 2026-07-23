@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { invalidateCachePattern, cacheKeys } from "@/lib/redis";
+import { deleteFile } from "@/lib/cloudinary";
 
 function invalidateTrekCache() {
   invalidateCachePattern(cacheKeys.pattern.treks);
@@ -35,6 +36,7 @@ export async function createTrek(formData: FormData) {
     status: formData.get("status") as string || "draft",
     metaTitle: formData.get("metaTitle") as string || null,
     metaDescription: formData.get("metaDescription") as string || null,
+    keywords: formData.get("keywords") as string || null,
     ogImage: formData.get("ogImage") as string || null,
     // Map fields
     geoJsonUrl: formData.get("geoJsonUrl") as string || null,
@@ -111,6 +113,7 @@ export async function updateTrek(id: string, formData: FormData) {
     status: formData.get("status") as string || "draft",
     metaTitle: formData.get("metaTitle") as string || null,
     metaDescription: formData.get("metaDescription") as string || null,
+    keywords: formData.get("keywords") as string || null,
     ogImage: formData.get("ogImage") as string || null,
     // Map fields
     geoJsonUrl: formData.get("geoJsonUrl") as string || null,
@@ -137,6 +140,32 @@ export async function updateTrek(id: string, formData: FormData) {
   const pricingTiers = JSON.parse(formData.get("pricingTiers") as string || "[]");
   const faqs = JSON.parse(formData.get("faqs") as string || "[]");
   const gallery = JSON.parse(formData.get("gallery") as string || "[]");
+
+  // Fetch current trek to compare images
+  const currentTrek = await prisma.trek.findUnique({
+    where: { id },
+    select: { heroImage: true, ogImage: true },
+  });
+
+  // Delete old heroImage if changed
+  if (currentTrek?.heroImage && currentTrek.heroImage !== data.heroImage) {
+    deleteFile(currentTrek.heroImage).catch(() => {});
+  }
+  // Delete old ogImage if changed
+  if (currentTrek?.ogImage && currentTrek.ogImage !== data.ogImage) {
+    deleteFile(currentTrek.ogImage).catch(() => {});
+  }
+
+  // Find gallery images to delete (ones in DB but not in new gallery)
+  const oldGalleryImages = await prisma.trekGalleryImage.findMany({
+    where: { trekId: id },
+    select: { imageId: true },
+  });
+  const newGalleryIds = new Set(gallery.map((g: any) => g.imageId));
+  const removedGalleryIds = oldGalleryImages
+    .map((g) => g.imageId)
+    .filter((imgId) => !newGalleryIds.has(imgId));
+  await Promise.allSettled(removedGalleryIds.map((pubId) => deleteFile(pubId)));
 
   await prisma.$transaction(async (tx) => {
     await tx.itineraryDay.deleteMany({ where: { trekId: id } });
@@ -175,6 +204,26 @@ export async function updateTrek(id: string, formData: FormData) {
 export async function deleteTrek(id: string) {
   const session = await auth();
   if (!session || (session.user as any).role !== "admin") throw new Error("Unauthorized");
+
+  const trek = await prisma.trek.findUnique({
+    where: { id },
+    select: { heroImage: true, ogImage: true, staticMapImage: true },
+  });
+
+  // Delete Cloudinary images
+  if (trek) {
+    const imagesToDelete = [trek.heroImage, trek.ogImage, trek.staticMapImage].filter(Boolean) as string[];
+    await Promise.allSettled(imagesToDelete.map((pubId) => deleteFile(pubId)));
+
+    // Also delete gallery images
+    const galleryImages = await prisma.trekGalleryImage.findMany({
+      where: { trekId: id },
+      select: { imageId: true },
+    });
+    const galleryIds = galleryImages.map((g) => g.imageId).filter(Boolean);
+    await Promise.allSettled(galleryIds.map((pubId) => deleteFile(pubId)));
+  }
+
   await prisma.trek.delete({ where: { id } });
   invalidateTrekCache();
   revalidatePath("/", "layout");

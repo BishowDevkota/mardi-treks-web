@@ -195,6 +195,7 @@ export function TrekForm({ mode, trek, categories }: { mode: "create" | "edit"; 
     fd.set("gallery", JSON.stringify(gallery.items));
     fd.set("metaTitle", seo.metaTitle || "");
     fd.set("metaDescription", seo.metaDescription || "");
+    fd.set("keywords", seo.keywords || "");
     fd.set("ogImage", seo.ogImage || "");
     fd.set("centerLat", String(mapData.centerLat || 28.5));
     fd.set("centerLng", String(mapData.centerLng || 83.9));

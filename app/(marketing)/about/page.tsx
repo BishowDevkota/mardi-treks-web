@@ -4,6 +4,8 @@ import Image from "next/image";
 import { Mountain, Shield, Heart, Award, Globe, Users } from "lucide-react";
 import { WhyChooseUs } from "@/components/home/WhyChooseUs";
 import GallerySection from "@/components/trek/GallerySection";
+import { PageHero } from "@/components/layout/PageHero";
+import { getCachedOrFetch, cacheKeys } from "@/lib/redis";
 
 export const revalidate = 300;
 
@@ -21,9 +23,11 @@ const iconMap: Record<string, any> = { Shield, Heart, Award, Globe, Users, Mount
 export async function generateMetadata(): Promise<Metadata> {
   const pc = await getPageContent();
   const about = pc?.about;
+  const seo = about?.seo;
   return {
-    title: about?.seo?.title || "About Us",
-    description: about?.seo?.description || "Learn about Mardi Treks — Nepal's premier trekking and tour agency.",
+    title: seo?.title || "About Us",
+    description: seo?.description || "Learn about Mardi Treks — Nepal's premier trekking and tour agency.",
+    keywords: seo?.keywords || undefined,
     alternates: { canonical: "https://marditreks.com/about" },
   };
 }
@@ -37,33 +41,30 @@ export default async function AboutPage() {
   const team = about.team || [];
   const gallery = about.gallery || [];
 
+  // Fetch treks for the search bar
+  const allTreksForSearch = await getCachedOrFetch(
+    cacheKeys.searchTreks,
+    () => prisma.trek.findMany({
+      where: { status: "published" },
+      select: { title: true, slug: true, region: true, difficulty: true, duration: true, category: { select: { slug: true } } },
+      orderBy: { title: "asc" },
+    }),
+    300
+  );
+
   return (
     <>
-      {/* ── Hero ── */}
-      <section
-        className="relative flex items-center py-16"
-        style={hero.backgroundImage ? {
-          backgroundImage: `url(https://res.cloudinary.com/dk7ggjvlw/image/upload/${hero.backgroundImage})`,
-          backgroundSize: "cover",
-          backgroundPosition: "center",
-        } : {}}
-      >
-        {hero.backgroundImage && <div className="absolute inset-0 bg-black/50" />}
-        <div className="relative z-10 mx-auto max-w-3xl px-4 text-center sm:px-6 lg:px-8">
-          <Mountain className="mx-auto h-12 w-12 text-primary-light" />
-          <h1 className="mt-4 text-4xl font-bold tracking-tight text-white sm:text-5xl">
-            {hero.heading || "About Mardi Treks"}
-          </h1>
-          {hero.description && (
-            <p className="mt-4 text-lg text-slate-300">{hero.description}</p>
-          )}
-        </div>
-      </section>
+      <PageHero
+        heading={hero.heading || "About Mardi Treks"}
+        description={hero.description}
+        backgroundImage={hero.backgroundImage}
+        treks={allTreksForSearch}
+      />
 
       {/* ── Custom Sections ── */}
       {sections.map((sec: any, i: number) => (
         <section key={sec.id || i} className="py-16">
-          <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8">
+          <div className="mx-auto max-w-3xl px-3 sm:px-4 lg:px-6">
             {sec.heading && <h2 className="text-2xl font-bold text-foreground">{sec.heading}</h2>}
             {sec.description && (
               <div className="mt-4 space-y-4 text-text leading-relaxed">
@@ -85,7 +86,7 @@ export default async function AboutPage() {
       {/* ── Team ── */}
       {team.length > 0 && (
         <section className="py-16">
-          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="mx-auto max-w-7xl px-3 sm:px-4 lg:px-6">
             <h2 className="text-center text-2xl font-bold text-foreground">Our Team</h2>
             <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
               {team.map((member: any, i: number) => (
@@ -109,7 +110,7 @@ export default async function AboutPage() {
       {/* ── Gallery / Legal Documents ── */}
       {gallery.length > 0 && (
         <section className="bg-surface py-16">
-          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="mx-auto max-w-7xl px-3 sm:px-4 lg:px-6">
             <GallerySection
               images={gallery}
               heading="Legal Documents"

@@ -25,10 +25,8 @@ export async function updateHomeSettings(formData: FormData) {
 
     // Hero
     heroEnabled: formData.get("heroEnabled") === "on",
-    heroBadge: (formData.get("heroBadge") as string) || null,
     heroTitle: (formData.get("heroTitle") as string) || null,
     heroTitleHighlight: (formData.get("heroTitleHighlight") as string) || null,
-    heroSubtitle: (formData.get("heroSubtitle") as string) || null,
     heroDescription: (formData.get("heroDescription") as string) || null,
     heroImage: (formData.get("heroImage") as string) || null,
 
@@ -64,7 +62,8 @@ export async function updateHomeSettings(formData: FormData) {
   });
 
   invalidateCachePattern(cacheKeys.pattern.home);
-  revalidatePath("/");
+  invalidateCachePattern(cacheKeys.pattern.treks);
+  revalidatePath("/", "layout");
   revalidatePath("/admin/home");
   redirect("/admin/home");
 }

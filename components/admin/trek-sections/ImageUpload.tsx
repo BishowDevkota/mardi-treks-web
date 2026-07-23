@@ -1,7 +1,12 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect, forwardRef, useImperativeHandle } from "react";
 import { Upload, Loader2, X, ImageIcon } from "lucide-react";
+
+export interface ImageUploadHandle {
+  /** Mark the current image as saved so it won't be cleaned up on page unload */
+  markSaved: () => void;
+}
 
 interface ImageUploadProps {
   value: string;          // current Cloudinary public ID or URL
@@ -10,12 +15,54 @@ interface ImageUploadProps {
   folder?: string;
 }
 
-export function ImageUpload({ value, onChange, label, folder }: ImageUploadProps) {
+export const ImageUpload = forwardRef<ImageUploadHandle, ImageUploadProps>(
+  function ImageUpload({ value, onChange, label, folder }, ref) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [preview, setPreview] = useState<string | null>(
     value ? `https://res.cloudinary.com/dk7ggjvlw/image/upload/${value}` : null
   );
+  // Track whether the current value has been saved to the DB
+  const isSavedRef = useRef(true);
+
+  // Expose markSaved so the parent form can call it after a successful save
+  useImperativeHandle(ref, () => ({
+    markSaved() {
+      isSavedRef.current = true;
+    },
+  }));
+
+  // When value changes to a new upload (via onChange), mark as unsaved
+  // We detect this by comparing preview state changes
+  const prevValueRef = useRef(value);
+  useEffect(() => {
+    if (value !== prevValueRef.current) {
+      // Value changed externally (e.g. via upload or clear)
+      if (value === "") {
+        // Cleared — nothing to track
+        isSavedRef.current = true;
+      } else {
+        // New image uploaded — mark as unsaved
+        isSavedRef.current = false;
+      }
+      prevValueRef.current = value;
+    }
+  }, [value]);
+
+  // Clean up unsaved images when the user navigates away without saving
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (!isSavedRef.current && value) {
+        navigator.sendBeacon(
+          "/api/delete-image",
+          JSON.stringify({ publicId: value })
+        );
+      }
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [value]);
 
   async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -48,7 +95,19 @@ export function ImageUpload({ value, onChange, label, folder }: ImageUploadProps
     setUploading(false);
   }
 
-  function handleClear() {
+  async function handleClear() {
+    // Delete the image from Cloudinary if it hasn't been saved yet
+    if (!isSavedRef.current && value) {
+      try {
+        await fetch("/api/delete-image", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ publicId: value }),
+        });
+      } catch (err) {
+        console.error("Failed to delete image from Cloudinary", err);
+      }
+    }
     onChange("");
     setPreview(null);
     if (inputRef.current) inputRef.current.value = "";
@@ -99,4 +158,4 @@ export function ImageUpload({ value, onChange, label, folder }: ImageUploadProps
       <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
     </div>
   );
-}
+});

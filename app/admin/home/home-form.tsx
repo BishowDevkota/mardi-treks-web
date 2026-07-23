@@ -20,10 +20,8 @@ interface Trek {
 
 interface HeroContent {
   heroEnabled: boolean;
-  heroBadge: string;
   heroTitle: string;
   heroTitleHighlight: string;
-  heroSubtitle: string;
   heroDescription: string;
   heroImage: string;
 }
@@ -253,15 +251,6 @@ export function HomeForm({
         <div className="mt-5 grid gap-6 lg:grid-cols-2">
           <div className="space-y-4">
             <div>
-              <label className="block text-xs font-medium text-slate-500">Badge Text</label>
-              <input
-                name="heroBadge"
-                defaultValue={heroContent.heroBadge}
-                placeholder="Nepal's Premier Trekking Agency"
-                className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-teal-300 focus:outline-none focus:ring-2 focus:ring-teal-100"
-              />
-            </div>
-            <div>
               <label className="block text-xs font-medium text-slate-500">Title</label>
               <input
                 name="heroTitle"
@@ -279,15 +268,6 @@ export function HomeForm({
                 className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-teal-300 focus:outline-none focus:ring-2 focus:ring-teal-100"
               />
               <p className="mt-0.5 text-[10px] text-slate-400">This word appears in an accent color</p>
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-slate-500">Subtitle</label>
-              <input
-                name="heroSubtitle"
-                defaultValue={heroContent.heroSubtitle}
-                placeholder="With Expert Guides"
-                className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-teal-300 focus:outline-none focus:ring-2 focus:ring-teal-100"
-              />
             </div>
             <div>
               <label className="block text-xs font-medium text-slate-500">Description</label>

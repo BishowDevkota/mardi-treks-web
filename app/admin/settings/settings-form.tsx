@@ -359,6 +359,16 @@ export function SettingsForm({ settings }: { settings: any }) {
                 />
               </div>
               <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1.5">Default Keywords</label>
+                <input
+                  name="defaultKeywords"
+                  defaultValue={(settings as any)?.defaultKeywords || ""}
+                  placeholder="trekking nepal, everest base camp, himalaya tours"
+                  className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:border-teal-300 focus:outline-none focus:ring-2 focus:ring-teal-100"
+                />
+                <p className="mt-1 text-xs text-slate-400">Comma-separated keywords used as fallback across all pages.</p>
+              </div>
+              <div>
                 <label className="block text-xs font-medium text-slate-500 mb-1.5">Default OG Image (Cloudinary Public ID)</label>
                 <input
                   name="defaultOgImage"

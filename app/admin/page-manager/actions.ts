@@ -13,7 +13,6 @@ export async function savePageContent(formData: FormData) {
   const pageContent: Record<string, any> = {};
 
   // ── Home page ──
-  const homeHeroBadge = formData.get("home_hero_badge") as string;
   const homeSectionsRaw = formData.get("home_sections") as string;
   const homeSectionsParsed = homeSectionsRaw ? JSON.parse(homeSectionsRaw) : {};
   const homeWhyItems = JSON.parse(formData.get("home_why_items") as string || "[]");
@@ -21,14 +20,17 @@ export async function savePageContent(formData: FormData) {
 
   pageContent.home = {
     hero: {
-      badge: homeHeroBadge,
       title: formData.get("home_hero_title") as string,
       titleHighlight: formData.get("home_hero_title_highlight") as string,
-      subtitle: formData.get("home_hero_subtitle") as string,
       description: formData.get("home_hero_description") as string,
       backgroundImage: formData.get("home_hero_background") as string,
     },
     sections: homeSectionsParsed,
+    seo: {
+      title: formData.get("home_seo_title") as string || "",
+      description: formData.get("home_seo_description") as string || "",
+      keywords: formData.get("home_seo_keywords") as string || "",
+    },
     whyChooseUs: {
       heading: formData.get("home_why_heading") as string,
       subtitle: formData.get("home_why_subtitle") as string,
@@ -47,12 +49,13 @@ export async function savePageContent(formData: FormData) {
     where: { id: "home-settings" },
     create: {
       id: "home-settings",
-      heroBadge: homeHeroBadge,
       heroTitle: formData.get("home_hero_title") as string,
       heroTitleHighlight: formData.get("home_hero_title_highlight") as string,
-      heroSubtitle: formData.get("home_hero_subtitle") as string,
       heroDescription: formData.get("home_hero_description") as string,
       heroImage: formData.get("home_hero_background") as string,
+      heroEnabled: formData.get("heroEnabled") === "on",
+      featuredTrekIds: formData.get("featuredTrekIds") as string || "[]",
+      featuredSectionTrekIds: formData.get("featuredSectionTrekIds") as string || "[]",
       featuredTreksHeading: homeSectionsParsed.featuredTreksHeading,
       featuredTreksDescription: homeSectionsParsed.featuredTreksDescription,
       bestSellingTreksHeading: homeSectionsParsed.bestSellingTreksHeading,
@@ -72,12 +75,13 @@ export async function savePageContent(formData: FormData) {
       contactInfoCards: JSON.stringify(homeInfoCards),
     },
     update: {
-      heroBadge: homeHeroBadge,
       heroTitle: formData.get("home_hero_title") as string,
       heroTitleHighlight: formData.get("home_hero_title_highlight") as string,
-      heroSubtitle: formData.get("home_hero_subtitle") as string,
       heroDescription: formData.get("home_hero_description") as string,
       heroImage: formData.get("home_hero_background") as string,
+      heroEnabled: formData.get("heroEnabled") === "on",
+      featuredTrekIds: formData.get("featuredTrekIds") as string || "[]",
+      featuredSectionTrekIds: formData.get("featuredSectionTrekIds") as string || "[]",
       featuredTreksHeading: homeSectionsParsed.featuredTreksHeading,
       featuredTreksDescription: homeSectionsParsed.featuredTreksDescription,
       bestSellingTreksHeading: homeSectionsParsed.bestSellingTreksHeading,
@@ -109,6 +113,7 @@ export async function savePageContent(formData: FormData) {
     seo: {
       title: formData.get("about_seo_title") as string,
       description: formData.get("about_seo_description") as string,
+      keywords: formData.get("about_seo_keywords") as string || "",
     },
     whyChooseUs: {
       heading: formData.get("about_why_heading") as string,
@@ -132,6 +137,7 @@ export async function savePageContent(formData: FormData) {
     seo: {
       title: formData.get("contact_seo_title") as string,
       description: formData.get("contact_seo_description") as string,
+      keywords: formData.get("contact_seo_keywords") as string || "",
     },
   };
 
@@ -145,6 +151,7 @@ export async function savePageContent(formData: FormData) {
     seo: {
       title: formData.get("blog_seo_title") as string,
       description: formData.get("blog_seo_description") as string,
+      keywords: formData.get("blog_seo_keywords") as string || "",
     },
   };
 
@@ -165,12 +172,13 @@ export async function savePageContent(formData: FormData) {
   });
 
   invalidateCachePattern(cacheKeys.pattern.home);
+  invalidateCachePattern(cacheKeys.pattern.treks);
   invalidateCachePattern(cacheKeys.pattern.site);
   invalidateCachePattern(cacheKeys.pattern.blog);
   revalidatePath("/about");
   revalidatePath("/contact");
   revalidatePath("/blog");
-  revalidatePath("/");
+  revalidatePath("/", "layout");
   revalidatePath("/admin/page-manager");
   redirect("/admin/page-manager");
 }

@@ -89,6 +89,7 @@ export interface GalleryData {
 export interface SeoData {
   metaTitle: string;
   metaDescription: string;
+  keywords: string;
   ogImage: string;
 }
 
@@ -256,6 +257,7 @@ export function createDefaultSection(type: SectionType, trek?: any): TrekSection
         data: {
           metaTitle: trek?.metaTitle || "",
           metaDescription: trek?.metaDescription || "",
+          keywords: trek?.keywords || "",
           ogImage: trek?.ogImage || "",
         } as SeoData,
       };
