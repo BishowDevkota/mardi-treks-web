@@ -42,27 +42,53 @@ export function MiniMap({
         const lat = centerLat ?? 28.5;
         const lng = centerLng ?? 84.0;
 
+        const miniStyle: any = {
+          version: 8,
+          sources: {
+            satellite: {
+              type: "raster",
+              tiles: [
+                `https://api.mapbox.com/v4/mapbox.satellite/{z}/{x}/{y}.jpg90?access_token=${process.env.NEXT_PUBLIC_MAPBOX_TOKEN}`,
+              ],
+              tileSize: 512,
+              attribution: "&copy; Mapbox &copy; OpenStreetMap contributors &copy; Maxar",
+            },
+            "terrain-source": {
+              type: "raster-dem",
+              tiles: [
+                `https://api.mapbox.com/v4/mapbox.terrain-rgb/{z}/{x}/{y}.pngraw?access_token=${process.env.NEXT_PUBLIC_MAPBOX_TOKEN}`,
+              ],
+              tileSize: 512,
+              maxzoom: 14,
+              encoding: "mapbox",
+              attribution: "&copy; Mapbox &copy; OpenStreetMap contributors",
+            },
+          },
+          layers: [
+            { id: "satellite", type: "raster", source: "satellite", minzoom: 0, maxzoom: 22 },
+          ],
+          sky: {
+            "sky-color": "#8ecae6",
+            "horizon-color": "#f0ebe3",
+            "fog-color": "#e0e6ed",
+            "fog-ground-blend": 0.6,
+          },
+        };
+
         map = new maplibregl.default.Map({
           container: mapContainer.current,
-          style: {
-            version: 8,
-            sources: {
-              satellite: {
-                type: "raster",
-                tiles: [
-                  "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-                ],
-                tileSize: 256,
-              },
-            },
-            layers: [
-              { id: "satellite", type: "raster", source: "satellite", minzoom: 0, maxzoom: 22 },
-            ],
-          },
+          style: miniStyle,
           center: [lng, lat],
           zoom: zoom ?? 6,
+          pitch: 35,
           interactive: false,
           attributionControl: false,
+        });
+
+        map.on("load", () => {
+          try {
+            map.setTerrain({ source: "terrain-source", exaggeration: 1.3 });
+          } catch {}
         });
 
         map.on("load", () => {

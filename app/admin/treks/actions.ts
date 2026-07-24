@@ -7,10 +7,12 @@ import { auth } from "@/lib/auth";
 import { invalidateCachePattern, cacheKeys } from "@/lib/redis";
 import { deleteFile } from "@/lib/cloudinary";
 
-function invalidateTrekCache(slug?: string, categorySlug?: string) {
-  invalidateCachePattern(cacheKeys.pattern.treks);
-  invalidateCachePattern(cacheKeys.pattern.home);
-  invalidateCachePattern(cacheKeys.pattern.category);
+async function invalidateTrekCache(slug?: string, categorySlug?: string) {
+  await Promise.all([
+    invalidateCachePattern(cacheKeys.pattern.treks),
+    invalidateCachePattern(cacheKeys.pattern.home),
+    invalidateCachePattern(cacheKeys.pattern.category),
+  ]);
   // Revalidate individual trek detail pages
   revalidatePath("/", "layout");
   if (slug) {
@@ -90,7 +92,7 @@ export async function createTrek(formData: FormData) {
     },
   });
 
-  invalidateTrekCache(data.slug);
+  await invalidateTrekCache(data.slug);
   redirect("/admin/treks");
 }
 
@@ -200,7 +202,7 @@ export async function updateTrek(id: string, formData: FormData) {
     });
   });
 
-  invalidateTrekCache(formData.get("slug") as string || undefined);
+  await invalidateTrekCache(formData.get("slug") as string || undefined);
   redirect("/admin/treks");
 }
 
@@ -228,6 +230,6 @@ export async function deleteTrek(id: string) {
   }
 
   await prisma.trek.delete({ where: { id } });
-  invalidateTrekCache(trek?.slug);
+  await invalidateTrekCache(trek?.slug);
   redirect("/admin/treks");
 }

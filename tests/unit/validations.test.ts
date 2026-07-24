@@ -179,8 +179,7 @@ describe("createBookingSchema", () => {
 describe("reviewSchema", () => {
   it("accepts valid review", () => {
     const result = reviewSchema.safeParse({
-      trekSlug: "everest-base-camp",
-      author: "John Doe",
+      trekId: "trek-123",
       rating: 5,
       text: "Amazing trek! The views were breathtaking and the guide was excellent.",
     });
@@ -189,8 +188,7 @@ describe("reviewSchema", () => {
 
   it("rejects short review text", () => {
     const result = reviewSchema.safeParse({
-      trekSlug: "everest-base-camp",
-      author: "John Doe",
+      trekId: "trek-123",
       rating: 5,
       text: "OK",
     });
@@ -199,8 +197,7 @@ describe("reviewSchema", () => {
 
   it("rejects rating out of range", () => {
     const result = reviewSchema.safeParse({
-      trekSlug: "everest-base-camp",
-      author: "John Doe",
+      trekId: "trek-123",
       rating: 6,
       text: "Good trek!",
     });

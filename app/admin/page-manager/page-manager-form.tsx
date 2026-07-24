@@ -1,12 +1,14 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { savePageContent } from "./actions";
-import { Plus, Trash2, Save, Loader2, GripVertical } from "lucide-react";
+import { Plus, Trash2, Save, Loader2, GripVertical, Bold, Italic, List, ListOrdered, Heading2 } from "lucide-react";
 import { ImageUpload, type ImageUploadHandle } from "@/components/admin/trek-sections/ImageUpload";
 import { FeaturedTrekSelector } from "@/components/admin/FeaturedTrekSelector";
+import { useEditor, EditorContent } from "@tiptap/react";
+import StarterKit from "@tiptap/starter-kit";
 
 const defaultWhyChooseUsItems = [
   { icon: "Shield", title: "Safety First", description: "Every guide is wilderness first-aid certified with years of high-altitude experience." },
@@ -28,6 +30,15 @@ const defaultInfoCards = [
   { icon: "MapPin", title: "Office", description: "Thamel, Kathmandu, Nepal" },
   { icon: "Clock", title: "Office Hours", description: "Sun-Fri: 9AM-6PM" },
 ];
+
+function ToolbarBtn({ onClick, active, children, label }: { onClick: () => void; active?: boolean; children: React.ReactNode; label: string }) {
+  return (
+    <button type="button" onClick={onClick} title={label}
+      className={`rounded p-1.5 transition-colors ${active ? "bg-teal-100 text-teal-700" : "text-slate-500 hover:bg-slate-100 hover:text-slate-700"}`}>
+      {children}
+    </button>
+  );
+}
 
 const defaultSocialLinks = [
   { platform: "facebook", url: "" },
@@ -184,7 +195,10 @@ export function PageManagerForm({
     fd.set("about_why_subtitle", aboutWhy.subtitle);
     fd.set("about_why_items", JSON.stringify(aboutWhy.items));
     fd.set("about_why_bg", orUploaded("aboutWhyBg", aboutWhy.bgImage));
-    fd.set("about_team", JSON.stringify(aboutTeam));
+    fd.set("about_team", JSON.stringify(aboutTeam.map((m: any, i: number) => ({
+      ...m,
+      image: uploadedMap[`team-${i}`] || m.image || "",
+    }))));
     fd.set("about_gallery", JSON.stringify(overrideGallery(aboutGallery, "aboutGallery")));
 
     // Contact
@@ -496,22 +510,46 @@ export function PageManagerForm({
           {/* Team */}
           <section className="rounded-2xl border border-slate-200 bg-white p-6">
             <h3 className="text-sm font-bold text-slate-900 mb-4">Team Members</h3>
-            <div className="space-y-3">
+            <p className="mb-4 text-xs text-slate-500">Each member gets an individual page at /about/team/[slug] with a full biography.</p>
+            <div className="space-y-4">
               {aboutTeam.map((member: any, i: number) => (
-                <div key={i} className="flex items-start gap-2 rounded-lg border border-slate-200 bg-slate-50/50 p-3">
-                  <div className="flex-1 grid gap-2 sm:grid-cols-2">
+                <div key={i} className="rounded-lg border border-slate-200 bg-slate-50/50 p-4">
+                  <div className="mb-2 flex items-center justify-between">
+                    <span className="text-xs font-medium text-slate-400">Member {i + 1}</span>
+                    <button type="button" onClick={() => setAboutTeam(aboutTeam.filter((_: any, idx: number) => idx !== i))}
+                      className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-500"><Trash2 className="h-3.5 w-3.5" /></button>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
                     <input value={member.name} onChange={(e) => {
-                      const next = [...aboutTeam]; next[i] = { ...next[i], name: e.target.value }; setAboutTeam(next);
-                    }} placeholder="Name" className="rounded border border-slate-200 px-2 py-1.5 text-sm" />
+                      const next = [...aboutTeam]; next[i] = { ...next[i], name: e.target.value };
+                      if (!next[i].slug) next[i].slug = e.target.value.toLowerCase().replace(/\s+/g, "-");
+                      setAboutTeam(next);
+                    }} placeholder="Full Name *" className="rounded border border-slate-200 px-2 py-1.5 text-sm" />
+                    <input value={member.slug || ""} onChange={(e) => {
+                      const next = [...aboutTeam]; next[i] = { ...next[i], slug: e.target.value }; setAboutTeam(next);
+                    }} placeholder="Slug (e.g. john-doe)" className="rounded border border-slate-200 px-2 py-1.5 text-sm font-mono" />
                     <input value={member.role} onChange={(e) => {
                       const next = [...aboutTeam]; next[i] = { ...next[i], role: e.target.value }; setAboutTeam(next);
-                    }} placeholder="Role" className="rounded border border-slate-200 px-2 py-1.5 text-sm" />
+                    }} placeholder="Role / Title *" className="rounded border border-slate-200 px-2 py-1.5 text-sm" />
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-slate-500">Photo</label>
+                      <ImageUpload ref={(el) => { imageRefs.current[`team-${i}`] = el; }} value={member.image || ""} onChange={(id) => {
+                        const next = [...aboutTeam]; next[i] = { ...next[i], image: id }; setAboutTeam(next);
+                      }} label="Team Member Photo" />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className="mb-1 block text-xs font-medium text-slate-500">Full Biography (shown on /about/team/[slug])</label>
+                      <TeamMemberBioEditor
+                        value={member.bio || ""}
+                        onChange={(html) => {
+                          const next = [...aboutTeam]; next[i] = { ...next[i], bio: html }; setAboutTeam(next);
+                        }}
+                      />
+                    </div>
                   </div>
-                  <button type="button" onClick={() => setAboutTeam(aboutTeam.filter((_: any, idx: number) => idx !== i))}
-                    className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-500"><Trash2 className="h-3.5 w-3.5" /></button>
                 </div>
               ))}
-              <button type="button" onClick={() => setAboutTeam([...aboutTeam, { name: "", role: "", image: "" }])}
+              <button type="button" onClick={() => setAboutTeam([...aboutTeam, { name: "", slug: "", role: "", image: "", bio: "" }])}
                 className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border-2 border-dashed border-slate-300 px-3 py-2 text-xs font-medium text-slate-500 hover:border-teal-300 hover:bg-teal-50 hover:text-teal-600">
                 + Add team member
               </button>
@@ -734,5 +772,52 @@ export function PageManagerForm({
         </button>
       </div>
     </form>
+  );
+}
+
+// ── TipTap Rich Text Editor for Team Member Biography ──
+function TeamMemberBioEditor({ value, onChange }: { value: string; onChange: (html: string) => void }) {
+  const editor = useEditor({
+    extensions: [StarterKit],
+    content: value,
+    editorProps: {
+      attributes: { class: "prose prose-sm max-w-none focus:outline-none min-h-[180px] px-4 py-3" },
+    },
+    onUpdate: ({ editor }) => { onChange(editor.getHTML()); },
+  });
+
+  // Sync external value changes (e.g. when switching team members)
+  useEffect(() => {
+    if (editor && value !== editor.getHTML()) {
+      editor.commands.setContent(value);
+    }
+  }, [value, editor]);
+
+  if (!editor) {
+    return <div className="flex items-center justify-center rounded-lg border border-slate-200 bg-white p-8"><Loader2 className="h-5 w-5 animate-spin text-slate-400" /></div>;
+  }
+
+  return (
+    <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
+      <div className="flex flex-wrap items-center gap-0.5 border-b border-slate-200 px-2 py-1.5">
+        <ToolbarBtn onClick={() => editor.chain().focus().toggleBold().run()} active={editor.isActive("bold")} label="Bold">
+          <Bold className="h-3.5 w-3.5" />
+        </ToolbarBtn>
+        <ToolbarBtn onClick={() => editor.chain().focus().toggleItalic().run()} active={editor.isActive("italic")} label="Italic">
+          <Italic className="h-3.5 w-3.5" />
+        </ToolbarBtn>
+        <span className="mx-0.5 h-4 w-px bg-slate-200" />
+        <ToolbarBtn onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} active={editor.isActive("heading", { level: 2 })} label="Heading">
+          <Heading2 className="h-3.5 w-3.5" />
+        </ToolbarBtn>
+        <ToolbarBtn onClick={() => editor.chain().focus().toggleBulletList().run()} active={editor.isActive("bulletList")} label="Bullet List">
+          <List className="h-3.5 w-3.5" />
+        </ToolbarBtn>
+        <ToolbarBtn onClick={() => editor.chain().focus().toggleOrderedList().run()} active={editor.isActive("orderedList")} label="Numbered List">
+          <ListOrdered className="h-3.5 w-3.5" />
+        </ToolbarBtn>
+      </div>
+      <EditorContent editor={editor} />
+    </div>
   );
 }

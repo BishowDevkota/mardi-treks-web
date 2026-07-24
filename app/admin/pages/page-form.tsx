@@ -4,12 +4,15 @@ import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { createPage, updatePage, deletePage } from "./actions";
 import { RichTextEditor, type RichTextEditorHandle } from "@/components/admin/RichTextEditor";
+import { ImageUpload, type ImageUploadHandle } from "@/components/admin/trek-sections/ImageUpload";
 
 export function PageForm({ mode, page }: { mode: "create" | "edit"; page?: any }) {
   const router = useRouter();
   const [content, setContent] = useState(page?.content || "");
+  const [heroImage, setHeroImage] = useState(page?.heroImage || "");
   const [saving, setSaving] = useState(false);
   const editorRef = useRef<RichTextEditorHandle>(null);
+  const heroImageRef = useRef<ImageUploadHandle>(null);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -17,10 +20,14 @@ export function PageForm({ mode, page }: { mode: "create" | "edit"; page?: any }
     setSaving(true);
 
     // Process pending editor images before saving
-    const finalContent = await editorRef.current?.processPendingImages() ?? content;
+    const [uploadedHeroImage, finalContent] = await Promise.all([
+      heroImageRef.current?.save() ?? Promise.resolve(null),
+      editorRef.current?.processPendingImages() ?? Promise.resolve(content),
+    ]);
 
     const fd = new FormData(form);
     fd.set("content", finalContent);
+    fd.set("heroImage", uploadedHeroImage || heroImage);
     try {
       if (mode === "create") await createPage(fd);
       else if (page) await updatePage(page.id, fd);
@@ -52,6 +59,25 @@ export function PageForm({ mode, page }: { mode: "create" | "edit"; page?: any }
                   className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-mono focus:border-teal-300 focus:outline-none focus:ring-2 focus:ring-teal-100"
                 />
                 <p className="mt-1 text-xs text-slate-400">URL path: /{page?.slug || "your-slug"}</p>
+              </div>
+              <div>
+                <ImageUpload
+                  ref={heroImageRef}
+                  value={heroImage}
+                  onChange={setHeroImage}
+                  label="Hero Image"
+                  folder="mardi-treks/pages"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-500">Hero Description</label>
+                <textarea
+                  name="heroDescription"
+                  rows={3}
+                  defaultValue={page?.heroDescription || ""}
+                  placeholder="A short introduction shown below the page title."
+                  className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-teal-300 focus:outline-none focus:ring-2 focus:ring-teal-100"
+                />
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-500">Body</label>

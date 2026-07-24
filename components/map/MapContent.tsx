@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
@@ -13,6 +13,8 @@ interface MapContentProps {
   itinerary?: Array<{ dayNumber: number; title: string; elevation?: string | null }>;
 }
 
+const subscribeToClient = () => () => {};
+
 export default function MapContent({
   geoJsonUrl,
   geoJsonData,
@@ -22,21 +24,18 @@ export default function MapContent({
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<maplibregl.Map | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
+  const [error, setError] = useState<string | null>(token ? null : "Mapbox token not configured");
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  const mounted = useSyncExternalStore(subscribeToClient, () => true, () => false);
 
   useEffect(() => {
     if (!mapContainer.current || map.current) return;
 
-    const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
-    if (!token) {
-      setError("Mapbox token not configured");
-      return;
+    if (!token) return;
+
+    function withPitchAndBearing(m: maplibregl.Map) {
+      return { pitch: m.getPitch(), bearing: m.getBearing() };
     }
 
     function drawGeoJsonRoute(m: maplibregl.Map, data: any) {
@@ -75,7 +74,7 @@ export default function MapContent({
       } else if (data.type === "Feature" && data.geometry?.type === "LineString") {
         data.geometry.coordinates.forEach((c: number[]) => bounds.extend(c as [number, number]));
       }
-      if (!bounds.isEmpty()) m.fitBounds(bounds, { padding: 60 });
+      if (!bounds.isEmpty()) m.fitBounds(bounds, { padding: 60, ...withPitchAndBearing(m) });
     }
 
     function drawWaypointRoute(m: maplibregl.Map, wps: Array<{ lng: number; lat: number }>) {
@@ -107,7 +106,7 @@ export default function MapContent({
 
       const bounds = new maplibregl.LngLatBounds();
       coords.forEach((c) => bounds.extend(c as [number, number]));
-      if (!bounds.isEmpty()) m.fitBounds(bounds, { padding: 60, maxZoom: 14 });
+      if (!bounds.isEmpty()) m.fitBounds(bounds, { padding: 60, maxZoom: 14, ...withPitchAndBearing(m) });
     }
 
     try {
@@ -117,16 +116,31 @@ export default function MapContent({
           satellite: {
             type: "raster",
             tiles: [
-              "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+              `https://api.mapbox.com/v4/mapbox.satellite/{z}/{x}/{y}.jpg90?access_token=${token}`,
             ],
-            tileSize: 256,
-            attribution:
-              "&copy; Esri, Maxar, Earthstar Geographics, and the GIS User Community",
+            tileSize: 512,
+            attribution: "&copy; Mapbox &copy; OpenStreetMap contributors &copy; Maxar",
+          },
+          "terrain-source": {
+            type: "raster-dem",
+            tiles: [
+              `https://api.mapbox.com/v4/mapbox.terrain-rgb/{z}/{x}/{y}.pngraw?access_token=${token}`,
+            ],
+            tileSize: 512,
+            maxzoom: 14,
+            encoding: "mapbox",
+            attribution: "&copy; Mapbox &copy; OpenStreetMap contributors",
           },
         },
         layers: [
           { id: "satellite", type: "raster", source: "satellite" },
         ],
+        sky: {
+          "sky-color": "#8ecae6",
+          "horizon-color": "#f0ebe3",
+          "fog-color": "#e0e6ed",
+          "fog-ground-blend": 0.6,
+        },
       };
 
       const newMap = new maplibregl.Map({
@@ -134,147 +148,120 @@ export default function MapContent({
         style,
         center: [83.9, 28.5],
         zoom: 8,
-        pitch: 0,
+        pitch: 48,
         bearing: 0,
+        attributionControl: { compact: true },
       });
 
-      newMap.on("load", () => {
-        if (geoJsonData) {
-          try {
-            const data = JSON.parse(geoJsonData);
-            if (data && data.type) {
-              drawGeoJsonRoute(newMap, data);
-            }
-          } catch {}
+      // Add production controls
+      newMap.addControl(new maplibregl.NavigationControl(), "bottom-right");
+      newMap.addControl(new maplibregl.ScaleControl({ unit: "metric", maxWidth: 120 }), "bottom-left");
+
+      // Single terrain setup — called once after all data is ready
+      function setupAndFitMap() {
+        try {
+          newMap.setTerrain({ source: "terrain-source", exaggeration: 1.2 });
+        } catch (e) {
+          console.warn("Failed to set terrain:", e);
         }
-        if (!geoJsonData && geoJsonUrl) {
-          fetch(`/api/geojson-proxy?url=${encodeURIComponent(geoJsonUrl)}`)
-            .then((res) => res.json())
-            .then((data) => {
-              if (data.error) {
-                console.warn("GeoJSON proxy:", data.error, "— falling back to waypoints");
-                if (waypoints && waypoints.length >= 2) drawWaypointRoute(newMap, waypoints);
-                return null;
-              }
-              return data;
-            })
-            .then((data) => {
-              if (!data) return;
-              newMap.addSource("route", { type: "geojson", data });
 
-              newMap.addLayer({
-                id: "route-glow",
-                type: "line",
-                source: "route",
-                layout: { "line-join": "round", "line-cap": "round" },
-                paint: {
-                  "line-color": "#ea580c",
-                  "line-width": 8,
-                  "line-opacity": 0.2,
-                },
-              });
-
-              newMap.addLayer({
-                id: "route-line",
-                type: "line",
-                source: "route",
-                layout: { "line-join": "round", "line-cap": "round" },
-                paint: {
-                  "line-color": "#c2410c",
-                  "line-width": 4,
-                  "line-opacity": 0.9,
-                },
-              });
-
-              newMap.addLayer({
-                id: "route-label",
-                type: "symbol",
-                source: "route",
-                layout: {
-                  "symbol-placement": "line-center",
-                  "text-field": "Actual Trek Route",
-                  "text-font": ["DIN Pro Medium", "Arial Unicode MS Regular"],
-                  "text-size": 11,
-                  "text-offset": [0, -1.8],
-                },
-                paint: {
-                  "text-color": "#c2410c",
-                  "text-halo-color": "#ffffff",
-                  "text-halo-width": 2,
-                },
-              });
-
-              const bounds = new maplibregl.LngLatBounds();
-              data.features?.forEach((feature: any) => {
-                if (feature.geometry?.type === "LineString") {
-                  feature.geometry.coordinates.forEach((coord: number[]) => {
-                    bounds.extend(coord as [number, number]);
-                  });
+        const hasRoute = newMap.getSource("route") || newMap.getSource("wp-route");
+        if (!hasRoute) {
+          if (geoJsonData) {
+            try {
+              const data = JSON.parse(geoJsonData);
+              if (data && data.type) drawGeoJsonRoute(newMap, data);
+            } catch {}
+          } else if (geoJsonUrl) {
+            fetch(`/api/geojson-proxy?url=${encodeURIComponent(geoJsonUrl)}`)
+              .then((res) => res.json())
+              .then((data) => {
+                if (data.error) {
+                  if (waypoints && waypoints.length >= 2) drawWaypointRoute(newMap, waypoints);
+                  return;
                 }
+                if (!data) return;
+                newMap.addSource("route", { type: "geojson", data });
+                newMap.addLayer({
+                  id: "route-glow", type: "line", source: "route",
+                  layout: { "line-join": "round", "line-cap": "round" },
+                  paint: { "line-color": "#ea580c", "line-width": 8, "line-opacity": 0.2 },
+                });
+                newMap.addLayer({
+                  id: "route-line", type: "line", source: "route",
+                  layout: { "line-join": "round", "line-cap": "round" },
+                  paint: { "line-color": "#c2410c", "line-width": 4, "line-opacity": 0.9 },
+                });
+                newMap.addLayer({
+                  id: "route-label", type: "symbol", source: "route",
+                  layout: {
+                    "symbol-placement": "line-center",
+                    "text-field": "Actual Trek Route",
+                    "text-font": ["DIN Pro Medium", "Arial Unicode MS Regular"],
+                    "text-size": 11, "text-offset": [0, -1.8],
+                  },
+                  paint: { "text-color": "#c2410c", "text-halo-color": "#ffffff", "text-halo-width": 2 },
+                });
+                const b = new maplibregl.LngLatBounds();
+                data.features?.forEach((f: any) => {
+                  if (f.geometry?.type === "LineString") {
+                    f.geometry.coordinates.forEach((c: number[]) => b.extend(c as [number, number]));
+                  }
+                });
+                if (!b.isEmpty()) newMap.fitBounds(b, { padding: 60, maxZoom: 13, pitch: newMap.getPitch(), bearing: newMap.getBearing() });
+              })
+              .catch((err) => {
+                console.error("Failed to load GeoJSON:", err);
+                if (waypoints && waypoints.length >= 2) drawWaypointRoute(newMap, waypoints);
               });
-              if (!bounds.isEmpty()) {
-                newMap.fitBounds(bounds, { padding: 60 });
-              }
-            })
-            .catch((err) => {
-              console.error("Failed to load GeoJSON:", err);
-              if (waypoints && waypoints.length >= 2) {
-                drawWaypointRoute(newMap, waypoints);
-              }
-            });
+          } else if (waypoints && waypoints.length >= 2) {
+            drawWaypointRoute(newMap, waypoints);
+          }
         }
 
-        if (waypoints && waypoints.length >= 2 && !newMap.getSource("route") && !newMap.getSource("wp-route")) {
-          drawWaypointRoute(newMap, waypoints);
-        }
-
+        // Waypoint markers
         if (waypoints) {
           waypoints.forEach((wp, i) => {
             const el = document.createElement("div");
             el.className =
               "flex h-8 w-8 items-center justify-center rounded-full bg-primary text-xs font-bold text-white shadow-lg border-2 border-white cursor-pointer";
             el.textContent = `${i + 1}`;
-
-            new maplibregl.Marker({ element: el })
-              .setLngLat([wp.lng, wp.lat])
-              .addTo(newMap);
-
-            let currentPopup: maplibregl.Popup | null = null;
+            new maplibregl.Marker({ element: el }).setLngLat([wp.lng, wp.lat]).addTo(newMap);
+            let popup: maplibregl.Popup | null = null;
             el.addEventListener("mouseenter", () => {
-              currentPopup?.remove();
-              const html = [
-                `<div class="text-left max-w-[200px]">`,
-                wp.label ? `<strong class="text-sm block">${wp.label}</strong>` : "",
-                wp.description ? `<p class="text-xs text-slate-500 mt-1">${wp.description}</p>` : "",
-                `<span class="text-[10px] text-slate-400 mt-1 block">${wp.lat.toFixed(4)}, ${wp.lng.toFixed(4)}</span>`,
-                `</div>`,
-              ].join("");
-              currentPopup = new maplibregl.Popup({ offset: 25, closeButton: false, maxWidth: "280px" })
+              popup?.remove();
+              popup = new maplibregl.Popup({ offset: 25, closeButton: false, maxWidth: "280px" })
                 .setLngLat([wp.lng, wp.lat])
-                .setHTML(html)
+                .setHTML([
+                  `<div class="text-left max-w-[200px]">`,
+                  wp.label ? `<strong class="text-sm block">${wp.label}</strong>` : "",
+                  wp.description ? `<p class="text-xs text-slate-500 mt-1">${wp.description}</p>` : "",
+                  `<span class="text-[10px] text-slate-400 mt-1 block">${wp.lat.toFixed(4)}, ${wp.lng.toFixed(4)}</span>`,
+                  `</div>`,
+                ].join(""))
                 .addTo(newMap);
             });
-            el.addEventListener("mouseleave", () => {
-              currentPopup?.remove();
-              currentPopup = null;
-            });
+            el.addEventListener("mouseleave", () => { popup?.remove(); popup = null; });
           });
         }
 
-        if (!waypoints && itinerary) {
-          // Placeholder: itinerary day markers would need lat/lng from CMS
-        }
-
         setIsLoaded(true);
-      });
+      }
+
+      // Wait for style + all sources to be ready before setting terrain
+      if (newMap.isStyleLoaded()) {
+        setupAndFitMap();
+      } else {
+        newMap.once("style.load", setupAndFitMap);
+      }
 
       newMap.on("error", (e) => {
-        console.error("Map error:", e);
+        console.error("Map error:", (e as any).error ?? e);
       });
 
       map.current = newMap;
     } catch (err) {
-      setError("Failed to initialize map");
+      queueMicrotask(() => setError("Failed to initialize map"));
       console.error("Map init error:", err);
     }
 

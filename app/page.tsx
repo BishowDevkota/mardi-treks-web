@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
-import { getCachedOrFetch, cacheKeys } from "@/lib/redis";
+import { getCachedOrFetch, cacheKeys, CACHE_TTL } from "@/lib/redis";
 import { HeroCarousel } from "@/components/home/HeroCarousel";
 import { FallbackHero } from "@/components/home/FallbackHero";
 import { FeaturedTreksSection } from "@/components/home/FeaturedTreksSection";
@@ -41,7 +41,7 @@ export default async function HomePage() {
     () => prisma.homePageSettings.findUnique({
       where: { id: "home-settings" },
     }),
-    120
+    CACHE_TTL.LAYOUT
   );
 
   const featuredTrekIds: string[] = settings?.featuredTrekIds
@@ -63,7 +63,7 @@ export default async function HomePage() {
           _count: { select: { reviews: true } },
         },
       }),
-      120
+      CACHE_TTL.MODERATE
     );
     featuredTreksData.sort((a, b) => featuredTrekIds.indexOf(a.id) - featuredTrekIds.indexOf(b.id));
   }
@@ -85,7 +85,7 @@ export default async function HomePage() {
           _count: { select: { reviews: true } },
         },
       }),
-      120
+      CACHE_TTL.MODERATE
     );
     featuredSectionTreks.sort((a, b) => featuredSectionIds.indexOf(a.id) - featuredSectionIds.indexOf(b.id));
   }
@@ -98,7 +98,7 @@ export default async function HomePage() {
       select: { title: true, slug: true, region: true, difficulty: true, duration: true, category: { select: { slug: true } } },
       orderBy: { title: "asc" },
     }),
-    300
+    CACHE_TTL.MODERATE
   );
 
   // Build hero content for the company slide
@@ -121,24 +121,24 @@ export default async function HomePage() {
       take: 9,
       include: { trek: { select: { title: true, slug: true } } },
     }),
-    120
+    CACHE_TTL.FREQUENT
   );
 
   // Dynamic stats
   const totalTreks = await getCachedOrFetch(
     cacheKeys.stats + ":treks",
     () => prisma.trek.count({ where: { status: "published" } }),
-    120
+    CACHE_TTL.LAYOUT
   );
   const totalReviews = await getCachedOrFetch(
     cacheKeys.stats + ":reviews",
     () => prisma.trekReview.count({ where: { approved: true } }),
-    120
+    CACHE_TTL.LAYOUT
   );
   const totalBookings = await getCachedOrFetch(
     cacheKeys.stats + ":bookings",
     () => prisma.booking.count(),
-    120
+    CACHE_TTL.FREQUENT
   );
 
   const dynamicStats = [

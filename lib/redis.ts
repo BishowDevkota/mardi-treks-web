@@ -1,5 +1,19 @@
 import { Redis } from "@upstash/redis";
 
+// Cache TTLs (seconds) — based on content type and update frequency
+export const CACHE_TTL = {
+  /** Rarely-changing layout data: categories, site settings, navigation */
+  LAYOUT: 3600,           // 1 hour
+  /** Moderately dynamic content: trek lists, blog posts, reviews */
+  MODERATE: 1800,         // 30 minutes
+  /** Frequently changing stats: booking counts, review counts */
+  FREQUENT: 300,          // 5 minutes
+  /** Page content from CMS (rarely changes after publish) */
+  PAGE_CONTENT: 3600,     // 1 hour
+  /** Default fallback */
+  DEFAULT: 300,           // 5 minutes
+} as const;
+
 export const redis = new Redis({
   url: process.env.UPSTASH_REDIS_REST_URL!,
   token: process.env.UPSTASH_REDIS_REST_TOKEN!,
@@ -39,6 +53,11 @@ export const cacheKeys = {
 
   // Pages
   pageContent: "site:page-content",
+  pageBySlug: (slug: string) => `site:page:${slug}`,
+
+  // Team
+  teamMember: (slug: string) => `team:${slug}`,
+  teamMembers: "team:list",
 
   // Pattern helpers for bulk invalidation
   pattern: {
@@ -48,6 +67,7 @@ export const cacheKeys = {
     home: "home:*",
     category: "category:*",
     site: "site:*",
+    team: "team:*",
   },
 };
 
@@ -56,6 +76,13 @@ export async function getCachedOrFetch<T>(
   fetcher: () => Promise<T>,
   ttl = 300
 ): Promise<T> {
+  // Upstash uses no-store HTTP requests, which cannot run while Next.js is
+  // deciding whether a route can be prerendered. The database fetch remains
+  // the source of truth during builds; Redis is used for real requests.
+  if (process.env.NEXT_PHASE === "phase-production-build") {
+    return fetcher();
+  }
+
   try {
     const cached = await redis.get<T>(key);
     if (cached) return cached;

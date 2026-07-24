@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { use, useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { loadStripe, Stripe } from "@stripe/stripe-js";
 import { Elements, PaymentElement, useStripe, useElements } from "@stripe/react-stripe-js";
 import { ArrowLeft, Loader2 } from "lucide-react";
@@ -56,10 +56,11 @@ function CheckoutForm({ bookingId, onComplete }: { bookingId: string; onComplete
 
 export default function StripePaymentPage({ params }: { params: Promise<{ id: string }> }) {
   const searchParams = useSearchParams();
-  const [bookingId, setBookingId] = useState<string>("");
-  const [clientSecret, setClientSecret] = useState<string | null>(null);
+  const { id: bookingId } = use(params);
+  const initialClientSecret = searchParams.get("clientSecret");
+  const [clientSecret, setClientSecret] = useState<string | null>(initialClientSecret);
   const [stripePromise, setStripePromise] = useState<Promise<Stripe | null> | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!initialClientSecret);
   const [error, setError] = useState<string | null>(null);
 
   // Fetch the Stripe publishable key at runtime, then initialize Stripe
@@ -82,41 +83,30 @@ export default function StripePaymentPage({ params }: { params: Promise<{ id: st
   }, []);
 
   useEffect(() => {
-    params.then((p) => setBookingId(p.id));
-  }, [params]);
-
-  useEffect(() => {
     if (!bookingId || !stripePromise) return;
-    const cs = searchParams.get("clientSecret");
-    if (cs) {
-      setClientSecret(cs);
-      setLoading(false);
-    } else {
-      // Initiate payment if no clientSecret
-      initiatePayment();
-    }
-  }, [bookingId, stripePromise, searchParams]);
+    if (initialClientSecret) return;
 
-  async function initiatePayment() {
-    if (!bookingId) return;
-    try {
-      const res = await fetch("/api/payments/stripe", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ bookingId }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.error || "Failed to initiate payment");
-      } else {
-        setClientSecret(data.clientSecret);
+    async function initiatePayment() {
+      try {
+        const res = await fetch("/api/payments/stripe", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ bookingId }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          setError(data.error || "Failed to initiate payment");
+        } else {
+          setClientSecret(data.clientSecret);
+        }
+      } catch {
+        setError("Failed to connect to payment server");
+      } finally {
+        setLoading(false);
       }
-    } catch {
-      setError("Failed to connect to payment server");
-    } finally {
-      setLoading(false);
     }
-  }
+    initiatePayment();
+  }, [bookingId, stripePromise, initialClientSecret]);
 
   if (loading || !stripePromise) {
     return (

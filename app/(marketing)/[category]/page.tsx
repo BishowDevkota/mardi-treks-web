@@ -1,14 +1,19 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { getCachedOrFetch, cacheKeys } from "@/lib/redis";
+import { getCachedOrFetch, cacheKeys, CACHE_TTL } from "@/lib/redis";
 import { CategoryClient } from "./category-client";
+import { SearchBar } from "@/components/search/SearchBar";
 import {
   Star,
   SlidersHorizontal,
   X,
   ChevronDown,
+  Calendar,
+  Clock,
+  Mountain,
 } from "lucide-react";
 
 const difficultyStyles: Record<string, { badge: string; dot: string }> = {
@@ -44,7 +49,7 @@ function FilterSection({
   );
 }
 
-export const revalidate = 300;
+export const revalidate = 3600;
 
 export async function generateMetadata({
   params,
@@ -55,9 +60,28 @@ export async function generateMetadata({
   const cat = await getCachedOrFetch(
     cacheKeys.categoryBySlug(slug),
     () => prisma.category.findUnique({ where: { slug } }),
-    300
+    CACHE_TTL.LAYOUT
   );
-  if (!cat) return { title: "Category Not Found" };
+  if (!cat) {
+    const page = await getCachedOrFetch(
+      cacheKeys.pageBySlug(slug),
+      () => prisma.page.findFirst({ where: { slug, status: "published" } }),
+      CACHE_TTL.PAGE_CONTENT
+    );
+    if (!page) return { title: "Page Not Found" };
+
+    return {
+      title: page.metaTitle || page.title,
+      description: page.metaDescription || undefined,
+      alternates: { canonical: `https://marditreks.com/${page.slug}` },
+      openGraph: {
+        title: page.metaTitle || page.title,
+        description: page.metaDescription || undefined,
+        url: `https://marditreks.com/${page.slug}`,
+        images: page.ogImage ? [page.ogImage] : undefined,
+      },
+    };
+  }
 
   return {
     title: cat.metaTitle || `${cat.name} | Mardi Treks`,
@@ -95,9 +119,216 @@ export default async function CategoryListingPage({
   const category = await getCachedOrFetch(
     cacheKeys.categoryBySlug(catSlug),
     () => prisma.category.findUnique({ where: { slug: catSlug } }),
-    300
+    CACHE_TTL.LAYOUT
   );
-  if (!category) notFound();
+  if (!category) {
+    const page = await getCachedOrFetch(
+      cacheKeys.pageBySlug(catSlug),
+      () => prisma.page.findFirst({ where: { slug: catSlug, status: "published" } }),
+      CACHE_TTL.PAGE_CONTENT
+    );
+    if (!page) notFound();
+
+    const [latestPosts, homeSettings, allTreksForSearch] = await Promise.all([
+      getCachedOrFetch(
+        cacheKeys.blogPosts,
+        () => prisma.blogPost.findMany({
+          where: { status: "published" },
+          orderBy: { publishedDate: "desc" },
+          take: 3,
+          select: {
+            slug: true,
+            title: true,
+            excerpt: true,
+            publishedDate: true,
+            heroImage: true,
+          },
+        }),
+        CACHE_TTL.MODERATE
+      ),
+      prisma.homePageSettings.findUnique({
+        where: { id: "home-settings" },
+        select: { featuredSectionTrekIds: true },
+      }),
+      getCachedOrFetch(
+        cacheKeys.searchTreks,
+        () => prisma.trek.findMany({
+          where: { status: "published" },
+          select: {
+            title: true,
+            slug: true,
+            region: true,
+            difficulty: true,
+            duration: true,
+            category: { select: { slug: true } },
+          },
+          orderBy: { title: "asc" },
+        }),
+        CACHE_TTL.MODERATE
+      ),
+    ]);
+
+    const featuredIds: string[] = (() => {
+      try {
+        const parsed = JSON.parse(homeSettings?.featuredSectionTrekIds || "[]");
+        return Array.isArray(parsed) ? parsed.slice(0, 3) : [];
+      } catch {
+        return [];
+      }
+    })();
+
+    const featuredTreks = await prisma.trek.findMany({
+      where: featuredIds.length
+        ? { id: { in: featuredIds }, status: "published" }
+        : { status: "published" },
+      take: 3,
+      orderBy: featuredIds.length ? undefined : { createdAt: "desc" },
+      select: {
+        id: true,
+        slug: true,
+        title: true,
+        heroImage: true,
+        duration: true,
+        category: { select: { slug: true } },
+      },
+    });
+    featuredTreks.sort((a, b) => featuredIds.indexOf(a.id) - featuredIds.indexOf(b.id));
+
+    const heroImageUrl = page.heroImage
+      ? `https://res.cloudinary.com/dk7ggjvlw/image/upload/c_fill,w_1600,q_auto,f_auto/${page.heroImage}`
+      : null;
+
+    return (
+      <>
+        <section className="relative isolate flex min-h-[clamp(460px,72vh,760px)] flex-col overflow-hidden">
+          {heroImageUrl ? (
+            <div
+              className="absolute inset-0 bg-cover bg-center"
+              style={{ backgroundImage: `url(${heroImageUrl})`, transform: "scale(1.02)" }}
+            />
+          ) : (
+            <div className="absolute inset-0 bg-gradient-to-br from-secondary-dark via-primary-dark/20 to-gray-900" />
+          )}
+          <div className="absolute inset-0 z-[1] bg-gradient-to-b from-black/5 via-black/35 to-black/90" />
+          <div className="relative z-10 mt-auto w-full">
+            <div className="mx-auto max-w-screen-2xl px-4 pb-[clamp(48px,7vw,84px)] sm:px-6 lg:px-8">
+              <h1 className="max-w-4xl text-[clamp(36px,5.5vw,64px)] font-bold leading-[1.06] tracking-tight text-white">
+                {page.title}
+              </h1>
+              {page.heroDescription && (
+                <p className="mt-5 max-w-2xl text-base leading-relaxed text-white/80 sm:text-lg">
+                  {page.heroDescription}
+                </p>
+              )}
+              <nav aria-label="Breadcrumb" className="mb-3 mt-7 flex items-center gap-2 text-sm text-white/60">
+                <Link href="/" className="hover:text-white">Home</Link>
+                <span>/</span>
+                <span className="truncate text-white/85">{page.title}</span>
+              </nav>
+              <div className="w-full max-w-xl">
+                <SearchBar treks={allTreksForSearch} />
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <div className="mx-auto max-w-screen-2xl px-4 py-12 pb-24 sm:px-6 lg:px-8">
+          <div className="grid gap-12 lg:grid-cols-3">
+            <article
+              className="prose-custom rich-text lg:col-span-2"
+              dangerouslySetInnerHTML={{ __html: page.content }}
+            />
+
+            <aside className="space-y-6 lg:sticky lg:top-24 lg:self-start">
+              {latestPosts.length > 0 && (
+                <div className="overflow-hidden rounded-2xl border border-border bg-surface shadow-sm">
+                  <div className="border-b border-border bg-surface-alt px-5 py-4">
+                    <h2 className="text-xs font-black uppercase tracking-[0.2em] text-foreground">
+                      Latest Articles
+                    </h2>
+                  </div>
+                  <div className="divide-y divide-border">
+                    {latestPosts.map((post) => (
+                      <Link
+                        key={post.slug}
+                        href={`/blog/${post.slug}`}
+                        className="group flex gap-3 px-5 py-4 transition-colors hover:bg-surface-alt"
+                      >
+                        {post.heroImage ? (
+                          <Image
+                            src={`https://res.cloudinary.com/dk7ggjvlw/image/upload/c_fill,w_160,h_120,q_auto,f_auto/${post.heroImage}`}
+                            alt=""
+                            width={80}
+                            height={64}
+                            className="h-16 w-20 shrink-0 rounded-lg object-cover"
+                          />
+                        ) : (
+                          <div className="flex h-16 w-20 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+                            <Mountain className="h-5 w-5 text-primary" />
+                          </div>
+                        )}
+                        <div className="min-w-0">
+                          <p className="line-clamp-2 text-sm font-semibold leading-snug text-foreground group-hover:text-primary">
+                            {post.title}
+                          </p>
+                          <p className="mt-1 flex items-center gap-1 text-[11px] text-text-muted">
+                            <Calendar className="h-3 w-3" />
+                            {new Date(post.publishedDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                          </p>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {featuredTreks.length > 0 && (
+                <div className="overflow-hidden rounded-2xl border border-border bg-surface shadow-sm">
+                  <div className="border-b border-border bg-surface-alt px-5 py-4">
+                    <h2 className="text-xs font-black uppercase tracking-[0.2em] text-foreground">
+                      Featured Treks
+                    </h2>
+                  </div>
+                  <div className="divide-y divide-border">
+                    {featuredTreks.map((trek) => (
+                      <Link
+                        key={trek.id}
+                        href={`/${trek.category?.slug || "treks"}/${trek.slug}`}
+                        className="group flex gap-3 px-5 py-4 transition-colors hover:bg-surface-alt"
+                      >
+                        {trek.heroImage ? (
+                          <Image
+                            src={`https://res.cloudinary.com/dk7ggjvlw/image/upload/c_fill,w_160,h_120,q_auto,f_auto/${trek.heroImage}`}
+                            alt=""
+                            width={80}
+                            height={64}
+                            className="h-16 w-20 shrink-0 rounded-lg object-cover"
+                          />
+                        ) : (
+                          <div className="flex h-16 w-20 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+                            <Mountain className="h-5 w-5 text-primary" />
+                          </div>
+                        )}
+                        <div className="min-w-0">
+                          <p className="line-clamp-2 text-sm font-semibold leading-snug text-foreground group-hover:text-primary">
+                            {trek.title}
+                          </p>
+                          <p className="mt-1 flex items-center gap-1 text-[11px] text-text-muted">
+                            <Clock className="h-3 w-3" />
+                            {trek.duration} days
+                          </p>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </aside>
+          </div>
+        </div>
+      </>
+    );
+  }
 
   const where: any = { status: "published", categoryId: category.id };
   if (filters.region) where.region = filters.region;
@@ -120,7 +351,24 @@ export default async function CategoryListingPage({
       where: { status: "published", categoryId: category.id },
       orderBy: { createdAt: "desc" },
     }),
-    120
+    CACHE_TTL.MODERATE
+  );
+
+  const allTreksForSearch = await getCachedOrFetch(
+    cacheKeys.searchTreks,
+    () => prisma.trek.findMany({
+      where: { status: "published" },
+      select: {
+        title: true,
+        slug: true,
+        region: true,
+        difficulty: true,
+        duration: true,
+        category: { select: { slug: true } },
+      },
+      orderBy: { title: "asc" },
+    }),
+    CACHE_TTL.MODERATE
   );
 
   const filteredTreksRaw = await prisma.trek.findMany({
@@ -227,6 +475,14 @@ export default async function CategoryListingPage({
           <h1 className="text-4xl font-bold tracking-tight text-foreground sm:text-5xl">
             {category.name}
           </h1>
+          <nav aria-label="Breadcrumb" className="mb-3 mt-6 flex items-center justify-center gap-2 text-sm text-text-muted">
+            <Link href="/" className="transition-colors hover:text-primary">Home</Link>
+            <span>/</span>
+            <span className="text-foreground">{category.name}</span>
+          </nav>
+          <div className="mx-auto max-w-xl">
+            <SearchBar treks={allTreksForSearch} />
+          </div>
         </div>
       </section>
 

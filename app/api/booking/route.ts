@@ -3,7 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createBookingSchema } from "@/lib/validations";
 import { bookingRateLimit, checkRateLimit } from "@/lib/rate-limit";
-import { sendBookingNotification } from "@/lib/email";
+import { sendBookingNotification, sendBookingReceivedEmail } from "@/lib/email";
 
 export async function POST(request: NextRequest) {
   try {
@@ -168,6 +168,32 @@ export async function POST(request: NextRequest) {
         });
       }
 
+      // Keep the customer contact in sync with their latest booking details.
+      await tx.crmContact.upsert({
+        where: { userId },
+        create: {
+          userId,
+          name: userExists.name || travelers[0]?.fullName || userExists.email,
+          email: userExists.email,
+          phone: userExists.phone || travelers[0]?.phone || null,
+          country: userExists.nationality || travelers[0]?.nationality || null,
+          source: "online_booking",
+          type: "customer",
+          status: "active",
+          lastContactedAt: new Date(),
+        },
+        update: {
+          name: userExists.name || travelers[0]?.fullName || userExists.email,
+          email: userExists.email,
+          phone: userExists.phone || travelers[0]?.phone || null,
+          country: userExists.nationality || travelers[0]?.nationality || null,
+          source: "online_booking",
+          type: "customer",
+          status: "active",
+          lastContactedAt: new Date(),
+        },
+      });
+
       return newBooking;
     });
 
@@ -175,7 +201,7 @@ export async function POST(request: NextRequest) {
     try {
       const user = await prisma.user.findUnique({ where: { id: userId }, select: { name: true, email: true } });
       if (user) {
-        sendBookingNotification({
+        const adminNotification = sendBookingNotification({
           customerName: user.name || "Unknown",
           customerEmail: user.email,
           trekTitle,
@@ -192,7 +218,15 @@ export async function POST(request: NextRequest) {
           totalPrice,
           addons: addons || [],
           specialRequests,
-        }).catch((err) => console.error("Failed to send booking email:", err));
+        }).catch((err) => console.error("Failed to send admin booking email:", err));
+        const customerConfirmation = sendBookingReceivedEmail({
+          name: user.name || "there",
+          email: user.email,
+          trekTitle,
+          startDate,
+          bookingId: booking.id,
+        }).catch((err) => console.error("Failed to send customer booking email:", err));
+        void Promise.allSettled([adminNotification, customerConfirmation]);
       }
     } catch (err) {
       console.error("Failed to send booking notification:", err);

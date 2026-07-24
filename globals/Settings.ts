@@ -4,7 +4,7 @@ import { invalidateSettingsCache } from "@/lib/payload-hooks";
 export const Settings: GlobalConfig = {
   slug: "settings",
   hooks: {
-    afterChange: [() => { invalidateSettingsCache(); }],
+    afterChange: [async () => { await invalidateSettingsCache(); }],
   },
   label: "Site Settings",
   admin: {

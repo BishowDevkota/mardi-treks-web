@@ -3,10 +3,14 @@ import { revalidatePath, revalidateTag } from "next/cache";
 
 // Secret to prevent unauthorized revalidation
 // Set REVALIDATION_SECRET in environment variables
-const REVALIDATION_SECRET = process.env.REVALIDATION_SECRET || "dev-secret";
+const REVALIDATION_SECRET = process.env.REVALIDATION_SECRET;
 
 export async function POST(request: NextRequest) {
   try {
+    if (!REVALIDATION_SECRET) {
+      console.error("REVALIDATION_SECRET is not configured");
+      return NextResponse.json({ error: "Service unavailable" }, { status: 503 });
+    }
     // Verify secret
     const authHeader = request.headers.get("authorization");
     const body = await request.json().catch(() => ({}));

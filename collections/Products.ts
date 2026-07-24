@@ -4,8 +4,8 @@ import { invalidateTreksCache } from "@/lib/payload-hooks";
 export const Products: CollectionConfig = {
   slug: "products",
   hooks: {
-    afterChange: [() => { invalidateTreksCache(); }],
-    afterDelete: [() => { invalidateTreksCache(); }],
+    afterChange: [async () => { await invalidateTreksCache(); }],
+    afterDelete: [async () => { await invalidateTreksCache(); }],
   },
   labels: {
     singular: "Product",

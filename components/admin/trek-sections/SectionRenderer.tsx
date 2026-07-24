@@ -473,7 +473,7 @@ function MapSection({ data, onChange }: { data: MapData; onChange: (d: MapData) 
       <Field label="Section Description (optional)">
         <textarea rows={2} value={data.description || ""} onChange={(e) => setMeta("description", e.target.value)} placeholder="A brief description about the map..." className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
       </Field>
-      <MapPreview centerLat={data.centerLat} centerLng={data.centerLng} zoom={data.zoom} pitch={data.pitch} />
+      <MapPreview centerLat={data.centerLat} centerLng={data.centerLng} zoom={data.zoom} pitch={data.pitch} geoJsonData={data.geoJsonData} />
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         <Field label="Center Lat" slim><input type="number" step="any" value={data.centerLat} onChange={(e) => set("centerLat", parseFloat(e.target.value) || 0)} className="w-full rounded border border-slate-200 px-2 py-1.5 text-sm" /></Field>
         <Field label="Center Lng" slim><input type="number" step="any" value={data.centerLng} onChange={(e) => set("centerLng", parseFloat(e.target.value) || 0)} className="w-full rounded border border-slate-200 px-2 py-1.5 text-sm" /></Field>

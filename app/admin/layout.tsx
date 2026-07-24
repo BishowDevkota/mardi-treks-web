@@ -10,14 +10,22 @@ export const nav = [
   { label: "Treks", href: "/admin/treks", icon: "List" },
   { label: "Categories", href: "/admin/categories", icon: "FolderKanban" },
   { label: "Blog Posts", href: "/admin/blog", icon: "FileText" },
-  { label: "Bookings", href: "/admin/bookings", icon: "ShoppingCart" },
   { label: "Reviews", href: "/admin/reviews", icon: "MessageSquare" },
-  { label: "Users", href: "/admin/users", icon: "Users" },
   { label: "Media", href: "/admin/media", icon: "ImageIcon" },
   { label: "Pages", href: "/admin/pages", icon: "Calendar" },
   { label: "Page Manager", href: "/admin/page-manager", icon: "FileText" },
   { label: "Navigation", href: "/admin/navigation", icon: "Menu" },
   { label: "Settings", href: "/admin/settings", icon: "Settings" },
+];
+
+// CRM sub-navigation items
+export const crmNav = [
+  { label: "CRM Dashboard", href: "/admin/crm", icon: "LayoutDashboard" },
+  { label: "Bookings", href: "/admin/bookings", icon: "ShoppingCart" },
+  { label: "Users", href: "/admin/users", icon: "Users" },
+  { label: "Contacts", href: "/admin/crm/contacts", icon: "Users" },
+  { label: "Communications", href: "/admin/crm/communication", icon: "Send" },
+  { label: "CRM Settings", href: "/admin/crm/settings", icon: "Settings" },
 ];
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -29,6 +37,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       {/* Desktop Sidebar */}
       <AdminSidebar
         nav={nav}
+        crmNav={crmNav}
         userName={session.user.name || "Admin"}
         userEmail={session.user.email || ""}
         userInitial={(session.user.name || session.user.email || "A").charAt(0).toUpperCase()}
@@ -38,7 +47,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       <div className="flex flex-1 flex-col overflow-hidden">
         {/* Top Bar */}
         <header className="flex h-16 shrink-0 items-center gap-4 border-b border-slate-200 bg-white px-4 sm:px-6">
-          <AdminMobileSidebar nav={nav} userName={session.user.name || session.user.email || ""} />
+          <AdminMobileSidebar nav={nav} crmNav={crmNav} userName={session.user.name || session.user.email || ""} />
           <div className="hidden sm:flex sm:flex-1" />
           <div className="flex items-center gap-3">
             <button className="relative rounded-lg p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600">

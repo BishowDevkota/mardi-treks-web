@@ -8,9 +8,10 @@ interface MapPreviewProps {
   centerLng: number;
   zoom: number;
   pitch: number;
+  geoJsonData?: string | null;
 }
 
-export function MapPreview({ centerLat, centerLng, zoom, pitch }: MapPreviewProps) {
+export function MapPreview({ centerLat, centerLng, zoom, pitch, geoJsonData }: MapPreviewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -31,15 +32,31 @@ export function MapPreview({ centerLat, centerLng, zoom, pitch }: MapPreviewProp
             satellite: {
               type: "raster",
               tiles: [
-                "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+                `https://api.mapbox.com/v4/mapbox.satellite/{z}/{x}/{y}.jpg90?access_token=${process.env.NEXT_PUBLIC_MAPBOX_TOKEN}`,
               ],
-              tileSize: 256,
-              attribution: "&copy; Esri, Maxar, Earthstar Geographics",
+              tileSize: 512,
+              attribution: "&copy; Mapbox &copy; OpenStreetMap contributors &copy; Maxar",
+            },
+            "terrain-source": {
+              type: "raster-dem",
+              tiles: [
+                `https://api.mapbox.com/v4/mapbox.terrain-rgb/{z}/{x}/{y}.pngraw?access_token=${process.env.NEXT_PUBLIC_MAPBOX_TOKEN}`,
+              ],
+              tileSize: 512,
+              maxzoom: 14,
+              encoding: "mapbox",
+              attribution: "&copy; Mapbox &copy; OpenStreetMap contributors",
             },
           },
           layers: [
             { id: "satellite", type: "raster", source: "satellite" },
           ],
+          sky: {
+            "sky-color": "#8ecae6",
+            "horizon-color": "#f0ebe3",
+            "fog-color": "#e0e6ed",
+            "fog-ground-blend": 0.6,
+          },
         };
 
         map = new maplibregl.default.Map({
@@ -47,11 +64,89 @@ export function MapPreview({ centerLat, centerLng, zoom, pitch }: MapPreviewProp
           style,
           center: [centerLng, centerLat],
           zoom,
-          pitch: 0,
+          pitch: 42,
           interactive: false,
         });
 
         map.on("load", () => {
+          try {
+            map.setTerrain({ source: "terrain-source", exaggeration: 1.3 });
+
+            // Re-fit bounds with terrain enabled so pitch is preserved
+            if (geoJsonData) {
+              try {
+                const route = JSON.parse(geoJsonData);
+                const bounds = new maplibregl.LngLatBounds();
+                const includeCoordinates = (coordinates: unknown) => {
+                  if (!Array.isArray(coordinates)) return;
+                  if (
+                    coordinates.length >= 2 &&
+                    typeof coordinates[0] === "number" &&
+                    typeof coordinates[1] === "number"
+                  ) {
+                    bounds.extend([coordinates[0], coordinates[1]]);
+                    return;
+                  }
+                  coordinates.forEach(includeCoordinates);
+                };
+                if (route.type === "FeatureCollection") {
+                  route.features?.forEach((feature: any) => includeCoordinates(feature.geometry?.coordinates));
+                } else if (route.type === "Feature") {
+                  includeCoordinates(route.geometry?.coordinates);
+                } else {
+                  includeCoordinates(route.coordinates);
+                }
+                if (!bounds.isEmpty()) map.fitBounds(bounds, { padding: 30, maxZoom: 13, pitch: map.getPitch(), bearing: map.getBearing() });
+              } catch {}
+            }
+          } catch {}
+        });
+
+        map.on("load", () => {
+          if (geoJsonData) {
+            try {
+              const route = JSON.parse(geoJsonData);
+              map.addSource("uploaded-route", { type: "geojson", data: route });
+              map.addLayer({
+                id: "uploaded-route-glow",
+                type: "line",
+                source: "uploaded-route",
+                layout: { "line-join": "round", "line-cap": "round" },
+                paint: { "line-color": "#f97316", "line-width": 8, "line-opacity": 0.3 },
+              });
+              map.addLayer({
+                id: "uploaded-route-line",
+                type: "line",
+                source: "uploaded-route",
+                layout: { "line-join": "round", "line-cap": "round" },
+                paint: { "line-color": "#c2410c", "line-width": 4, "line-opacity": 1 },
+              });
+
+              const bounds = new maplibregl.LngLatBounds();
+              const includeCoordinates = (coordinates: unknown) => {
+                if (!Array.isArray(coordinates)) return;
+                if (
+                  coordinates.length >= 2 &&
+                  typeof coordinates[0] === "number" &&
+                  typeof coordinates[1] === "number"
+                ) {
+                  bounds.extend([coordinates[0], coordinates[1]]);
+                  return;
+                }
+                coordinates.forEach(includeCoordinates);
+              };
+              if (route.type === "FeatureCollection") {
+                route.features?.forEach((feature: any) => includeCoordinates(feature.geometry?.coordinates));
+              } else if (route.type === "Feature") {
+                includeCoordinates(route.geometry?.coordinates);
+              } else {
+                includeCoordinates(route.coordinates);
+              }
+              if (!bounds.isEmpty()) map.fitBounds(bounds, { padding: 30, maxZoom: 13 });
+            } catch {
+              if (mounted) setError("Uploaded route data is invalid");
+            }
+          }
           if (mounted) setLoading(false);
         });
 
@@ -70,7 +165,7 @@ export function MapPreview({ centerLat, centerLng, zoom, pitch }: MapPreviewProp
       mounted = false;
       if (map) map.remove();
     };
-  }, [centerLat, centerLng, zoom, pitch]);
+  }, [centerLat, centerLng, zoom, pitch, geoJsonData]);
 
   if (error) {
     return (

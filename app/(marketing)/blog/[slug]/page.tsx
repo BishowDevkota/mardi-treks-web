@@ -3,12 +3,12 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Calendar, Clock, ArrowLeft, ArrowRight, Mountain } from "lucide-react";
 import { prisma } from "@/lib/prisma";
-import { getCachedOrFetch, cacheKeys } from "@/lib/redis";
+import { getCachedOrFetch, cacheKeys, CACHE_TTL } from "@/lib/redis";
 import { SearchBar } from "@/components/search/SearchBar";
 import { injectHeadingIds } from "@/lib/headings";
 import BlogSidebar from "@/components/blog/BlogSidebar";
 
-export const revalidate = 300;
+export const revalidate = 1800;
 
 export async function generateMetadata({
   params,
@@ -22,7 +22,7 @@ export async function generateMetadata({
       where: { slug },
       select: { title: true, excerpt: true, metaTitle: true, metaDescription: true, keywords: true },
     }),
-    300
+    CACHE_TTL.MODERATE
   );
   if (!post) return {};
 
@@ -45,7 +45,7 @@ export default async function BlogPostPage({
     () => prisma.blogPost.findUnique({
       where: { slug, status: "published" },
     }),
-    300
+    CACHE_TTL.MODERATE
   );
 
   if (!post) notFound();
@@ -58,7 +58,7 @@ export default async function BlogPostPage({
       select: { title: true, slug: true, region: true, difficulty: true, duration: true, category: { select: { slug: true } } },
       orderBy: { title: "asc" },
     }),
-    300
+    CACHE_TTL.MODERATE
   );
 
   const readTime = Math.max(1, Math.round((post.content?.split(/\s+/).length || 0) / 200));
@@ -132,19 +132,19 @@ export default async function BlogPostPage({
             </div>
           )}
 
+          {/* Title — same size as PageHero */}
+          <h1 className="mb-6 text-[clamp(32px,5vw,58px)] font-bold leading-[1.08] tracking-tight text-white">
+            {post.title}
+          </h1>
+
           {/* Breadcrumbs */}
-          <nav className="mb-6 flex items-center gap-2 text-sm text-white/50">
+          <nav aria-label="Breadcrumb" className="mb-3 flex items-center gap-2 text-sm text-white/50">
             <Link href="/" className="transition-colors hover:text-white/80">Home</Link>
             <span className="text-white/30">/</span>
             <Link href="/blog" className="transition-colors hover:text-white/80">Blog</Link>
             <span className="text-white/30">/</span>
             <span className="text-white/80 truncate max-w-[200px] sm:max-w-[400px]">{post.title}</span>
           </nav>
-
-          {/* Title — same size as PageHero */}
-          <h1 className="mb-6 text-[clamp(32px,5vw,58px)] font-bold leading-[1.08] tracking-tight text-white">
-            {post.title}
-          </h1>
 
           {/* Search bar — after title */}
           <div className="mb-8 w-full max-w-xl">

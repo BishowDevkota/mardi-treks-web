@@ -44,6 +44,62 @@ export type AddonInfo = {
   pricePerUnit: number;
 };
 
+export async function sendWelcomeEmail({
+  name,
+  email,
+}: {
+  name: string;
+  email: string;
+}) {
+  await getTransporter().sendMail({
+    from: `"Mardi Treks" <${process.env.SMTP_USER}>`,
+    to: email,
+    subject: "Welcome to Mardi Treks",
+    html: `
+      <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;line-height:1.65;color:#334155;">
+        <h2 style="color:#0f766e;">Welcome to Mardi Treks, ${escapeHtml(name)}!</h2>
+        <p>Thank you for creating your account. You can now explore our treks, submit bookings, and view your booking information from your dashboard.</p>
+        <p>If you need help choosing a trek, simply reply to this email.</p>
+        <p style="margin-top:28px;">Warm regards,<br /><strong>Mardi Treks</strong></p>
+      </div>
+    `,
+  });
+}
+
+export async function sendBookingReceivedEmail({
+  name,
+  email,
+  trekTitle,
+  startDate,
+  bookingId,
+}: {
+  name: string;
+  email: string;
+  trekTitle: string;
+  startDate: string;
+  bookingId: string;
+}) {
+  await getTransporter().sendMail({
+    from: `"Mardi Treks" <${process.env.SMTP_USER}>`,
+    to: email,
+    subject: `We received your ${trekTitle} booking request`,
+    html: `
+      <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;line-height:1.65;color:#334155;">
+        <h2 style="color:#0f766e;">Your booking request has been received</h2>
+        <p>Hello ${escapeHtml(name)},</p>
+        <p>Thank you for choosing Mardi Treks. Your booking details have been sent to our team successfully.</p>
+        <div style="margin:20px 0;padding:16px;border-radius:10px;background:#f0fdfa;">
+          <strong>${escapeHtml(trekTitle)}</strong><br />
+          Preferred start date: ${escapeHtml(startDate)}<br />
+          Reference: ${escapeHtml(bookingId)}
+        </div>
+        <p>We will review the details and respond within 24 hours. Your booking is pending until our team confirms it.</p>
+        <p style="margin-top:28px;">Warm regards,<br /><strong>Mardi Treks</strong></p>
+      </div>
+    `,
+  });
+}
+
 export async function sendBookingNotification({
   customerName,
   customerEmail,

@@ -4,8 +4,8 @@ import { invalidatePagesCache } from "@/lib/payload-hooks";
 export const Pages: CollectionConfig = {
   slug: "pages",
   hooks: {
-    afterChange: [() => { invalidatePagesCache(); }],
-    afterDelete: [() => { invalidatePagesCache(); }],
+    afterChange: [async () => { await invalidatePagesCache(); }],
+    afterDelete: [async () => { await invalidatePagesCache(); }],
   },
   admin: {
     useAsTitle: "title",

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Mountain } from "lucide-react";
 import { prisma } from "@/lib/prisma";
-import { getCachedOrFetch, cacheKeys } from "@/lib/redis";
+import { getCachedOrFetch, cacheKeys, CACHE_TTL } from "@/lib/redis";
 import { BlogCard } from "@/components/blog/BlogCard";
 import { PageHero } from "@/components/layout/PageHero";
 import { Pagination } from "@/components/ui/Pagination";
@@ -17,7 +17,7 @@ async function getPageContent() {
       if (!raw) return null;
       try { return JSON.parse(raw); } catch { return null; }
     },
-    300
+    CACHE_TTL.PAGE_CONTENT
   );
 }
 
@@ -71,7 +71,7 @@ export default async function BlogPage({
         heroImage: true,
       },
     }),
-    300
+    CACHE_TTL.MODERATE
   );
 
   const postsWithReadTime = posts.map((post) => {
@@ -113,6 +113,7 @@ export default async function BlogPage({
         description={hero.description}
         backgroundImage={hero.backgroundImage}
         treks={allTreksForSearch}
+        breadcrumbLabel="Blog"
       />
 
       {/* Posts */}

@@ -3,6 +3,7 @@ import { hash } from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { signUpSchema } from "@/lib/validations";
 import { authRateLimit, checkRateLimit } from "@/lib/rate-limit";
+import { sendWelcomeEmail } from "@/lib/email";
 
 export async function POST(request: Request) {
   try {
@@ -57,6 +58,11 @@ export async function POST(request: Request) {
         role: "customer",
       },
     });
+
+    sendWelcomeEmail({
+      name: user.name || "there",
+      email: user.email,
+    }).catch((error) => console.error("Failed to send welcome email:", error));
 
     return NextResponse.json(
       {

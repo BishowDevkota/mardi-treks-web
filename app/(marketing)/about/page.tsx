@@ -1,28 +1,28 @@
 import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
 import Image from "next/image";
+import Link from "next/link";
 import { Mountain, Shield, Heart, Award, Globe, Users } from "lucide-react";
 import { WhyChooseUs } from "@/components/home/WhyChooseUs";
 import GallerySection from "@/components/trek/GallerySection";
 import { PageHero } from "@/components/layout/PageHero";
-import { getCachedOrFetch, cacheKeys } from "@/lib/redis";
+import { getCachedOrFetch, cacheKeys, CACHE_TTL } from "@/lib/redis";
 
-export const revalidate = 300;
+export const revalidate = 3600;
 
 async function getPageContent() {
-  const raw = await getCachedOrFetch<string | null>(
-    "site:page-content",
+  return getCachedOrFetch<Record<string, any> | null>(
+    cacheKeys.pageContent,
     async () => {
       const settings = await prisma.siteSetting.findUnique({
         where: { id: "site-settings" },
         select: { pageContent: true },
       });
-      return settings?.pageContent || null;
+      if (!settings?.pageContent) return null;
+      try { return JSON.parse(settings.pageContent); } catch { return null; }
     },
-    300
+    CACHE_TTL.PAGE_CONTENT
   );
-  if (!raw) return null;
-  try { return JSON.parse(raw); } catch { return null; }
 }
 
 const iconMap: Record<string, any> = { Shield, Heart, Award, Globe, Users, Mountain };
@@ -48,6 +48,31 @@ export default async function AboutPage() {
   const team = about.team || [];
   const gallery = about.gallery || [];
 
+  // Fetch team members from Prisma (for individual detail pages)
+  const prismaMembers = await getCachedOrFetch(
+    cacheKeys.teamMembers,
+    () => prisma.teamMember.findMany({
+      where: { status: "published" },
+      orderBy: { sort: "asc" },
+      select: { name: true, slug: true, role: true, image: true },
+    }),
+    300
+  );
+
+  // Merge CMS team data with Prisma team members (CMS takes priority for display)
+  const allTeamMembers = [
+    ...team.map((m: any) => ({
+      name: m.name,
+      slug: m.slug || m.name.toLowerCase().replace(/\s+/g, "-"),
+      role: m.role,
+      image: m.image || "",
+      source: "cms" as const,
+    })),
+    ...prismaMembers
+      .filter((pm) => !team.some((tm: any) => (tm.slug || tm.name.toLowerCase().replace(/\s+/g, "-")) === pm.slug))
+      .map((pm) => ({ ...pm, source: "prisma" as const })),
+  ];
+
   // Fetch treks for the search bar
   const allTreksForSearch = await getCachedOrFetch(
     cacheKeys.searchTreks,
@@ -66,6 +91,7 @@ export default async function AboutPage() {
         description={hero.description}
         backgroundImage={hero.backgroundImage}
         treks={allTreksForSearch}
+        breadcrumbLabel="About Us"
       />
 
       {/* ── Custom Sections ── */}
@@ -91,23 +117,28 @@ export default async function AboutPage() {
       />
 
       {/* ── Team ── */}
-      {team.length > 0 && (
+      {allTeamMembers.length > 0 && (
         <section className="py-16">
           <div className="mx-auto max-w-7xl px-3 sm:px-4 lg:px-6">
             <h2 className="text-center text-2xl font-bold text-foreground">Our Team</h2>
             <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-              {team.map((member: any, i: number) => (
-                <div key={i} className="text-center">
-                  <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-primary/10">
+              {allTeamMembers.map((member, i) => (
+                <Link
+                  key={i}
+                  href={`/about/team/${member.slug}`}
+                  className="group text-center"
+                >
+                  <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-primary/10 transition-transform group-hover:scale-105">
                     {member.image ? (
-                      <Image src={`https://res.cloudinary.com/dk7ggjvlw/image/upload/${member.image}`} alt={member.name} width={80} height={80} className="rounded-full object-cover" />
+                      <Image src={`https://res.cloudinary.com/dk7ggjvlw/image/upload/c_fill,w_160,h_160,q_auto,f_auto/${member.image}`} alt={member.name} width={80} height={80} className="rounded-full object-cover" />
                     ) : (
                       <Users className="h-8 w-8 text-primary" />
                     )}
                   </div>
-                  <h3 className="mt-4 font-semibold text-foreground">{member.name}</h3>
+                  <h3 className="mt-4 font-semibold text-foreground group-hover:text-primary transition-colors">{member.name}</h3>
                   <p className="text-sm text-primary">{member.role}</p>
-                </div>
+
+                </Link>
               ))}
             </div>
           </div>

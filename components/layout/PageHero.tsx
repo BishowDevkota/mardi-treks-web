@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { SearchBar } from "@/components/search/SearchBar";
 
 interface Trek {
@@ -14,9 +15,10 @@ interface PageHeroProps {
   description?: string | null;
   backgroundImage?: string | null;
   treks?: Trek[];
+  breadcrumbLabel?: string;
 }
 
-export function PageHero({ heading, description, backgroundImage, treks }: PageHeroProps) {
+export function PageHero({ heading, description, backgroundImage, treks, breadcrumbLabel }: PageHeroProps) {
   const overlayStyle = {
     background: `
       linear-gradient(180deg, rgba(15,12,8,0.02) 0%, rgba(12,10,7,0.15) 25%, rgba(12,10,7,0.55) 55%, rgba(12,10,7,0.88) 100%),
@@ -54,6 +56,13 @@ export function PageHero({ heading, description, backgroundImage, treks }: PageH
                 {description}
               </p>
             )}
+            <nav aria-label="Breadcrumb" className="mb-3 flex items-center gap-2 text-sm text-white/55">
+              <Link href="/" className="transition-colors hover:text-white">
+                Home
+              </Link>
+              <span className="text-white/30">/</span>
+              <span className="truncate text-white/85">{breadcrumbLabel || heading}</span>
+            </nav>
             {treks && <SearchBar treks={treks} />}
           </div>
         </div>

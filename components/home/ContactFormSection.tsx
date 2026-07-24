@@ -135,8 +135,8 @@ export function ContactFormSection({
                   </p>
                 </div>
 
+                {/* Name + Email on one row */}
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                  {/* Name */}
                   <label className="space-y-1.5 text-sm font-medium text-foreground">
                     Full name
                     <input
@@ -148,7 +148,6 @@ export function ContactFormSection({
                     />
                   </label>
 
-                  {/* Email */}
                   <label className="space-y-1.5 text-sm font-medium text-foreground">
                     Email address
                     <input
@@ -160,32 +159,32 @@ export function ContactFormSection({
                       className="w-full rounded-xl border border-border bg-surface px-4 py-3 text-foreground placeholder:text-text-muted outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/10"
                     />
                   </label>
-
-                  {/* Country */}
-                  <label className="space-y-1.5 text-sm font-medium text-foreground">
-                    Country
-                    <input
-                      value={country}
-                      onChange={(e) => setCountry(e.target.value)}
-                      required
-                      placeholder="Your country"
-                      className="w-full rounded-xl border border-border bg-surface px-4 py-3 text-foreground placeholder:text-text-muted outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/10"
-                    />
-                  </label>
-
-                  {/* Phone */}
-                  <label className="space-y-1.5 text-sm font-medium text-foreground">
-                    Phone number
-                    <input
-                      type="tel"
-                      value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
-                      required
-                      placeholder="Your phone number"
-                      className="w-full rounded-xl border border-border bg-surface px-4 py-3 text-foreground placeholder:text-text-muted outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/10"
-                    />
-                  </label>
                 </div>
+
+                {/* Country */}
+                <label className="block space-y-1.5 text-sm font-medium text-foreground">
+                  Country
+                  <input
+                    value={country}
+                    onChange={(e) => setCountry(e.target.value)}
+                    required
+                    placeholder="Your country"
+                    className="w-full rounded-xl border border-border bg-surface px-4 py-3 text-foreground placeholder:text-text-muted outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/10"
+                  />
+                </label>
+
+                {/* Phone */}
+                <label className="block space-y-1.5 text-sm font-medium text-foreground">
+                  Phone number
+                  <input
+                    type="tel"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    required
+                    placeholder="Your phone number"
+                    className="w-full rounded-xl border border-border bg-surface px-4 py-3 text-foreground placeholder:text-text-muted outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/10"
+                  />
+                </label>
 
                 {/* Subject */}
                 <label className="block space-y-1.5 text-sm font-medium text-foreground">

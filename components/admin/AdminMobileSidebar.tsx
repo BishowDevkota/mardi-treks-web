@@ -6,13 +6,15 @@ import { useState } from "react";
 import {
   Menu, X, Mountain, LayoutDashboard, List, FileText,
   ShoppingCart, Users, ImageIcon, Calendar, Settings, FolderKanban,
-  Home
+  Home, MessageSquare, TrendingUp, MapPin, Send,
+  Activity, BarChart, Shield, Contact
 } from "lucide-react";
 
 const iconMap: Record<string, any> = {
   LayoutDashboard, List, FileText, ShoppingCart,
   Users, ImageIcon, Calendar, Settings, FolderKanban,
-  Home, Menu,
+  Home, Menu, MessageSquare, TrendingUp, MapPin, Send,
+  Activity, BarChart, Shield, Contact,
 };
 
 interface NavItem {
@@ -21,11 +23,12 @@ interface NavItem {
   icon: string;
 }
 
-export function AdminMobileSidebar({ nav, userName }: { nav: NavItem[]; userName: string }) {
+export function AdminMobileSidebar({ nav, crmNav, userName }: { nav: NavItem[]; crmNav?: NavItem[]; userName: string }) {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
 
   const isActive = (href: string) => pathname === href || pathname.startsWith(href + "/");
+  const isCrmActive = crmNav?.some((item) => pathname.startsWith(item.href)) || pathname.startsWith("/admin/crm");
 
   const NavLink = ({ item }: { item: NavItem }) => {
     const Icon = iconMap[item.icon];
@@ -89,6 +92,19 @@ export function AdminMobileSidebar({ nav, userName }: { nav: NavItem[]; userName
               {nav.slice(0, 4).map((item) => <NavLink key={item.href} item={item} />)}
               <p className="mt-5 px-3 pb-2 text-[10px] font-semibold uppercase tracking-widest text-slate-400">Management</p>
               {nav.slice(4).map((item) => <NavLink key={item.href} item={item} />)}
+
+              {/* CRM Section */}
+              {crmNav && crmNav.length > 0 && (
+                <>
+                  <div className={`mt-5 flex items-center gap-2 px-3 pb-2 ${isCrmActive ? "text-teal-600" : "text-slate-400"}`}>
+                    <Contact className="h-3.5 w-3.5" />
+                    <p className="text-[10px] font-semibold uppercase tracking-widest">
+                      Customer Relations
+                    </p>
+                  </div>
+                  {crmNav.map((item) => <NavLink key={item.href} item={item} />)}
+                </>
+              )}
             </div>
 
             <div className="border-t border-slate-200 px-3 py-3">

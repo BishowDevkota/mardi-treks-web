@@ -329,7 +329,7 @@ describe("PUT /api/payments/stripe (webhook)", () => {
     expect(mockPrisma.booking.update).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: "booking-123" },
-        data: { status: "CONFIRMED" },
+        data: { status: "CONFIRMED", paymentStatus: "FULLY_PAID" },
       })
     );
     expect(data).toEqual({ received: true });

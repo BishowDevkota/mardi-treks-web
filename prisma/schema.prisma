@@ -11,23 +11,25 @@ datasource db {
 // ==============================
 
 model User {
-  id            String    @id @default(cuid())
-  name          String?
-  email         String    @unique
-  emailVerified DateTime?
-  image         String?
-  passwordHash  String?
-  phone         String?
-  nationality   String?
+  id             String    @id @default(cuid())
+  name           String?
+  email          String    @unique
+  emailVerified  DateTime?
+  image          String?
+  passwordHash   String?
+  phone          String?
+  nationality    String?
   passportNumber String?
-  role          String    @default("customer")
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  role           String    @default("customer")
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
-  accounts Account[]
-  sessions Session[]
-  bookings Booking[]
-  reviews TrekReview[]
+  accounts   Account[]
+  sessions   Session[]
+  bookings   Booking[]
+  reviews    TrekReview[]
+  crmContact CrmContact?
+  travellers Traveller[]
 
   @@map("users")
 }
@@ -76,19 +78,19 @@ model VerificationToken {
 // ==============================
 
 model Category {
-  id            String   @id @default(cuid())
-  name          String
-  slug          String   @unique
-  description   String?
-  icon          String?
-  heroImage     String?
-  metaTitle     String?
+  id              String   @id @default(cuid())
+  name            String
+  slug            String   @unique
+  description     String?
+  icon            String?
+  heroImage       String?
+  metaTitle       String?
   metaDescription String?
-  ogImage       String?
-  status        String   @default("published")
-  sort          Int      @default(0)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  ogImage         String?
+  status          String   @default("published")
+  sort            Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   treks   Trek[]
   regions CategoryRegion[]
@@ -121,39 +123,39 @@ model CategoryRegion {
 // ==============================
 
 model Trek {
-  id            String   @id @default(cuid())
-  title         String
-  slug          String   @unique
-  categoryId    String?
-  regionId      String?
-  subtitle      String?
-  price         Float
-  duration      Int
-  difficulty    String   // easy | moderate | challenging | difficult | extreme
-  region        String?
-  maxGroupSize  Int      @default(12)
-  overview      String   // rich text HTML
-  inclusions    String   // JSON array
-  exclusions    String   // JSON array
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id           String   @id @default(cuid())
+  title        String
+  slug         String   @unique
+  categoryId   String?
+  regionId     String?
+  subtitle     String?
+  price        Float
+  duration     Int
+  difficulty   String // easy | moderate | challenging | difficult | extreme
+  region       String?
+  maxGroupSize Int      @default(12)
+  overview     String // rich text HTML
+  inclusions   String // JSON array
+  exclusions   String // JSON array
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  heroImage     String?  // Cloudinary public ID
+  heroImage String? // Cloudinary public ID
 
   // Overview stats
-  bestTime      String?  // e.g. "Mar-May, Sep-Nov"
-  maxAltitude   Float?   // Highest elevation from itinerary
+  bestTime    String? // e.g. "Mar-May, Sep-Nov"
+  maxAltitude Float? // Highest elevation from itinerary
 
   // Relationships
-  category     Category?       @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  regionRef    CategoryRegion? @relation(fields: [regionId], references: [id], onDelete: SetNull)
-  highlights   TrekHighlight[]
-  itinerary    ItineraryDay[]
-  pricingTiers PricingTier[]
+  category       Category?          @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  regionRef      CategoryRegion?    @relation(fields: [regionId], references: [id], onDelete: SetNull)
+  highlights     TrekHighlight[]
+  itinerary      ItineraryDay[]
+  pricingTiers   PricingTier[]
   availableDates AvailableDate[]
-  galleryImages TrekGalleryImage[]
-  faqs         TrekFaq[]
-  reviews      TrekReview[]
+  galleryImages  TrekGalleryImage[]
+  faqs           TrekFaq[]
+  reviews        TrekReview[]
 
   // SEO
   metaTitle       String?
@@ -162,29 +164,29 @@ model Trek {
   ogImage         String?
 
   // Map
-  geoJsonUrl      String?
-  geoJsonData     String?   // Raw GeoJSON content (stored server-side)
-  staticMapImage  String?
-  waypoints       String?  // JSON array
-  centerLat       Float?
-  centerLng       Float?
-  zoom            Float?
-  pitch           Float?
+  geoJsonUrl     String?
+  geoJsonData    String? // Raw GeoJSON content (stored server-side)
+  staticMapImage String?
+  waypoints      String? // JSON array
+  centerLat      Float?
+  centerLng      Float?
+  zoom           Float?
+  pitch          Float?
 
   // Custom sections (user-defined heading + rich text sections)
-  customSections  String?  // JSON array of TrekSection objects
+  customSections String? // JSON array of TrekSection objects
 
   // Section metadata (heading/description for each section type)
-  sectionData     String?  // JSON object { pricing: { heading, description }, itinerary: { ... }, etc. }
+  sectionData String? // JSON object { pricing: { heading, description }, itinerary: { ... }, etc. }
 
   // Section order (JSON array of section IDs in display order)
-  sectionOrder    String?  // JSON array of section IDs
+  sectionOrder String? // JSON array of section IDs
 
   // Add-ons
-  addons         String?  // JSON array of { title, description, unit, pricePerUnit }
+  addons String? // JSON array of { title, description, unit, pricePerUnit }
 
   // Status
-  status    String   @default("draft") // draft | published | archived
+  status      String    @default("draft") // draft | published | archived
   publishedAt DateTime?
 
   @@map("treks")
@@ -203,14 +205,26 @@ model TrekHighlight {
 }
 
 model ItineraryDay {
-  id            String  @id @default(cuid())
-  trekId        String
-  dayNumber     Int
-  title         String
-  description   String
-  elevation     String?
-  accommodation String?
+  id               String  @id @default(cuid())
+  trekId           String
+  dayNumber        Int
+  title            String
+  description      String
+  elevation        String?
+  accommodation    String?
   placeDescription String? // Brief note about the place, e.g. "Gateway to the Khumbu region"
+
+  // Legacy fields retained only to preserve data from the reverted 3D itinerary experiment.
+  accommodationLat Float?
+  accommodationLng Float?
+  travelModes      String?
+  travelPoints     String?
+  travelStartLabel String?
+  travelStartLat   Float?
+  travelStartLng   Float?
+  travelEndLabel   String?
+  travelEndLat     Float?
+  travelEndLng     Float?
 
   trek Trek @relation(fields: [trekId], references: [id], onDelete: Cascade)
 
@@ -240,7 +254,7 @@ model AvailableDate {
 }
 
 model TrekGalleryImage {
-  id      String @id @default(cuid())
+  id      String  @id @default(cuid())
   trekId  String
   imageId String // Cloudinary public ID
   alt     String?
@@ -272,7 +286,7 @@ model TrekReview {
   approved  Boolean  @default(false)
   createdAt DateTime @default(now())
 
-  trek Trek @relation(fields: [trekId], references: [id], onDelete: Cascade)
+  trek Trek  @relation(fields: [trekId], references: [id], onDelete: Cascade)
   user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@map("trek_reviews")
@@ -283,22 +297,22 @@ model TrekReview {
 // ==============================
 
 model BlogPost {
-  id            String   @id @default(cuid())
-  title         String
-  slug          String   @unique
-  author        String
-  publishedDate DateTime
-  heroImage     String?  // Cloudinary public ID
-  excerpt       String
-  content       String   // rich text HTML
-  tags          String   // JSON array
-  metaTitle     String?
+  id              String   @id @default(cuid())
+  title           String
+  slug            String   @unique
+  author          String
+  publishedDate   DateTime
+  heroImage       String? // Cloudinary public ID
+  excerpt         String
+  content         String // rich text HTML
+  tags            String // JSON array
+  metaTitle       String?
   metaDescription String?
-  keywords      String?
-  ogImage       String?
-  status        String   @default("draft") // draft | published
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  keywords        String?
+  ogImage         String?
+  status          String   @default("draft") // draft | published
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   @@map("blog_posts")
 }
@@ -308,17 +322,18 @@ model BlogPost {
 // ==============================
 
 model Page {
-  id            String   @id @default(cuid())
-  title         String
-  slug          String   @unique
-  content       String   // rich text HTML
-  heroImage     String?  // Cloudinary public ID
-  metaTitle     String?
+  id              String   @id @default(cuid())
+  title           String
+  slug            String   @unique
+  content         String // rich text HTML
+  heroImage       String? // Cloudinary public ID
+  heroDescription String?
+  metaTitle       String?
   metaDescription String?
-  ogImage       String?
-  status        String   @default("draft") // draft | published
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  ogImage         String?
+  status          String   @default("draft") // draft | published
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   @@map("pages")
 }
@@ -328,25 +343,25 @@ model Page {
 // ==============================
 
 model SiteSetting {
-  id            String @id @default("site-settings")
-  siteName      String @default("Mardi Treks")
-  tagline       String?
-  logo          String? // Cloudinary public ID
-  description   String?
-  email         String?
-  phone         String?
-  address       String?
-  socialLinks   String? // JSON array
-  topBarContent String? // Rich text HTML for header top bar
-  navigation    String? // JSON array
-  categoryDropdownTreks String? // JSON object: { categorySlug: [trekId, ...] }
-  defaultMetaTitle String?
+  id                     String   @id @default("site-settings")
+  siteName               String   @default("Mardi Treks")
+  tagline                String?
+  logo                   String? // Cloudinary public ID
+  description            String?
+  email                  String?
+  phone                  String?
+  address                String?
+  socialLinks            String? // JSON array
+  topBarContent          String? // Rich text HTML for header top bar
+  navigation             String? // JSON array
+  categoryDropdownTreks  String? // JSON object: { categorySlug: [trekId, ...] }
+  defaultMetaTitle       String?
   defaultMetaDescription String?
-  defaultKeywords String?
-  defaultOgImage String?
+  defaultKeywords        String?
+  defaultOgImage         String?
   // Dynamic page content (About, Contact, Blog, Footer)
-  pageContent   String?  // JSON object with content for each page
-  updatedAt     DateTime @updatedAt
+  pageContent            String? // JSON object with content for each page
+  updatedAt              DateTime @updatedAt
 
   @@map("site_settings")
 }
@@ -356,42 +371,42 @@ model SiteSetting {
 // ==============================
 
 model HomePageSettings {
-  id              String   @id @default("home-settings")
-  featuredTrekIds String?  // JSON array of trek IDs — for hero carousel
-  featuredSectionTrekIds String?  // JSON array of trek IDs — for featured section below hero
+  id                     String  @id @default("home-settings")
+  featuredTrekIds        String? // JSON array of trek IDs — for hero carousel
+  featuredSectionTrekIds String? // JSON array of trek IDs — for featured section below hero
 
   // Static company hero slide
   heroEnabled        Boolean @default(true)
-  heroTitle          String?  // Main title text (before highlight)
-  heroTitleHighlight String?  // Highlighted portion of title (e.g. "Himalayas")
-  heroDescription    String?  // Description paragraph
-  heroImage          String?  // Cloudinary public ID for background
+  heroTitle          String? // Main title text (before highlight)
+  heroTitleHighlight String? // Highlighted portion of title (e.g. "Himalayas")
+  heroDescription    String? // Description paragraph
+  heroImage          String? // Cloudinary public ID for background
 
   // Section headings & descriptions
-  featuredTreksHeading      String? @default("Featured Treks")
-  featuredTreksDescription  String? @default("Handpicked adventures for every type of traveler")
+  featuredTreksHeading        String? @default("Featured Treks")
+  featuredTreksDescription    String? @default("Handpicked adventures for every type of traveler")
   bestSellingTreksHeading     String? @default("Best Selling Treks")
   bestSellingTreksDescription String? @default("Most popular treks chosen by our adventurers")
-  topRatedTreksHeading      String? @default("Top Rated Treks")
-  topRatedTreksDescription  String? @default("Highest rated treks by our guests")
-  reviewsHeading            String? @default("What Our Trekkers Say")
-  reviewsDescription        String? @default("Real experiences shared by our happy trekkers.")
-  blogHeading               String? @default("Latest from Our Blog")
-  blogDescription           String? @default("Trekking tips, destination guides, and stories from the Himalayas")
+  topRatedTreksHeading        String? @default("Top Rated Treks")
+  topRatedTreksDescription    String? @default("Highest rated treks by our guests")
+  reviewsHeading              String? @default("What Our Trekkers Say")
+  reviewsDescription          String? @default("Real experiences shared by our happy trekkers.")
+  blogHeading                 String? @default("Latest from Our Blog")
+  blogDescription             String? @default("Trekking tips, destination guides, and stories from the Himalayas")
 
   // Contact section
-  contactHeading      String? @default("Ready for Your Himalayan Adventure?")
-  contactDescription  String? @default("Have a question about a trek, need help planning your itinerary, or ready to book? Send us a message and we'll get back to you within 24 hours.")
-  contactInfoCards    String?  // JSON array of { title, description }
+  contactHeading     String? @default("Ready for Your Himalayan Adventure?")
+  contactDescription String? @default("Have a question about a trek, need help planning your itinerary, or ready to book? Send us a message and we'll get back to you within 24 hours.")
+  contactInfoCards   String? // JSON array of { title, description }
 
   // Why Choose Us section
   whyChooseUsEnabled  Boolean @default(true)
   whyChooseUsSubtitle String? @default("Discover the Difference")
   whyChooseUsHeading  String? @default("Why Trek With Us?")
-  whyChooseUsItems    String?  // JSON array of { icon, title, description }
-  whyChooseUsBgImage  String?  // Background image URL or Cloudinary public ID
+  whyChooseUsItems    String? // JSON array of { icon, title, description }
+  whyChooseUsBgImage  String? // Background image URL or Cloudinary public ID
 
-  updatedAt       DateTime @updatedAt
+  updatedAt DateTime @updatedAt
 
   @@map("home_page_settings")
 }
@@ -401,20 +416,43 @@ model HomePageSettings {
 // ==============================
 
 model Media {
-  id                String   @id @default(cuid())
-  filename          String
-  mimeType          String
-  filesize          Int?
-  width             Int?
-  height            Int?
-  alt               String?
-  caption           String?
+  id                 String   @id @default(cuid())
+  filename           String
+  mimeType           String
+  filesize           Int?
+  width              Int?
+  height             Int?
+  alt                String?
+  caption            String?
   cloudinaryPublicId String?
-  url               String?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  url                String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
   @@map("media")
+}
+
+// ==============================
+// TEAM MEMBERS
+// ==============================
+
+model TeamMember {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  role        String
+  image       String? // Cloudinary public ID
+  bio         String // Rich text HTML — full biography for individual page
+  shortBio    String? // Short description for the about page card
+  email       String?
+  phone       String?
+  socialLinks String? // JSON array of { platform, url }
+  sort        Int      @default(0)
+  status      String   @default("published") // draft | published
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("team_members")
 }
 
 // ==============================
@@ -422,24 +460,24 @@ model Media {
 // ==============================
 
 model Booking {
-  id            String   @id @default(cuid())
-  userId        String
-  trekSlug      String
-  trekTitle     String
-  trekPrice     Float
-  trekDuration  Int
-  startDate     DateTime
-  groupSize     Int
-  totalPrice    Float
-  addons        String?  // JSON array of { title, qty, pricePerUnit }
-  status        String   @default("PENDING_REVIEW")
-  paymentStatus String   @default("PENDING")  // PENDING | PARTIALLY_PAID | FULLY_PAID
+  id              String           @id @default(cuid())
+  userId          String
+  trekSlug        String
+  trekTitle       String
+  trekPrice       Float
+  trekDuration    Int
+  startDate       DateTime
+  groupSize       Int
+  totalPrice      Float
+  addons          String? // JSON array of { title, qty, pricePerUnit }
+  status          String           @default("PENDING_REVIEW")
+  paymentStatus   String           @default("PENDING") // PENDING | PARTIALLY_PAID | FULLY_PAID
   travelerDetails TravelerDetail[]
   specialRequests String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
 
-  user    User    @relation(fields: [userId], references: [id])
+  user    User     @relation(fields: [userId], references: [id])
   payment Payment?
 
   @@map("bookings")
@@ -462,17 +500,17 @@ model TravelerDetail {
 }
 
 model Payment {
-  id                      String   @id @default(cuid())
-  bookingId               String   @unique
-  amount                  Float
-  currency                String   @default("USD")
-  method                  String
-  status                  String   @default("PENDING")
-  stripePaymentIntentId   String?
-  esewaTransactionId      String?
-  khaltiTransactionId     String?
-  createdAt               DateTime @default(now())
-  updatedAt               DateTime @updatedAt
+  id                    String   @id @default(cuid())
+  bookingId             String   @unique
+  amount                Float
+  currency              String   @default("USD")
+  method                String
+  status                String   @default("PENDING")
+  stripePaymentIntentId String?
+  esewaTransactionId    String?
+  khaltiTransactionId   String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
 
   booking Booking @relation(fields: [bookingId], references: [id])
 
@@ -490,4 +528,158 @@ model TrekAvailability {
 
   @@unique([trekSlug, startDate])
   @@map("trek_availability")
+}
+
+// ==============================
+// CRM - CONTACTS & TAGS
+// ==============================
+
+model CrmTag {
+  id        String          @id @default(cuid())
+  name      String          @unique
+  color     String?         @default("#6366f1") // hex color
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+  contacts  CrmContactTag[]
+
+  @@map("crm_tags")
+}
+
+model CrmContact {
+  id               String    @id @default(cuid())
+  // Basic info
+  name             String
+  email            String?
+  phone            String?
+  company          String?
+  position         String?
+  // Source & type
+  source           String? // website, referral, social, booking, manual
+  type             String    @default("lead") // lead | customer | partner
+  // Address
+  address          String?
+  city             String?
+  country          String?
+  // Social
+  linkedInUrl      String?
+  website          String?
+  // CRM metadata
+  segment          String? // JSON array of custom segments
+  score            Int       @default(0) // Lead score
+  status           String    @default("active") // active | inactive | blocked
+  notes            String? // General notes about the contact
+  // Completed trek tracking (unified with Traveller concept)
+  completedTrekIds String? // JSON array of trek IDs/slugs
+  autoTracked      Boolean   @default(false) // Auto-tracked from completed bookings
+  // Relations
+  userId           String?   @unique // Link to existing User if registered
+  // Duplicate detection
+  duplicateGroup   String? // Group ID for grouped duplicates
+  // Metadata
+  lastContactedAt  DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  user       User?           @relation(fields: [userId], references: [id], onDelete: SetNull)
+  tags       CrmContactTag[]
+  notesRel   CrmNote[]
+  emailLogs  CrmEmailLog[]
+  travellers Traveller[]
+
+  @@index([email])
+  @@index([name])
+  @@map("crm_contacts")
+}
+
+model CrmContactTag {
+  contactId String
+  tagId     String
+  createdAt DateTime @default(now())
+
+  contact CrmContact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  tag     CrmTag     @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([contactId, tagId])
+  @@map("crm_contact_tags")
+}
+
+model CrmNote {
+  id        String   @id @default(cuid())
+  contactId String
+  content   String // Rich text
+  category  String? // general | call | meeting | deal | other
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  contact CrmContact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@map("crm_notes")
+}
+
+// ==============================
+// CRM - COMMUNICATION LOGS
+// ==============================
+
+model CrmEmailLog {
+  id           String    @id @default(cuid())
+  contactId    String
+  direction    String // sent | received
+  subject      String
+  body         String? // HTML content
+  fromEmail    String
+  toEmail      String
+  cc           String? // JSON array
+  bcc          String? // JSON array
+  // Threading
+  messageId    String? // Message-ID header (for threading)
+  threadId     String? // Group related emails into a conversation thread
+  // Tracking
+  opens        Int       @default(0)
+  clicks       Int       @default(0)
+  lastOpenedAt DateTime?
+  // Template
+  templateId   String? // If sent from a template
+  // Status
+  status       String    @default("sent") // draft | sent | delivered | bounced | failed
+  // Metadata
+  sentAt       DateTime?
+  createdAt    DateTime  @default(now())
+
+  contact CrmContact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@index([contactId])
+  @@index([threadId])
+  @@map("crm_email_logs")
+}
+
+// ==============================
+// CRM - TRAVELLER
+// ==============================
+
+model Traveller {
+  id               String   @id @default(cuid())
+  contactId        String?
+  name             String
+  email            String?
+  phone            String?
+  nationality      String?
+  passportNumber   String?
+  // Linked user if registered
+  userId           String?
+  // Completed treks (JSON array of trek IDs/slugs)
+  completedTrekIds String? // JSON array of trek IDs
+  // Auto-tracked: set to true when a booking for this user reaches COMPLETED
+  autoTracked      Boolean  @default(false)
+  // Notes
+  notes            String?
+  // Metadata
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  contact CrmContact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  user    User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([email])
+  @@index([name])
+  @@map("travellers")
 }

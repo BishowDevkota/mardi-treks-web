@@ -4,8 +4,8 @@ import { invalidateBlogCache } from "@/lib/payload-hooks";
 export const BlogPosts: CollectionConfig = {
   slug: "blog-posts",
   hooks: {
-    afterChange: [() => { invalidateBlogCache(); }],
-    afterDelete: [() => { invalidateBlogCache(); }],
+    afterChange: [async () => { await invalidateBlogCache(); }],
+    afterDelete: [async () => { await invalidateBlogCache(); }],
   },
   admin: {
     useAsTitle: "title",

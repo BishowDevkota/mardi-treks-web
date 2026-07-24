@@ -4,6 +4,7 @@ import Google from "next-auth/providers/google";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import { prisma } from "./prisma";
 import { compare } from "bcryptjs";
+import { sendWelcomeEmail } from "./email";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   adapter: PrismaAdapter(prisma),
@@ -50,6 +51,15 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       allowDangerousEmailAccountLinking: true,
     }),
   ],
+  events: {
+    async createUser({ user }) {
+      if (!user.email) return;
+      sendWelcomeEmail({
+        name: user.name || "there",
+        email: user.email,
+      }).catch((error) => console.error("Failed to send Google signup welcome email:", error));
+    },
+  },
   callbacks: {
     async jwt({ token, user }) {
       if (user) {

@@ -4,8 +4,8 @@ import { invalidateCategoryCache } from "@/lib/payload-hooks";
 export const Categories: CollectionConfig = {
   slug: "categories",
   hooks: {
-    afterChange: [() => { invalidateCategoryCache(); }],
-    afterDelete: [() => { invalidateCategoryCache(); }],
+    afterChange: [async () => { await invalidateCategoryCache(); }],
+    afterDelete: [async () => { await invalidateCategoryCache(); }],
   },
   admin: {
     useAsTitle: "name",

@@ -1,24 +1,14 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { connection } from "next/server";
 import "./globals.css";
 import { Analytics } from "@vercel/analytics/react";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { SessionProvider } from "@/components/layout/SessionProvider";
 import { prisma } from "@/lib/prisma";
-import { getCachedOrFetch, cacheKeys } from "@/lib/redis";
+import { getCachedOrFetch, cacheKeys, CACHE_TTL } from "@/lib/redis";
 
-export const revalidate = 300;
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
+export const revalidate = 3600;
 
 export const metadata: Metadata = {
   title: {
@@ -62,6 +52,8 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  await connection();
+
   const categories = await getCachedOrFetch(
     cacheKeys.categories,
     () => prisma.category.findMany({
@@ -69,7 +61,7 @@ export default async function RootLayout({
       orderBy: { sort: "asc" },
       select: { id: true, name: true, slug: true, icon: true },
     }),
-    300
+    CACHE_TTL.LAYOUT
   );
 
   const settingsData = await getCachedOrFetch(
@@ -78,7 +70,7 @@ export default async function RootLayout({
       where: { id: "site-settings" },
       select: { logo: true, navigation: true, categoryDropdownTreks: true, topBarContent: true },
     }),
-    300
+    CACHE_TTL.LAYOUT
   );
 
   const navigation = (() => {
@@ -112,7 +104,7 @@ export default async function RootLayout({
             regionRef: { select: { id: true, name: true, slug: true } },
           },
         }),
-        300
+        CACHE_TTL.LAYOUT
       )
     : [];
 
@@ -123,13 +115,13 @@ export default async function RootLayout({
       select: { id: true, name: true, slug: true, categoryId: true },
       orderBy: { sortOrder: "asc" },
     }),
-    300
+    CACHE_TTL.LAYOUT
   );
 
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full scroll-smooth antialiased`}
+      className="h-full scroll-smooth antialiased"
     >
       <body className="flex min-h-full flex-col">
         <SessionProvider>

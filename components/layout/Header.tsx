@@ -92,8 +92,11 @@ export function Header({
 
   // Close mobile menu on route change
   useEffect(() => {
-    setIsMenuOpen(false);
-    setHoveredDropdown(null);
+    const timeout = setTimeout(() => {
+      setIsMenuOpen(false);
+      setHoveredDropdown(null);
+    }, 0);
+    return () => clearTimeout(timeout);
   }, [pathname]);
 
   // Build nav items — always include published categories, merge with saved navigation

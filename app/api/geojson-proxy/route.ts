@@ -24,11 +24,23 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Missing url parameter" }, { status: 400 });
   }
 
+  let requestedUrl: URL;
+  try {
+    requestedUrl = new URL(url);
+  } catch {
+    return NextResponse.json({ error: "Invalid URL" }, { status: 400 });
+  }
+
+  const allowedHosts = new Set(["geojson.io", "res.cloudinary.com"]);
+  if (requestedUrl.protocol !== "https:" || !allowedHosts.has(requestedUrl.hostname)) {
+    return NextResponse.json({ error: "URL host is not allowed" }, { status: 403 });
+  }
+
   // ── Handle geojson.io share URLs ──────────────────────────────────
   // geojson.io encodes GeoJSON as base64 → deflate-compressed data in the URL
   if (url.includes("geojson.io") && url.includes("data=")) {
     try {
-      const parsed = new URL(url);
+      const parsed = requestedUrl;
       let encoded = parsed.searchParams.get("data") || "";
       // Strip optional gz: prefix from geojson.io
       if (encoded.startsWith("gz:")) encoded = encoded.slice(3);

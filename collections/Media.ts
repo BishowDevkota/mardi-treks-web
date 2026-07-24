@@ -4,8 +4,8 @@ import { invalidateMediaCache } from "@/lib/payload-hooks";
 export const Media: CollectionConfig = {
   slug: "media",
   hooks: {
-    afterChange: [() => { invalidateMediaCache(); }],
-    afterDelete: [() => { invalidateMediaCache(); }],
+    afterChange: [async () => { await invalidateMediaCache(); }],
+    afterDelete: [async () => { await invalidateMediaCache(); }],
   },
   admin: {
     group: "Content",

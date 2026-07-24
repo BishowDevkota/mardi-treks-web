@@ -9,7 +9,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Check, Star, ChevronDown, Search, X as XIcon } from "lucide-react";
 import { prisma } from "@/lib/prisma";
-import { getCachedOrFetch, cacheKeys } from "@/lib/redis";
+import { getCachedOrFetch, cacheKeys, CACHE_TTL } from "@/lib/redis";
 import { TrekMapWrapper } from "@/components/map/TrekMapWrapper";
 import { PricingCalculator } from "@/components/trek/PricingCalculator";
 import { AltitudeProfile } from "@/components/trek/AltitudeProfile";
@@ -42,7 +42,7 @@ async function getTrek(slug: string, categorySlug: string) {
       if (trek.category?.slug !== categorySlug) return null;
       return trek;
     },
-    120
+    CACHE_TTL.MODERATE
   );
 }
 
@@ -61,7 +61,7 @@ export async function generateMetadata({ params }: { params: Promise<{ category:
   };
 }
 
-export const revalidate = 300;
+export const revalidate = 1800;
 
 function parseElevation(elevation: string): number {
   const parsed = parseFloat(elevation.replace(/[,m\s]/g, ""));
@@ -133,7 +133,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
       select: { title: true, slug: true, region: true, difficulty: true, duration: true, category: { select: { slug: true } } },
       orderBy: { title: "asc" },
     }),
-    300
+    CACHE_TTL.MODERATE
   );
 
   const difficultyColorMap: Record<string, { badge: string; dot: string }> = {
@@ -811,6 +811,18 @@ sectionMap["gallery"] = () => trek.galleryImages?.length > 0 ? <GallerySection
                     rendered.add(id);
                   }
                 }
+              }
+
+              // Ensure altitude section always comes right after the map section
+              const mapIdx = ordered.findIndex((item) => (item as any)?.key === "map");
+              const altIdx = ordered.findIndex((item) => (item as any)?.key === "altitude");
+              if (mapIdx !== -1 && altIdx !== -1 && altIdx !== mapIdx + 1) {
+                // Remove altitude from its current position
+                const [altFragment] = ordered.splice(altIdx, 1);
+                // Recalculate map index (may have shifted if altitude was before map)
+                const newMapIdx = ordered.findIndex((item) => (item as any)?.key === "map");
+                // Insert altitude right after map
+                ordered.splice(newMapIdx + 1, 0, altFragment);
               }
 
               // 3. Render any custom sections without IDs (edge case)

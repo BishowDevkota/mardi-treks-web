@@ -7,6 +7,7 @@ import { Categories } from "./collections/Categories";
 import { BlogPosts } from "./collections/BlogPosts";
 import { Pages } from "./collections/Pages";
 import { Media } from "./collections/Media";
+import { PayloadUsers } from "./collections/PayloadUsers";
 import { Settings } from "./globals/Settings";
 
 export default buildConfig({
@@ -18,7 +19,7 @@ export default buildConfig({
 
   // Admin configuration
   admin: {
-    user: "users", // Built-in Payload users collection for admin auth
+    user: "payload-users",
     meta: {
       titleSuffix: " | Mardi Treks CMS",
     },
@@ -35,7 +36,7 @@ export default buildConfig({
   editor: lexicalEditor(),
 
   // Collections
-  collections: [Products, Categories, BlogPosts, Pages, Media],
+  collections: [PayloadUsers, Products, Categories, BlogPosts, Pages, Media],
 
   // Globals
   globals: [Settings],
