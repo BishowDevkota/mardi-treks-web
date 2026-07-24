@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { getCachedOrFetch, cacheKeys, CACHE_TTL } from "@/lib/redis";
 import { SearchBar } from "@/components/search/SearchBar";
 import { injectHeadingIds } from "@/lib/headings";
+import { sanitizeRichText } from "@/lib/sanitize";
 import BlogSidebar from "@/components/blog/BlogSidebar";
 
 export const revalidate = 1800;
@@ -182,7 +183,7 @@ export default async function BlogPostPage({
             <article>
               <div
                 className="prose-custom rich-text"
-                dangerouslySetInnerHTML={{ __html: injectHeadingIds(post.content || "") }}
+                dangerouslySetInnerHTML={{ __html: sanitizeRichText(injectHeadingIds(post.content || "")) }}
               />
             </article>
 

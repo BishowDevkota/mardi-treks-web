@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sendContactEmail } from "@/lib/email";
 import { contactRateLimit, checkRateLimit } from "@/lib/rate-limit";
+import { contactFormSchema } from "@/lib/validations";
 
 export async function POST(request: NextRequest) {
   try {
@@ -21,24 +22,20 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { name, email, subject, message } = body;
 
-    // Validate required fields
-    if (!name || !email || !subject || !message) {
+    // Validate with Zod schema — includes length limits, email format, required fields
+    const validated = contactFormSchema.safeParse(body);
+    if (!validated.success) {
       return NextResponse.json(
-        { error: "All fields are required" },
+        {
+          error: "Invalid input",
+          details: validated.error.flatten().fieldErrors,
+        },
         { status: 400 },
       );
     }
 
-    // Validate email format
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      return NextResponse.json(
-        { error: "Invalid email address" },
-        { status: 400 },
-      );
-    }
+    const { name, email, subject, message } = validated.data;
 
     await sendContactEmail({ name, email, subject, message });
 

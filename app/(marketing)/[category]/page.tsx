@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { getCachedOrFetch, cacheKeys, CACHE_TTL } from "@/lib/redis";
 import { CategoryClient } from "./category-client";
 import { SearchBar } from "@/components/search/SearchBar";
+import { sanitizeRichText } from "@/lib/sanitize";
 import {
   Star,
   SlidersHorizontal,
@@ -236,7 +237,7 @@ export default async function CategoryListingPage({
           <div className="grid gap-12 lg:grid-cols-3">
             <article
               className="prose-custom rich-text lg:col-span-2"
-              dangerouslySetInnerHTML={{ __html: page.content }}
+              dangerouslySetInnerHTML={{ __html: sanitizeRichText(page.content) }}
             />
 
             <aside className="space-y-6 lg:sticky lg:top-24 lg:self-start">

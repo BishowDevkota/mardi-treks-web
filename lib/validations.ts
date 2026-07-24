@@ -41,9 +41,11 @@ const addonItemSchema = z.object({
 
 export const createBookingSchema = z.object({
   trekSlug: z.string().min(1, "Trek slug is required"),
-  trekTitle: z.string().min(1, "Trek title is required"),
-  trekPrice: z.number().positive("Price must be positive"),
-  trekDuration: z.number().int().positive("Duration must be positive"),
+  // ⚠️ trekTitle, trekPrice, and trekDuration are accepted but IGNORED on the server
+  // to prevent price-tampering attacks. Server always loads authoritative values from DB.
+  trekTitle: z.string().optional().default(""),
+  trekPrice: z.number().positive().optional(),
+  trekDuration: z.number().int().positive().optional(),
   startDate: z.string().refine((val) => !isNaN(Date.parse(val)), {
     message: "Invalid date",
   }),

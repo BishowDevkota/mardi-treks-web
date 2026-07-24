@@ -19,6 +19,7 @@ import GallerySection from "@/components/trek/GallerySection";
 import { GalleryProvider } from "@/components/trek/GalleryContext";
 import { ContactFormSection } from "@/components/home/ContactFormSection";
 import { SearchBar } from "@/components/search/SearchBar";
+import { sanitizeRichText } from "@/lib/sanitize";
 
 async function getTrek(slug: string, categorySlug: string) {
   const cacheKey = cacheKeys.trek(`${categorySlug}:${slug}`);

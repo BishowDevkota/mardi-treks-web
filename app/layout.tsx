@@ -7,6 +7,7 @@ import { Footer } from "@/components/layout/Footer";
 import { SessionProvider } from "@/components/layout/SessionProvider";
 import { prisma } from "@/lib/prisma";
 import { getCachedOrFetch, cacheKeys, CACHE_TTL } from "@/lib/redis";
+import { sanitizeInlineHtml } from "@/lib/sanitize";
 
 export const revalidate = 3600;
 
@@ -132,7 +133,7 @@ export default async function RootLayout({
             categoryDropdownTreks={categoryDropdownTreks}
             dropdownTreks={JSON.parse(JSON.stringify(dropdownTreks))}
             allRegions={JSON.parse(JSON.stringify(allRegions))}
-            topBarContent={settingsData?.topBarContent || null}
+            topBarContent={settingsData?.topBarContent ? sanitizeInlineHtml(settingsData.topBarContent) : null}
           />
           <main className="flex-1">{children}</main>
           <Footer />

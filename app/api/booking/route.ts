@@ -48,9 +48,6 @@ export async function POST(request: NextRequest) {
 
     const {
       trekSlug,
-      trekTitle,
-      trekPrice,
-      trekDuration,
       startDate,
       groupSize,
       addons,
@@ -70,13 +67,31 @@ export async function POST(request: NextRequest) {
     }
 
     // Fetch the actual trek to validate against trek-specific constraints
-    const trek = await prisma.trek.findUnique({ where: { slug: trekSlug } });
+    // ⚠️ SECURITY: Price and duration are loaded from the server-side trek record,
+    // NOT from the client request. This prevents price-tampering attacks.
+    const trek = await prisma.trek.findUnique({
+      where: { slug: trekSlug },
+      select: {
+        id: true,
+        title: true,
+        price: true,
+        duration: true,
+        maxGroupSize: true,
+        pricingTiers: { orderBy: { groupSize: "asc" } },
+        addons: true,
+      },
+    });
     if (!trek) {
       return NextResponse.json(
         { error: "Trek not found" },
         { status: 404 }
       );
     }
+
+    // Use server-side price and duration — NEVER trust client values
+    const serverTrekPrice = trek.price;
+    const serverTrekDuration = trek.duration;
+    const serverTrekTitle = trek.title;
 
     // Validate group size doesn't exceed max group size
     if (groupSize > trek.maxGroupSize) {
@@ -88,8 +103,26 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const addonsTotal = (addons || []).reduce((sum: number, a: any) => sum + a.qty * a.pricePerUnit, 0);
-    const totalPrice = trekPrice * groupSize + addonsTotal;
+    // Validate addon prices against server-side addon records
+    const serverAddons: Array<{ title: string; pricePerUnit: number }> = (() => {
+      try {
+        return trek.addons ? JSON.parse(trek.addons) : [];
+      } catch {
+        return [];
+      }
+    })();
+
+    const addonsTotal = (addons || []).reduce((sum: number, a: any) => {
+      const serverAddon = serverAddons.find(
+        (sa) => sa.title === a.title && sa.pricePerUnit === a.pricePerUnit
+      );
+      if (!serverAddon) {
+        throw new Error(`Invalid add-on: "${a.title}" does not match server records`);
+      }
+      return sum + a.qty * serverAddon.pricePerUnit;
+    }, 0);
+
+    const totalPrice = serverTrekPrice * groupSize + addonsTotal;
 
     // Check availability (Prisma read, could also check Payload CMS date)
     // Check TrekAvailability table
@@ -133,9 +166,9 @@ export async function POST(request: NextRequest) {
         data: {
           userId,
           trekSlug,
-          trekTitle,
-          trekPrice,
-          trekDuration,
+          trekTitle: serverTrekTitle,
+          trekPrice: serverTrekPrice,
+          trekDuration: serverTrekDuration,
           startDate: new Date(startDate),
           groupSize,
           totalPrice,
@@ -204,7 +237,7 @@ export async function POST(request: NextRequest) {
         const adminNotification = sendBookingNotification({
           customerName: user.name || "Unknown",
           customerEmail: user.email,
-          trekTitle,
+          trekTitle: serverTrekTitle,
           startDate,
           travelers: travelers.map((t) => ({
             fullName: t.fullName,
@@ -222,7 +255,7 @@ export async function POST(request: NextRequest) {
         const customerConfirmation = sendBookingReceivedEmail({
           name: user.name || "there",
           email: user.email,
-          trekTitle,
+          trekTitle: serverTrekTitle,
           startDate,
           bookingId: booking.id,
         }).catch((err) => console.error("Failed to send customer booking email:", err));

@@ -6,6 +6,7 @@ import { ArrowLeft, ArrowRight, Calendar, Clock, User, Users } from "lucide-reac
 import { prisma } from "@/lib/prisma";
 import { getCachedOrFetch, cacheKeys, CACHE_TTL } from "@/lib/redis";
 import { PageHero } from "@/components/layout/PageHero";
+import { sanitizeRichText } from "@/lib/sanitize";
 
 export const revalidate = 1800;
 
@@ -143,7 +144,7 @@ export default async function TeamMemberPage({
         <div className="grid gap-12 lg:grid-cols-3">
           {/* ── MAIN CONTENT ── */}
           <div className="lg:col-span-2">
-            <div className="prose-custom rich-text max-w-none" dangerouslySetInnerHTML={{ __html: member.bio }} />
+            <div className="prose-custom rich-text max-w-none" dangerouslySetInnerHTML={{ __html: sanitizeRichText(member.bio) }} />
 
             {/* Back link */}
             <div className="mt-16 border-t border-border pt-8">

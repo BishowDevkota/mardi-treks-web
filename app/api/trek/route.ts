@@ -1,7 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { apiRateLimit, checkRateLimit } from "@/lib/rate-limit";
 
 export async function GET(request: NextRequest) {
+  // Rate limiting by IP
+  const ip = request.headers.get("x-forwarded-for") || "unknown";
+  const rateCheck = await checkRateLimit(apiRateLimit, ip);
+  if (!rateCheck.success) {
+    return NextResponse.json(
+      { error: "Too many requests. Please try again later." },
+      {
+        status: 429,
+        headers: {
+          "Retry-After": String(rateCheck.reset),
+          "X-RateLimit-Remaining": String(rateCheck.remaining),
+        },
+      }
+    );
+  }
+
   const { searchParams } = new URL(request.url);
   const slug = searchParams.get("slug");
 

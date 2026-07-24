@@ -1,0 +1,146 @@
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: booking-flow.spec.ts >> Booking Flow >> SEO: sitemap and robots.txt are accessible
+- Location: tests/e2e/booking-flow.spec.ts:81:7
+
+# Error details
+
+```
+Error: expect(locator).toContainText(expected) failed
+
+Locator: locator('body')
+Timeout: 5000ms
+- Expected substring  - 1
++ Received string     + 9
+
+- User-agent
++ User-Agent: *
++ Allow: /
++ Disallow: /admin
++ Disallow: /dashboard
++ Disallow: /api/
++ Disallow: /_next/
++
++ Sitemap: https://marditreks.com/sitemap.xml
++
+
+Call log:
+  - Expect "toContainText" with timeout 5000ms
+  - waiting for locator('body')
+    14 × locator resolved to <body>…</body>
+       - unexpected value "User-Agent: *
+Allow: /
+Disallow: /admin
+Disallow: /dashboard
+Disallow: /api/
+Disallow: /_next/
+
+Sitemap: https://marditreks.com/sitemap.xml
+"
+
+```
+
+```yaml
+- text: "User-Agent: * Allow: / Disallow: /admin Disallow: /dashboard Disallow: /api/ Disallow: /_next/ Sitemap: https://marditreks.com/sitemap.xml"
+```
+
+# Test source
+
+```ts
+  1  | import { test, expect } from "@playwright/test";
+  2  | 
+  3  | test.describe("Booking Flow", () => {
+  4  |   const TEST_EMAIL = `e2e-test-${Date.now()}@example.com`;
+  5  |   const TEST_PASSWORD = "E2eTestPass123!";
+  6  |   const TEST_NAME = "E2E Test User";
+  7  | 
+  8  |   test("can browse home page and navigate to a category listing", async ({ page }) => {
+  9  |     await page.goto("/");
+  10 |     await expect(page.locator("h1").first()).toBeVisible();
+  11 | 
+  12 |     // Find and click a category link from navigation or hero
+  13 |     const categoryLink = page.locator('a[href^="/trek"], a[href^="/tour"], a[href^="/climbing"]').first();
+  14 |     if (await categoryLink.count() > 0) {
+  15 |       const href = await categoryLink.getAttribute("href");
+  16 |       await categoryLink.click();
+  17 |       await expect(page).toHaveURL(new RegExp(href!));
+  18 |     }
+  19 |   });
+  20 | 
+  21 |   test("can view trek detail page if trek exists", async ({ page }) => {
+  22 |     // Navigate to a category first, then find a trek link
+  23 |     await page.goto("/treks");
+  24 |     const trekLink = page.locator('a[href*="/treks/"]').first();
+  25 |     if (await trekLink.count() > 0) {
+  26 |       const href = await trekLink.getAttribute("href");
+  27 |       await trekLink.click();
+  28 |       await expect(page).toHaveURL(new RegExp(href!));
+  29 |       await expect(page.locator("h1")).toBeVisible();
+  30 |     }
+  31 |   });
+  32 | 
+  33 |   test("can sign up with unique credentials", async ({ page }) => {
+  34 |     await page.goto("/signup");
+  35 |     await expect(page.locator("h1").first()).toBeVisible();
+  36 | 
+  37 |     await page.fill('input[name="name"]', TEST_NAME);
+  38 |     await page.fill('input[name="email"]', TEST_EMAIL);
+  39 |     await page.fill('input[name="password"]', TEST_PASSWORD);
+  40 | 
+  41 |     await page.click('button[type="submit"]');
+  42 | 
+  43 |     // Should redirect to dashboard or login after signup
+  44 |     await page.waitForURL(/\/dashboard|\/login/, { timeout: 15000 });
+  45 |   });
+  46 | 
+  47 |   test("can log in with test credentials", async ({ page }) => {
+  48 |     await page.goto("/login");
+  49 |     await expect(page.locator("h1").first()).toBeVisible();
+  50 | 
+  51 |     await page.fill('input[name="email"]', TEST_EMAIL);
+  52 |     await page.fill('input[name="password"]', TEST_PASSWORD);
+  53 |     await page.click('button[type="submit"]');
+  54 | 
+  55 |     // Should redirect to dashboard
+  56 |     await page.waitForURL(/\/dashboard/, { timeout: 15000 });
+  57 |     await expect(page.locator("h1").first()).toBeVisible();
+  58 |   });
+  59 | 
+  60 |   test("booking page redirects unauthenticated users to login", async ({ page }) => {
+  61 |     await page.goto("/book/some-trek-slug");
+  62 |     // Should either show login prompt or redirect to login
+  63 |     await page.waitForURL(/\/login|\/book\//, { timeout: 10000 });
+  64 |   });
+  65 | 
+  66 |   test("payment page shows payment options for a valid booking", async ({ page }) => {
+  67 |     // Log in first
+  68 |     await page.goto("/login");
+  69 |     await page.fill('input[name="email"]', TEST_EMAIL);
+  70 |     await page.fill('input[name="password"]', TEST_PASSWORD);
+  71 |     await page.click('button[type="submit"]');
+  72 |     await page.waitForURL(/\/dashboard/, { timeout: 15000 });
+  73 | 
+  74 |     // Navigate directly to a booking's payment page — will show error or redirect
+  75 |     // This validates the payment page renders at all
+  76 |     await page.goto("/payment/invalid-id");
+  77 |     // Should show the payment page UI or an error state without crashing
+  78 |     await expect(page.locator("body")).toBeVisible();
+  79 |   });
+  80 | 
+  81 |   test("SEO: sitemap and robots.txt are accessible", async ({ page }) => {
+  82 |     await page.goto("/robots.txt");
+> 83 |     await expect(page.locator("body")).toContainText("User-agent");
+     |                                        ^ Error: expect(locator).toContainText(expected) failed
+  84 | 
+  85 |     await page.goto("/sitemap.xml");
+  86 |     await expect(page.locator("body")).toContainText("urlset");
+  87 |   });
+  88 | });
+  89 | 
+```

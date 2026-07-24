@@ -173,7 +173,7 @@ export function Header({
   // logo or the auth actions are — this is what keeps it dead-center in
   // both the expanded (with top bar) and compact (scrolled) layouts.
   const desktopNav = (
-    <nav className="ml-14 hidden items-center gap-1 md:flex">
+    <nav className="ml-14 hidden items-center gap-1 lg:flex">
       {navItems.map((item) => {
         const groupedTreks = getTreksGroupedByRegion(item.href);
         const hasDropdown = groupedTreks.length > 0;
@@ -205,25 +205,58 @@ export function Header({
             className="relative"
             onMouseEnter={() => handleDropdownEnter(item.href)}
             onMouseLeave={handleDropdownLeave}
+            onFocus={() => handleDropdownEnter(item.href)}
+            onBlur={(e) => {
+              // Close dropdown when focus leaves the entire dropdown container
+              if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+                handleDropdownLeave();
+              }
+            }}
           >
-            <Link
-              href={item.href}
+            <button
+              onClick={(e) => {
+                e.preventDefault();
+                setHoveredDropdown(hoveredDropdown === item.href ? null : item.href);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") {
+                  setHoveredDropdown(null);
+                  // Focus the trigger button
+                  (e.currentTarget as HTMLElement).focus();
+                }
+                if (e.key === "ArrowDown" && isHovered) {
+                  e.preventDefault();
+                  // Focus first trek link in dropdown
+                  const firstLink = e.currentTarget
+                    .closest("[data-dropdown-container]")
+                    ?.querySelector<HTMLElement>('[data-dropdown-item]:first-of-type a, a[data-dropdown-item]');
+                  firstLink?.focus();
+                }
+              }}
+              aria-expanded={isHovered}
+              aria-haspopup="true"
               className={`group inline-flex items-center gap-1 rounded-lg px-3.5 py-2 text-[14.5px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 ${
                 isActive ? "text-primary" : "text-slate-600 hover:text-primary"
               }`}
             >
               {item.label}
-              <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${isHovered ? "rotate-180" : ""}`} />
+              <ChevronDown
+                className={`h-3.5 w-3.5 transition-transform duration-200 ${isHovered ? "rotate-180" : ""}`}
+                aria-hidden="true"
+              />
               <span
                 className={`pointer-events-none absolute inset-x-3 bottom-1 h-px bg-primary transition-transform duration-200 ease-out ${
                   isActive ? "scale-x-100" : "scale-x-0 group-hover:scale-x-100"
                 }`}
               />
-            </Link>
+            </button>
 
             <div
+              data-dropdown-container="true"
               onMouseEnter={() => handleDropdownEnter(item.href)}
               onMouseLeave={handleDropdownLeave}
+              role="menu"
+              aria-label={`${item.label} submenu`}
               className={`absolute left-1/2 top-full z-10 mt-3 -translate-x-1/2 overflow-hidden rounded-2xl border border-border bg-surface shadow-sm transition-all duration-200 ease-out ${
                 isHovered
                   ? "translate-y-0 opacity-100"
@@ -232,13 +265,13 @@ export function Header({
               style={{ minWidth: `${Math.max(groupedTreks.length * 208, 220)}px` }}
             >
               {/* Little pointer caret connecting the trigger to the panel */}
-              <span className="absolute -top-1.5 left-1/2 h-3 w-3 -translate-x-1/2 rotate-45 border-l border-t border-border bg-surface" />
+              <span className="absolute -top-1.5 left-1/2 h-3 w-3 -translate-x-1/2 rotate-45 border-l border-t border-border bg-surface" aria-hidden="true" />
 
               <div className="relative flex divide-x divide-border">
                 {groupedTreks.map((group) => (
                   <div key={group.region} className="min-w-[200px] flex-1 p-3">
                     <div className="mb-2 flex items-center gap-2 border-b border-border px-1 pb-2">
-                      <div className="h-1 w-4 rounded-full bg-primary" />
+                      <div className="h-1 w-4 rounded-full bg-primary" aria-hidden="true" />
                       <p className="text-[10px] font-black uppercase tracking-[0.2em] text-foreground">
                         {group.region}
                       </p>
@@ -251,7 +284,20 @@ export function Header({
                           <Link
                             key={trek.id}
                             href={trekHref}
+                            role="menuitem"
+                            data-dropdown-item="true"
                             onClick={() => setHoveredDropdown(null)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Escape") {
+                                setHoveredDropdown(null);
+                                // Return focus to the trigger button
+                                const trigger = e.currentTarget
+                                  .closest("[data-dropdown-container]")
+                                  ?.parentElement
+                                  ?.querySelector<HTMLElement>("button[aria-haspopup]");
+                                trigger?.focus();
+                              }
+                            }}
                             className={`group/trek relative flex items-center gap-2.5 rounded-xl px-2 py-1.5 transition-all duration-300 hover:bg-primary/10 ${
                               isTrekActive ? "bg-primary/10" : ""
                             }`}
@@ -260,11 +306,13 @@ export function Header({
                               className={`absolute left-0 w-1 rounded-r-full bg-primary transition-all duration-300 group-hover/trek:h-1/3 ${
                                 isTrekActive ? "h-1/2" : "h-0"
                               }`}
+                              aria-hidden="true"
                             />
                             <span
                               className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md text-[9px] font-black transition-transform duration-300 group-hover/trek:scale-110 group-hover/trek:bg-primary group-hover/trek:text-white ${
                                 isTrekActive ? "bg-primary text-white" : "bg-primary/10 text-primary"
                               }`}
+                              aria-hidden="true"
                             >
                               {String(idx + 1).padStart(2, "0")}
                             </span>
@@ -290,7 +338,7 @@ export function Header({
   );
 
   const authActions = (
-    <div className="ml-auto hidden items-center gap-4 md:flex">
+    <div className="ml-auto hidden items-center gap-4 lg:flex">
       {session?.user ? (
         <div className="flex items-center gap-4">
           <Link
@@ -335,7 +383,7 @@ export function Header({
   const mobileMenuButton = (
     <button
       onClick={() => setIsMenuOpen(!isMenuOpen)}
-      className="ml-auto rounded-lg p-2 text-slate-600 transition-colors hover:bg-surface-alt focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 md:hidden"
+      className="ml-auto rounded-lg p-2 text-slate-600 transition-colors hover:bg-surface-alt focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 lg:hidden"
       aria-label="Toggle menu"
       aria-expanded={isMenuOpen}
     >
@@ -388,7 +436,7 @@ export function Header({
 
       {/* Mobile Navigation */}
       <div
-        className={`grid overflow-hidden bg-white transition-[grid-template-rows] duration-300 ease-out md:hidden ${
+        className={`grid overflow-hidden bg-white transition-[grid-template-rows] duration-300 ease-out lg:hidden ${
           isMenuOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
         }`}
       >

@@ -25,9 +25,18 @@ export async function generateMetadata(): Promise<Metadata> {
   const pc = await getPageContent();
   const blog = pc?.blog;
   const seo = blog?.seo;
+
+  // Validate CMS content — reject placeholder/test titles
+  const rawTitle = seo?.title || "";
+  const isValidTitle = rawTitle &&
+    rawTitle.length > 2 &&
+    !["dsaf", "adsf", "asdf", "test", "hello", "hi"].some((p) => rawTitle.toLowerCase().includes(p));
+
   return {
-    title: seo?.title || "Blog",
-    description: seo?.description || "Read our trekking guides and stories from the Himalayas.",
+    title: isValidTitle ? rawTitle : "Blog | Mardi Treks",
+    description: seo?.description?.length > 5
+      ? seo.description
+      : "Read our trekking guides and stories from the Himalayas.",
     keywords: seo?.keywords || undefined,
     alternates: { canonical: "https://marditreks.com/blog" },
   };

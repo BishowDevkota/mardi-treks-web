@@ -4,6 +4,7 @@ import { Mail, Phone, MapPin } from "lucide-react";
 import { ContactFormSection } from "@/components/home/ContactFormSection";
 import { PageHero } from "@/components/layout/PageHero";
 import { getCachedOrFetch, cacheKeys, CACHE_TTL } from "@/lib/redis";
+import { sanitizeIframeHtml } from "@/lib/sanitize";
 
 export const revalidate = 3600;
 
@@ -75,9 +76,9 @@ export default async function ContactPage() {
         <div className="mx-auto max-w-7xl px-3 sm:px-4 lg:px-6">
           <div className="grid gap-10 lg:grid-cols-2">
             {/* Map (left) — stretches to full height of grid row */}
-            <div className="h-full">
+            <div className="h-full min-w-0">
               {mapIframe ? (
-                <div className="h-full min-h-[400px] overflow-hidden rounded-2xl border border-border shadow-sm" dangerouslySetInnerHTML={{ __html: mapIframe }} />
+                <div className="iframe-responsive-container h-full min-h-[400px] overflow-hidden rounded-2xl border border-border shadow-sm [&_iframe]:w-full [&_iframe]:max-w-full [&_iframe]:h-full [&_iframe]:min-h-[400px]" dangerouslySetInnerHTML={{ __html: sanitizeIframeHtml(mapIframe) }} />
               ) : (
                 <div className="flex h-full min-h-[400px] items-center justify-center rounded-2xl border border-border bg-surface shadow-sm">
                   <div className="text-center">
