@@ -29,7 +29,6 @@ async function getTrek(slug: string, categorySlug: string) {
       const trek = await prisma.trek.findUnique({
         where: { slug, status: "published" },
         include: {
-          highlights: { orderBy: { sort: "asc" } },
           itinerary: { orderBy: { dayNumber: "asc" } },
           pricingTiers: true,
           availableDates: true,
@@ -58,7 +57,7 @@ export async function generateMetadata({ params }: { params: Promise<{ category:
     description,
     keywords: trek.keywords || undefined,
     alternates: { canonical: `https://marditreks.com/${catSlug}/${slug}` },
-    openGraph: { title, description, type: "article", url: `https://marditreks.com/${catSlug}/${slug}` },
+    openGraph: { title, description, type: "article", url: `https://marditreks.com/${catSlug}/${slug}`, images: trek.heroImage ? [{ url: trek.heroImage }] : undefined },
   };
 }
 
@@ -102,8 +101,13 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
   const pricingTiers = trek.pricingTiers || [];
   const faqs = trek.faqs || [];
   const reviews = trek.reviews || [];
-  const inclusions = (typeof trek.inclusions === "string" ? JSON.parse(trek.inclusions) : trek.inclusions) || [];
-  const exclusions = (typeof trek.exclusions === "string" ? JSON.parse(trek.exclusions) : trek.exclusions) || [];
+  const rawInclusions = (trek.inclusions as string) || "";
+  const rawExclusions = (trek.exclusions as string) || "";
+  // Detect legacy format (JSON array string like `["item1","item2"]`) vs new HTML content
+  const isLegacyInclusions = rawInclusions.trim().startsWith("[") && rawInclusions.trim().endsWith("]");
+  const isLegacyExclusions = rawExclusions.trim().startsWith("[") && rawExclusions.trim().endsWith("]");
+  const inclusions = isLegacyInclusions ? JSON.parse(rawInclusions) : rawInclusions;
+  const exclusions = isLegacyExclusions ? JSON.parse(rawExclusions) : rawExclusions;
   const waypoints = (typeof trek.waypoints === "string" ? JSON.parse(trek.waypoints) : trek.waypoints) || [];
   const addons = (typeof trek.addons === "string" ? JSON.parse(trek.addons) : trek.addons) || [];
   const customSections = (typeof trek.customSections === "string" ? JSON.parse(trek.customSections) : trek.customSections) || [];
@@ -147,6 +151,75 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
 
   return (
     <GalleryProvider>
+      {/* Product schema for Google — uses refined Product type */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "Product",
+            name: trek.title,
+            description: trek.metaDescription || trek.overview?.replace(/<[^>]*>/g, "").slice(0, 300),
+            image: [
+              ...(trek.heroImage
+                ? [`https://res.cloudinary.com/dk7ggjvlw/image/upload/${trek.heroImage}`]
+                : []),
+              ...(trek.galleryImages || []).map(
+                (g: any) => `https://res.cloudinary.com/dk7ggjvlw/image/upload/${g.imageId}`
+              ),
+            ],
+            thumbnail: trek.heroImage
+              ? `https://res.cloudinary.com/dk7ggjvlw/image/upload/${trek.heroImage}`
+              : undefined,
+            category: trek.category?.name || undefined,
+            keywords: trek.keywords || undefined,
+            tags: (trek as any).tags || undefined,
+            brand: {
+              "@type": "Brand",
+              name: "Mardi Treks",
+            },
+            offers: {
+              "@type": "AggregateOffer",
+              priceCurrency: "USD",
+              lowPrice: minPrice > 0 ? minPrice : trek.price,
+              highPrice: trek.price,
+              offerCount: pricingTiers.length || 1,
+              availability: "https://schema.org/InStock",
+              url: `https://marditreks.com/${catSlug}/${slug}`,
+            },
+            ...(avgRating > 0
+              ? {
+                  aggregateRating: {
+                    "@type": "AggregateRating",
+                    ratingValue: avgRating.toFixed(1),
+                    reviewCount: reviews.filter((r: any) => r.approved).length,
+                    bestRating: "5",
+                  },
+                }
+              : {}),
+            ...(reviews.filter((r: any) => r.approved).length > 0
+              ? {
+                  review: reviews
+                    .filter((r: any) => r.approved)
+                    .slice(0, 10)
+                    .map((r: any) => ({
+                      "@type": "Review",
+                      author: { "@type": "Person", name: r.author },
+                      reviewRating: {
+                        "@type": "Rating",
+                        ratingValue: r.rating,
+                        bestRating: "5",
+                      },
+                      reviewBody: r.text?.slice(0, 500),
+                      datePublished: r.createdAt || undefined,
+                    })),
+                }
+              : {}),
+          }),
+        }}
+      />
+
+      {/* TouristTrip schema for rich itinerary data */}
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
@@ -154,24 +227,45 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
             "@context": "https://schema.org",
             "@type": "TouristTrip",
             name: trek.title,
-            description: trek.overview?.slice(0, 200),
+            description: trek.overview?.replace(/<[^>]*>/g, "").slice(0, 200),
             price: trek.price,
             priceCurrency: "USD",
             duration: `P${trek.duration}D`,
             offers: {
               "@type": "Offer",
-              price: trek.price,
+              price: minPrice > 0 ? minPrice : trek.price,
               priceCurrency: "USD",
               availability: "https://schema.org/InStock",
             },
             itinerary: itinerary?.map((day: any) => ({
               "@type": "Itinerary",
               name: `Day ${day.dayNumber}: ${day.title}`,
-              description: day.description?.slice(0, 200),
+              description: day.description?.replace(/<[^>]*>/g, "").slice(0, 200),
             })),
           }),
         }}
       />
+
+      {/* FAQPage schema for SEO */}
+      {faqs.length > 0 && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "FAQPage",
+              mainEntity: faqs.map((faq: any) => ({
+                "@type": "Question",
+                name: faq.question,
+                acceptedAnswer: {
+                  "@type": "Answer",
+                  text: faq.answer?.slice(0, 500),
+                },
+              })),
+            }),
+          }}
+        />
+      )}
 
       {/* ================================================================
           HERO SECTION — Full-screen parallax with search
@@ -280,7 +374,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
         >
           Duration
         </span>
-        <span className="text-2xl font-bold" style={{ color: "var(--color-secondary)" }}>
+        <span className="text-xl font-bold" style={{ color: "var(--color-secondary)" }}>
           {trek.duration} Days
         </span>
       </div>
@@ -295,7 +389,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
         >
           Difficulty
         </span>
-        <span className="text-2xl font-bold" style={{ color: "var(--color-secondary)" }}>
+        <span className="text-xl font-bold" style={{ color: "var(--color-secondary)" }}>
           {trek.difficulty.charAt(0).toUpperCase() + trek.difficulty.slice(1)}
         </span>
       </div>
@@ -310,7 +404,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
         >
           Max Altitude
         </span>
-        <span className="text-2xl font-bold" style={{ color: "var(--color-secondary)" }}>
+        <span className="text-xl font-bold" style={{ color: "var(--color-secondary)" }}>
           {maxAltitude > 0 ? `${maxAltitude.toLocaleString()}m` : "\u2014"}
         </span>
       </div>
@@ -325,7 +419,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
         >
           Best Time
         </span>
-        <span className="text-2xl font-bold" style={{ color: "var(--color-secondary)" }}>
+        <span className="text-xl font-bold" style={{ color: "var(--color-secondary)" }}>
           {trek.bestTime || "\u2014"}
         </span>
       </div>
@@ -340,7 +434,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
         >
           Min Price
         </span>
-        <span className="text-2xl font-bold" style={{ color: "var(--color-secondary)" }}>
+        <span className="text-xl font-bold" style={{ color: "var(--color-secondary)" }}>
           {minPrice > 0 ? `$${minPrice.toLocaleString()}` : "\u2014"}
         </span>
       </div>
@@ -355,7 +449,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
         >
           Region
         </span>
-        <span className="text-2xl font-bold" style={{ color: "var(--color-secondary)" }}>
+        <span className="text-xl font-bold" style={{ color: "var(--color-secondary)" }}>
           {trek.region || "\u2014"}
         </span>
       </div>
@@ -365,7 +459,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
   {/* Overview description */}
   {trek.overview && (
     <div
-      className="max-w-3xl text-lg leading-relaxed"
+      className="rich-text w-full text-base leading-relaxed [&_p:last-child]:mb-0"
       style={{ color: "var(--color-text)" }}
       dangerouslySetInnerHTML={{ __html: trek.overview }}
     />
@@ -451,7 +545,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
               style={{ borderColor: "var(--color-border)" }}
             >
               {day.description ? (
-                <div className="text-sm leading-relaxed prose prose-sm max-w-none" style={{ color: "var(--color-text)" }} dangerouslySetInnerHTML={{ __html: day.description }} />
+                <div className="rich-text text-sm leading-relaxed" style={{ color: "var(--color-text)" }} dangerouslySetInnerHTML={{ __html: day.description }} />
               ) : (
                 <p className="text-sm leading-relaxed" style={{ color: "var(--color-text-muted)" }}>No description available</p>
               )}
@@ -487,81 +581,125 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
     </div>
   </section> : null;
               sectionMap["altitude"] = () => itinerary.length > 0 ? <section id="altitude" className="py-16"><AltitudeProfile itinerary={itinerary} /></section> : null;
-              sectionMap["inEx"] = () => (inclusions.length > 0 || exclusions.length > 0) ? <section id="inEx" className="py-16">
-    <h2
-      className="mb-2 text-2xl font-bold"
-      style={{ color: "var(--color-secondary)" }}
-    >
-      {sectionData.inEx?.heading || "Inclusions & Exclusions"}
-    </h2>
-    {sectionData.inEx?.description && (
-      <p className="mb-8 text-sm" style={{ color: "var(--color-text-muted)" }}>
-        {sectionData.inEx.description}
-      </p>
-    )}
+sectionMap["inEx"] = () => {
+  const hasInclusions = Array.isArray(inclusions) ? inclusions.length > 0 : (typeof inclusions === "string" && inclusions.trim().length > 0);
+  const hasExclusions = Array.isArray(exclusions) ? exclusions.length > 0 : (typeof exclusions === "string" && exclusions.trim().length > 0);
+  return (hasInclusions || hasExclusions) ? <section id="inEx" className="py-16">
+    <div className="mb-12 max-w-2xl">
+      <h2
+        className="mb-3 text-2xl font-bold tracking-tight sm:text-3xl"
+        style={{ color: "var(--color-secondary)" }}
+      >
+        {sectionData.inEx?.heading || "Inclusions & Exclusions"}
+      </h2>
+      {sectionData.inEx?.description && (
+        <p className="text-sm leading-relaxed" style={{ color: "var(--color-text-muted)" }}>
+          {sectionData.inEx.description}
+        </p>
+      )}
+    </div>
 
-    <div className="space-y-6">
-      {inclusions.length > 0 && (
+    <div className="space-y-8">
+      {hasInclusions && (
         <div
-          className="rounded-3xl border p-6 sm:p-7"
+          className="rounded-3xl border p-7 transition-shadow duration-300 hover:shadow-lg sm:p-9"
           style={{
             backgroundColor: "var(--color-surface-alt)",
             borderColor: "var(--color-border)",
           }}
         >
-          <div className="mb-5 flex items-center gap-2.5">
-            <Check className="h-4 w-4 shrink-0" style={{ color: "var(--color-success)" }} />
-            <h3 className="text-lg font-bold" style={{ color: "var(--color-secondary)" }}>
+          <div className="mb-7 flex items-center gap-3">
+            <span
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full"
+              style={{ backgroundColor: "color-mix(in srgb, var(--color-success) 15%, transparent)" }}
+            >
+              <Check className="h-4 w-4" strokeWidth={2.5} style={{ color: "var(--color-success)" }} />
+            </span>
+            <h3 className="text-base font-bold tracking-tight sm:text-lg" style={{ color: "var(--color-secondary)" }}>
               What&apos;s Included
             </h3>
           </div>
-          <ul className="divide-y" style={{ borderColor: "var(--color-border)" }}>
-            {inclusions.map((item: string, i: number) => (
-              <li key={i} className="flex items-start gap-3 py-3 first:pt-0 last:pb-0">
-                <Check
-                  className="mt-0.5 h-4 w-4 shrink-0"
-                  style={{ color: "var(--color-success)" }}
-                />
-                <span className="text-sm leading-relaxed" style={{ color: "var(--color-text)" }}>
-                  {item}
-                </span>
-              </li>
-            ))}
-          </ul>
+
+          {Array.isArray(inclusions) ? (
+            <ul className="space-y-1">
+              {inclusions.map((item, i) => (
+                <li
+                  key={i}
+                  className="group/item flex items-start gap-3.5 rounded-xl px-3 py-3.5 -mx-3 transition-colors duration-200 hover:bg-black/[0.03] dark:hover:bg-white/[0.04]"
+                >
+                  <span
+                    className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full transition-transform duration-200 group-hover/item:scale-110"
+                    style={{ backgroundColor: "color-mix(in srgb, var(--color-success) 12%, transparent)" }}
+                  >
+                    <Check className="h-3 w-3" strokeWidth={3} style={{ color: "var(--color-success)" }} />
+                  </span>
+                  <span className="text-sm leading-relaxed" style={{ color: "var(--color-text)" }}>
+                    {item}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <div
+              className="text-sm leading-relaxed [&_ul]:space-y-3.5 [&_ul]:list-none [&_li]:relative [&_li]:pl-6 [&_li]:before:content-['✓'] [&_li]:before:absolute [&_li]:before:left-0 [&_li]:before:text-emerald-500 [&_li]:before:font-bold"
+              style={{ color: "var(--color-text)" }}
+              dangerouslySetInnerHTML={{ __html: inclusions }}
+            />
+          )}
         </div>
       )}
 
-      {exclusions.length > 0 && (
+      {hasExclusions && (
         <div
-          className="rounded-3xl border p-6 sm:p-7"
+          className="rounded-3xl border p-7 transition-shadow duration-300 hover:shadow-lg sm:p-9"
           style={{
             backgroundColor: "var(--color-surface-alt)",
             borderColor: "var(--color-border)",
           }}
         >
-          <div className="mb-5 flex items-center gap-2.5">
-            <XIcon className="h-4 w-4 shrink-0" style={{ color: "var(--color-error)" }} />
-            <h3 className="text-lg font-bold" style={{ color: "var(--color-secondary)" }}>
+          <div className="mb-7 flex items-center gap-3">
+            <span
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full"
+              style={{ backgroundColor: "color-mix(in srgb, var(--color-error) 15%, transparent)" }}
+            >
+              <XIcon className="h-4 w-4" strokeWidth={2.5} style={{ color: "var(--color-error)" }} />
+            </span>
+            <h3 className="text-base font-bold tracking-tight sm:text-lg" style={{ color: "var(--color-secondary)" }}>
               What&apos;s Excluded
             </h3>
           </div>
-          <ul className="divide-y" style={{ borderColor: "var(--color-border)" }}>
-            {exclusions.map((item: string, i: number) => (
-              <li key={i} className="flex items-start gap-3 py-3 first:pt-0 last:pb-0">
-                <XIcon
-                  className="mt-0.5 h-4 w-4 shrink-0"
-                  style={{ color: "var(--color-error)" }}
-                />
-                <span className="text-sm leading-relaxed" style={{ color: "var(--color-text)" }}>
-                  {item}
-                </span>
-              </li>
-            ))}
-          </ul>
+
+          {Array.isArray(exclusions) ? (
+            <ul className="space-y-1">
+              {exclusions.map((item, i) => (
+                <li
+                  key={i}
+                  className="group/item flex items-start gap-3.5 rounded-xl px-3 py-3.5 -mx-3 transition-colors duration-200 hover:bg-black/[0.03] dark:hover:bg-white/[0.04]"
+                >
+                  <span
+                    className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full transition-transform duration-200 group-hover/item:scale-110"
+                    style={{ backgroundColor: "color-mix(in srgb, var(--color-error) 12%, transparent)" }}
+                  >
+                    <XIcon className="h-3 w-3" strokeWidth={3} style={{ color: "var(--color-error)" }} />
+                  </span>
+                  <span className="text-sm leading-relaxed" style={{ color: "var(--color-text)" }}>
+                    {item}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <div
+              className="text-sm leading-relaxed [&_ul]:space-y-3.5 [&_ul]:list-none [&_li]:relative [&_li]:pl-6 [&_li]:before:content-['✗'] [&_li]:before:absolute [&_li]:before:left-0 [&_li]:before:text-red-400 [&_li]:before:font-bold"
+              style={{ color: "var(--color-text)" }}
+              dangerouslySetInnerHTML={{ __html: exclusions }}
+            />
+          )}
         </div>
       )}
     </div>
   </section> : null;
+};
              sectionMap["pricing"] = () => pricingTiers.length > 0 ? <section id="pricing" className="py-16">
   <h2 className="mb-2 text-2xl font-bold" style={{ color: "var(--color-secondary)" }}>{sectionData.pricing?.heading || "Pricing"}</h2>
   <p className="mb-8 text-sm" style={{ color: "var(--color-text-muted)" }}>{sectionData.pricing?.description || "Per-person pricing based on group size."}</p>
@@ -575,10 +713,14 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
       <div key={i} className="grid grid-cols-3 items-center border-t" style={{ borderColor: "var(--color-border)" }}>
         <span className="flex items-center gap-1.5 px-5 py-4 text-sm" style={{ color: "var(--color-text)" }}>
           <Users className="h-3.5 w-3.5 shrink-0" style={{ color: "var(--color-primary)" }} />
-          {tier.groupSize}
+          {tier.groupSize} pax
         </span>
-        <span className="px-5 py-4 text-right text-sm font-semibold" style={{ color: "var(--color-primary)" }}>
-          ${tier.pricePerPerson.toLocaleString()}
+        <span className="px-5 py-4 text-right text-sm" style={{ color: "var(--color-text-muted)" }}>
+          <span className="text-slate-400 line-through">${(Math.round(tier.pricePerPerson * 1.1)).toLocaleString()}</span>
+          &nbsp;
+          <span className="font-semibold" style={{ color: "var(--color-primary)" }}>
+            ${tier.pricePerPerson.toLocaleString()}
+          </span>
         </span>
         <span className="px-5 py-4 text-right">
           <a
@@ -607,8 +749,13 @@ sectionMap["addons"] = () => addons.length > 0 ? <section id="addons" className=
       <div key={i} className="grid grid-cols-[1fr_1.5fr_auto] items-center border-t" style={{ borderColor: "var(--color-border)" }}>
         <span className="px-5 py-4 text-sm font-semibold" style={{ color: "var(--color-secondary)" }}>{addon.title}</span>
         <span className="px-5 py-4 text-sm" style={{ color: "var(--color-text-muted)" }}>{addon.description || "\u2014"}</span>
-        <span className="whitespace-nowrap px-5 py-4 text-right text-sm font-bold" style={{ color: "var(--color-primary)" }}>
-          ${addon.pricePerUnit?.toLocaleString()} <span className="font-normal" style={{ color: "var(--color-text-muted)" }}>/ {addon.unit === "room" ? "room" : "person"}</span>
+        <span className="whitespace-nowrap px-5 py-4 text-right text-sm" style={{ color: "var(--color-text-muted)" }}>
+          <span className="text-slate-400 line-through">${(Math.round((addon.pricePerUnit || 0) * 1.1)).toLocaleString()}</span>
+          &nbsp;
+          <span className="font-bold" style={{ color: "var(--color-primary)" }}>
+            ${addon.pricePerUnit?.toLocaleString()}
+          </span>
+          <span className="font-normal" style={{ color: "var(--color-text-muted)" }}> / {addon.unit || "person"}</span>
         </span>
       </div>
     ))}
@@ -644,19 +791,53 @@ sectionMap["map"] = () => <section id="map" className="py-16">
 sectionMap["faqs"] = () => faqs.length > 0 ? <section id="faqs" className="py-16">
   <h2 className="mb-2 text-2xl font-bold" style={{ color: "var(--color-secondary)" }}>{sectionData.faqs?.heading || "Frequently Asked Questions"}</h2>
   {sectionData.faqs?.description && <p className="mb-8 text-sm" style={{ color: "var(--color-text-muted)" }}>{sectionData.faqs.description}</p>}
-  <div className="divide-y overflow-hidden rounded-3xl border" style={{ backgroundColor: "var(--color-surface)", borderColor: "var(--color-border)" }}>
+  <div className="space-y-3">
     {faqs.map((faq: any, i: number) => (
-      <details key={i} className="group">
-        <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-6 py-5 marker:content-none [&::-webkit-details-marker]:hidden">
-          <span className="text-sm font-semibold" style={{ color: "var(--color-foreground)" }}>{faq.question}</span>
+      <details
+        key={i}
+        className="group relative rounded-2xl border transition-colors"
+        style={{
+          backgroundColor: "var(--color-surface)",
+          borderColor: "var(--color-border)",
+        }}
+        open={i === 0}
+      >
+        <summary className="flex cursor-pointer list-none items-start gap-4 rounded-2xl px-4 py-4 marker:content-none [&::-webkit-details-marker]:hidden">
+          {/* question number marker */}
           <span
-            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full transition-transform duration-300 group-open:rotate-45"
-            style={{ backgroundColor: "var(--color-surface-alt)" }}
+            className="relative z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-full border text-sm font-bold tabular-nums"
+            style={{
+              backgroundColor: "var(--color-surface)",
+              borderColor: "var(--color-border)",
+              color: "var(--color-text-muted)",
+            }}
           >
-            <Plus className="h-3.5 w-3.5" style={{ color: "var(--color-primary)" }} />
+            <span className="group-open:hidden">{i + 1}</span>
+            <span
+              className="hidden h-2.5 w-2.5 rounded-full group-open:block"
+              style={{ backgroundColor: "var(--color-primary)" }}
+            />
           </span>
+
+          <div className="flex-1 min-w-0 pt-1.5">
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-sm font-semibold" style={{ color: "var(--color-foreground)" }}>
+                {faq.question}
+              </span>
+              <span
+                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full transition-transform duration-300 group-open:rotate-45"
+                style={{ backgroundColor: "var(--color-surface-alt)" }}
+              >
+                <Plus className="h-3.5 w-3.5" style={{ color: "var(--color-primary)" }} />
+              </span>
+            </div>
+          </div>
         </summary>
-        <div className="px-6 pb-5 -mt-1">
+
+        <div
+          className="ml-14 mr-4 mb-5 border-t pt-4"
+          style={{ borderColor: "var(--color-border)" }}
+        >
           <p className="text-sm leading-relaxed" style={{ color: "var(--color-text)" }}>{faq.answer}</p>
         </div>
       </details>
@@ -779,10 +960,7 @@ sectionMap["gallery"] = () => trek.galleryImages?.length > 0 ? <GallerySection
                   sectionMap[cs.id] = () => (
                     <section className="py-16">
                       <h2 className="mb-6 text-2xl font-bold" style={{ color: "var(--color-secondary)" }}>{cs.data?.heading || "Custom Section"}</h2>
-                      {cs.data?.imageId && <div className="relative mb-6 aspect-[16/9] overflow-hidden rounded-xl">
-                        <Image src={`https://res.cloudinary.com/dk7ggjvlw/image/upload/${cs.data.imageId}`} alt={cs.data.imageAlt || cs.data?.heading || "Section image"} fill className="object-cover" sizes="(max-width: 1024px) 100vw, 66vw" />
-                      </div>}
-                      {cs.data?.content && <div className="text-lg leading-relaxed" style={{ color: "var(--color-text)" }} dangerouslySetInnerHTML={{ __html: cs.data.content }} />}
+                      {cs.data?.content && <div className="rich-text text-base leading-relaxed" style={{ color: "var(--color-text)" }} dangerouslySetInnerHTML={{ __html: cs.data.content }} />}
                     </section>
                   );
                 }
@@ -833,10 +1011,7 @@ sectionMap["gallery"] = () => trek.galleryImages?.length > 0 ? <GallerySection
                 ordered.push(<React.Fragment key={cs.id || `custom-${customIdx++}`}>
                   <section className="py-16">
                     <h2 className="mb-6 text-2xl font-bold" style={{ color: "var(--color-secondary)" }}>{cs.data?.heading || "Custom Section"}</h2>
-                    {cs.data?.imageId && <div className="relative mb-6 aspect-[16/9] overflow-hidden rounded-xl">
-                      <Image src={`https://res.cloudinary.com/dk7ggjvlw/image/upload/${cs.data.imageId}`} alt={cs.data.imageAlt || cs.data?.heading || "Section image"} fill className="object-cover" sizes="(max-width: 1024px) 100vw, 66vw" />
-                    </div>}
-                    {cs.data?.content && <div className="text-lg leading-relaxed" style={{ color: "var(--color-text)" }} dangerouslySetInnerHTML={{ __html: cs.data.content }} />}
+                    {cs.data?.content && <div className="rich-text text-base leading-relaxed" style={{ color: "var(--color-text)" }} dangerouslySetInnerHTML={{ __html: cs.data.content }} />}
                   </section>
                   <hr className="border-t border-slate-200" />
                 </React.Fragment>);

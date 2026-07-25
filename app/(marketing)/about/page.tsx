@@ -43,10 +43,23 @@ export default async function AboutPage() {
   const pc = await getPageContent();
   const about = pc?.about || {};
   const hero = about.hero || {};
-  const sections = about.sections || [];
-  const whyChooseUs = about.whyChooseUs || {};
+  const sections = about.sections || {};
   const team = about.team || [];
   const gallery = about.gallery || [];
+
+  // Why Choose Us — reads from Home settings for a single source of truth
+  const homeSettings = await getCachedOrFetch(
+    cacheKeys.homeSettings,
+    () => prisma.homePageSettings.findUnique({ where: { id: "home-settings" } }),
+    CACHE_TTL.LAYOUT
+  );
+  const whyChooseUsEnabled = homeSettings?.whyChooseUsEnabled ?? true;
+  const whyChooseUsHeading = homeSettings?.whyChooseUsHeading;
+  const whyChooseUsSubtitle = homeSettings?.whyChooseUsSubtitle;
+  const whyChooseUsItems = homeSettings?.whyChooseUsItems
+    ? JSON.parse(homeSettings.whyChooseUsItems)
+    : null;
+  const whyChooseUsBgImage = homeSettings?.whyChooseUsBgImage;
 
   // Fetch team members from Prisma (for individual detail pages)
   const prismaMembers = await getCachedOrFetch(
@@ -108,13 +121,15 @@ export default async function AboutPage() {
         </section>
       ))}
 
-      {/* ── Why Choose Us ── */}
-      <WhyChooseUs
-        heading={whyChooseUs.heading || "Why Trek With Us?"}
-        subtitle={whyChooseUs.subtitle || "Discover the Difference"}
-        items={whyChooseUs.items || []}
-        bgImage={whyChooseUs.bgImage}
-      />
+      {/* ── Why Choose Us (reuses Home page settings) ── */}
+      {whyChooseUsEnabled && (
+        <WhyChooseUs
+          heading={whyChooseUsHeading || "Why Trek With Us?"}
+          subtitle={whyChooseUsSubtitle || "Discover the Difference"}
+          items={whyChooseUsItems || []}
+          bgImage={whyChooseUsBgImage}
+        />
+      )}
 
       {/* ── Team ── */}
       {allTeamMembers.length > 0 && (

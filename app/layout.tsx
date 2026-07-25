@@ -5,6 +5,7 @@ import { Analytics } from "@vercel/analytics/react";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { SessionProvider } from "@/components/layout/SessionProvider";
+import { ScrollToTop } from "@/components/layout/ScrollToTop";
 import { prisma } from "@/lib/prisma";
 import { getCachedOrFetch, cacheKeys, CACHE_TTL } from "@/lib/redis";
 import { sanitizeInlineHtml } from "@/lib/sanitize";
@@ -126,6 +127,7 @@ export default async function RootLayout({
     >
       <body className="flex min-h-full flex-col">
         <SessionProvider>
+          <ScrollToTop />
           <Header
             categories={categories}
             siteLogo={settingsData?.logo || null}

@@ -13,6 +13,14 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
+/** Extract the Cloudinary public_id from a Cloudinary URL */
+function extractPublicId(url: string): string | null {
+  // Cloudinary URL format: https://res.cloudinary.com/CLOUD_NAME/raw/upload/v1234567/FOLDER/FILENAME
+  // The URL includes the file extension, but the public_id does NOT include it
+  const match = url.match(/\/v\d+\/(.+?)(?:\.[^/.]+)?$/);
+  return match ? match[1] : null;
+}
+
 export async function POST(req: Request) {
   const session = await auth();
   if (!session || (session.user as any).role !== "admin") {
@@ -23,9 +31,20 @@ export async function POST(req: Request) {
     const formData = await req.formData();
     const file = formData.get("file") as File;
     const folder = (formData.get("folder") as string) || "mardi-treks";
+    const oldPublicId = (formData.get("oldPublicId") as string) || null;
 
     if (!file) {
       return NextResponse.json({ error: "No file" }, { status: 400 });
+    }
+
+    // Delete the old file from Cloudinary before uploading the new one
+    if (oldPublicId) {
+      try {
+        await cloudinary.uploader.destroy(oldPublicId, { resource_type: "raw" });
+        console.log(`Deleted old Cloudinary file: ${oldPublicId}`);
+      } catch (deleteErr) {
+        console.error("Failed to delete old Cloudinary file:", deleteErr);
+      }
     }
 
     const bytes = await file.arrayBuffer();
@@ -93,5 +112,48 @@ export async function POST(req: Request) {
   } catch (err: any) {
     console.error("Upload error:", err);
     return NextResponse.json({ error: err.message || "Upload failed" }, { status: 500 });
+  }
+}
+
+export async function DELETE(req: Request) {
+  const session = await auth();
+  if (!session || (session.user as any).role !== "admin") {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  try {
+    const { searchParams } = new URL(req.url);
+    let publicId = searchParams.get("publicId");
+
+    // If no direct publicId, try extracting from the URL
+    if (!publicId) {
+      const url = searchParams.get("url");
+      if (!url) {
+        return NextResponse.json({ error: "Missing 'publicId' or 'url' query param" }, { status: 400 });
+      }
+      publicId = extractPublicId(url);
+    }
+
+    if (!publicId) {
+      return NextResponse.json({ error: "Could not determine public ID" }, { status: 400 });
+    }
+
+    // Try raw first (for KML/GeoJSON), fall back to image
+    let deleted = false;
+    for (const resourceType of ["raw", "image"] as const) {
+      try {
+        const result = await cloudinary.uploader.destroy(publicId, { resource_type: resourceType });
+        if (result.result === "ok" || result.result === "not found") {
+          deleted = true;
+          console.log(`Deleted Cloudinary file (${resourceType}): ${publicId} → ${result.result}`);
+          break;
+        }
+      } catch {}
+    }
+
+    return NextResponse.json({ success: deleted });
+  } catch (err: any) {
+    console.error("Delete error:", err);
+    return NextResponse.json({ error: err.message || "Delete failed" }, { status: 500 });
   }
 }

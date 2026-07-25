@@ -52,7 +52,7 @@ export function PageHero({ heading, description, backgroundImage, treks, breadcr
               {heading}
             </h1>
             {description && (
-              <p className="mb-7 max-w-[46ch] text-[clamp(15px,1.6vw,17px)] leading-relaxed text-white/80">
+              <p className="mb-7 text-[clamp(15px,1.6vw,17px)] leading-relaxed text-white/80">
                 {description}
               </p>
             )}

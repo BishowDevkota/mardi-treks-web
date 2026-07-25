@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
@@ -128,6 +128,29 @@ export default function BookingPage({
     }
     return trek.pricingTiers[trek.pricingTiers.length - 1]?.pricePerPerson || trek.price || 0;
   }
+
+  // Derive max group size from pricing tiers so the counter matches the highest tier
+  const effectiveMaxGroupSize = useMemo(() => {
+    if (trek?.pricingTiers?.length) {
+      const tierMax = Math.max(
+        ...trek.pricingTiers.map((t) => {
+          const parts = t.groupSize.match(/(\d+)\s*-\s*(\d+)/);
+          if (parts) return parseInt(parts[2]);
+          const single = t.groupSize.match(/(\d+)/);
+          return single ? parseInt(single[1]) : 0;
+        })
+      );
+      return Math.max(tierMax, trek.maxGroupSize || 20);
+    }
+    return trek?.maxGroupSize || 20;
+  }, [trek]);
+
+  // Clamp traveler count once trek data loads (in case URL had a higher value)
+  useEffect(() => {
+    if (trek) {
+      setTravelerCount((prev) => Math.min(prev, effectiveMaxGroupSize));
+    }
+  }, [trek, effectiveMaxGroupSize]);
 
   const pricePerPerson = getPriceForGroupSize();
   const addonsTotal = selectedAddons.reduce((sum, a) => sum + a.qty * a.pricePerUnit, 0);
@@ -440,10 +463,10 @@ export default function BookingPage({
                     <button
                       type="button"
                       onClick={() => {
-                        const newCount = Math.min(trek.maxGroupSize || 20, travelerCount + 1);
+                        const newCount = Math.min(effectiveMaxGroupSize, travelerCount + 1);
                         setTravelerCount(newCount);
                       }}
-                      disabled={travelerCount >= (trek.maxGroupSize || 20)}
+                      disabled={travelerCount >= effectiveMaxGroupSize}
                       className="flex h-8 w-8 items-center justify-center rounded-lg border transition-colors disabled:cursor-not-allowed disabled:opacity-40"
                       style={{ borderColor: "var(--color-border)", backgroundColor: "var(--color-surface)", color: "var(--color-secondary)" }}
                     >
@@ -451,7 +474,7 @@ export default function BookingPage({
                     </button>
                   </div>
                   <p className="mt-1.5 text-xs" style={{ color: "var(--color-text-muted)" }}>
-                    Max {trek.maxGroupSize || 20} travelers per booking
+                    Max {effectiveMaxGroupSize} travelers per booking
                   </p>
                 </div>
               </div>

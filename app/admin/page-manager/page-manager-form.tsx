@@ -82,7 +82,6 @@ export function PageManagerForm({
   // ── About state ──
   const [aboutHero, setAboutHero] = useState(pc.about?.hero || { heading: "About Mardi Treks", description: "", backgroundImage: "" });
   const [aboutSeo, setAboutSeo] = useState(pc.about?.seo || { title: "", description: "", keywords: "" });
-  const [aboutWhy, setAboutWhy] = useState(pc.about?.whyChooseUs || { heading: "Why Trek With Us?", subtitle: "Discover the Difference", items: defaultWhyChooseUsItems, bgImage: "" });
   const [aboutTeam, setAboutTeam] = useState(pc.about?.team || defaultTeam);
   const [aboutGallery, setAboutGallery] = useState(pc.about?.gallery || []);
   const [aboutSections, setAboutSections] = useState<SectionBlock[]>(pc.about?.sections || []);
@@ -121,14 +120,59 @@ export function PageManagerForm({
   }, []);
 
   // ── Footer state ──
-  const [footer, setFooter] = useState(pc.footer || {
-    brandDescription: "Experience the Himalayas with Mardi Treks. Expert-guided trekking and tour packages in Nepal.",
+  const defaultPartners: { name: string; src: string }[] = [];
+  const defaultCompanyLinks = [
+    { label: "About Us", href: "/about" },
+    { label: "Travel Blog", href: "/blog" },
+    { label: "Plan Your Trip", href: "/contact" },
+    { label: "Contact Us", href: "/contact" },
+  ];
+  const defaultUsefulLinks = [
+    { label: "Travel Blog", href: "/blog" },
+    { label: "Plan Your Trip", href: "/contact" },
+    { label: "FAQs", href: "/faq" },
+    { label: "Contact Us", href: "/contact" },
+  ];
+  const defaultRecommendedOn: { name: string; src: string }[] = [];
+  const defaultRepresentative = {
+    name: "",
+    title: "",
+    avatar: "",
+    phone: "",
+    whatsapp: "",
+  };
+  const defaultRecognitions: { name: string; src: string }[] = [];
+  const defaultBottomLinks = [
+    { label: "Privacy Policy", href: "/privacy-policy" },
+    { label: "Contact", href: "/contact" },
+  ];
+
+  const footerDefaults = {
     email: "info@marditreks.com",
     phone: "+977-1-2345678",
     address: "Thamel, Kathmandu, Nepal",
     socialLinks: defaultSocialLinks,
     copyright: `© ${new Date().getFullYear()} Mardi Treks. All rights reserved.`,
-  });
+    trustedBadge: "Trusted & Certified",
+    associatedHeading: "We're Associated With",
+    partners: defaultPartners,
+    activitiesHeading: "Activities",
+    companyHeading: "Company",
+    companyLinks: defaultCompanyLinks,
+    usefulLinksHeading: "Useful Links",
+    usefulLinks: defaultUsefulLinks,
+    recommendedLabel: "Recommended On:",
+    recommendedOn: defaultRecommendedOn,
+    followUsLabel: "Follow Us On:",
+    card1Title: "Mardi Treks",
+    card2Title: "Speak with a Representative",
+    representative: defaultRepresentative,
+    card3Title: "Recognitions",
+    recognitions: defaultRecognitions,
+    bottomLinks: defaultBottomLinks,
+  };
+
+  const [footer, setFooter] = useState({ ...footerDefaults, ...(pc.footer || {}) });
 
   function setFooterField(field: string, val: any) {
     setFooter((prev: any) => ({ ...prev, [field]: val }));
@@ -191,10 +235,7 @@ export function PageManagerForm({
     fd.set("about_seo_description", aboutSeo.description);
     fd.set("about_seo_keywords", aboutSeo.keywords || "");
     fd.set("about_sections", JSON.stringify(aboutSections));
-    fd.set("about_why_heading", aboutWhy.heading);
-    fd.set("about_why_subtitle", aboutWhy.subtitle);
-    fd.set("about_why_items", JSON.stringify(aboutWhy.items));
-    fd.set("about_why_bg", orUploaded("aboutWhyBg", aboutWhy.bgImage));
+    // WhyChooseUs is no longer managed here — the About page reads it from Home settings
     fd.set("about_team", JSON.stringify(aboutTeam.map((m: any, i: number) => ({
       ...m,
       image: uploadedMap[`team-${i}`] || m.image || "",
@@ -220,12 +261,40 @@ export function PageManagerForm({
     fd.set("blog_seo_keywords", blogSeo.keywords || "");
 
     // Footer
-    fd.set("footer_brand_description", footer.brandDescription);
     fd.set("footer_email", footer.email);
     fd.set("footer_phone", footer.phone);
     fd.set("footer_address", footer.address);
     fd.set("footer_social_links", JSON.stringify(footer.socialLinks));
     fd.set("footer_copyright", footer.copyright);
+    fd.set("footer_trusted_badge", footer.trustedBadge);
+    fd.set("footer_associated_heading", footer.associatedHeading);
+    fd.set("footer_partners", JSON.stringify(footer.partners.map((p: any, i: number) => ({
+      ...p,
+      src: uploadedMap[`footer-partner-${i}`] || p.src || "",
+    }))));
+    fd.set("footer_activities_heading", footer.activitiesHeading);
+    fd.set("footer_company_heading", footer.companyHeading);
+    fd.set("footer_company_links", JSON.stringify(footer.companyLinks));
+    fd.set("footer_useful_links_heading", footer.usefulLinksHeading);
+    fd.set("footer_useful_links", JSON.stringify(footer.usefulLinks));
+    fd.set("footer_recommended_label", footer.recommendedLabel);
+    fd.set("footer_recommended_on", JSON.stringify(footer.recommendedOn.map((item: any, i: number) => ({
+      ...item,
+      src: uploadedMap[`footer-recommended-${i}`] || item.src || "",
+    }))));
+    fd.set("footer_follow_us_label", footer.followUsLabel);
+    fd.set("footer_card1_title", footer.card1Title);
+    fd.set("footer_card2_title", footer.card2Title);
+    fd.set("footer_representative", JSON.stringify({
+      ...footer.representative,
+      avatar: uploadedMap["footer-rep-avatar"] || footer.representative?.avatar || "",
+    }));
+    fd.set("footer_card3_title", footer.card3Title);
+    fd.set("footer_recognitions", JSON.stringify(footer.recognitions.map((badge: any, i: number) => ({
+      ...badge,
+      src: uploadedMap[`footer-recognition-${i}`] || badge.src || "",
+    }))));
+    fd.set("footer_bottom_links", JSON.stringify(footer.bottomLinks));
 
     try {
       await savePageContent(fd);
@@ -470,42 +539,9 @@ export function PageManagerForm({
             </div>
           </section>
 
-          {/* Why Choose Us */}
-          <section className="rounded-2xl border border-slate-200 bg-white p-6">
-            <h3 className="text-sm font-bold text-slate-900 mb-4">Why Choose Us</h3>
-            <div className="space-y-3">
-              <div className="grid gap-3 sm:grid-cols-2">
-                <input value={aboutWhy.heading} onChange={(e) => setAboutWhy({ ...aboutWhy, heading: e.target.value })} placeholder="Heading" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
-                <input value={aboutWhy.subtitle} onChange={(e) => setAboutWhy({ ...aboutWhy, subtitle: e.target.value })} placeholder="Subtitle" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
-              </div>
-              <ImageUpload ref={setImageRef("aboutWhyBg")} value={aboutWhy.bgImage} onChange={(id) => setAboutWhy({ ...aboutWhy, bgImage: id })} label="Background Image (optional)" />
-              <div className="space-y-2">
-                <p className="text-xs font-medium text-slate-500">Items</p>
-                {aboutWhy.items.map((item: any, i: number) => (
-                  <div key={i} className="flex items-start gap-2 rounded-lg border border-slate-200 bg-slate-50/50 p-3">
-                    <div className="flex-1 space-y-1.5">
-                      <input value={item.title} onChange={(e) => {
-                        const next = [...aboutWhy.items];
-                        next[i] = { ...next[i], title: e.target.value };
-                        setAboutWhy({ ...aboutWhy, items: next });
-                      }} placeholder="Title" className="w-full rounded border border-slate-200 px-2 py-1.5 text-sm" />
-                      <textarea rows={2} value={item.description} onChange={(e) => {
-                        const next = [...aboutWhy.items];
-                        next[i] = { ...next[i], description: e.target.value };
-                        setAboutWhy({ ...aboutWhy, items: next });
-                      }} placeholder="Description" className="w-full rounded border border-slate-200 px-2 py-1.5 text-sm" />
-                    </div>
-                    <button type="button" onClick={() => setAboutWhy({ ...aboutWhy, items: aboutWhy.items.filter((_: any, idx: number) => idx !== i) })}
-                      className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-500"><Trash2 className="h-3.5 w-3.5" /></button>
-                  </div>
-                ))}
-                <button type="button" onClick={() => setAboutWhy({ ...aboutWhy, items: [...aboutWhy.items, { icon: "Award", title: "", description: "" }] })}
-                  className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border-2 border-dashed border-slate-300 px-3 py-2 text-xs font-medium text-slate-500 hover:border-teal-300 hover:bg-teal-50 hover:text-teal-600">
-                  + Add item
-                </button>
-              </div>
-            </div>
-          </section>
+          {/* Note: Why Choose Us is no longer managed here — the About page
+              reads it from the Home page settings (homePageSettings table) so
+              there is one source of truth. Edit it from the Home tab instead. */}
 
           {/* Team */}
           <section className="rounded-2xl border border-slate-200 bg-white p-6">
@@ -718,13 +754,10 @@ export function PageManagerForm({
       {/* ───────────── FOOTER TAB ───────────── */}
       {activeTab === "footer" && (
         <div className="space-y-8">
+          {/* Brand & Contact */}
           <section className="rounded-2xl border border-slate-200 bg-white p-6">
-            <h3 className="text-sm font-bold text-slate-900 mb-4">Footer Content</h3>
+            <h3 className="text-sm font-bold text-slate-900 mb-4">Brand &amp; Contact</h3>
             <div className="space-y-3">
-              <div>
-                <label className="block text-xs font-medium text-slate-500 mb-1">Brand Description</label>
-                <textarea rows={3} value={footer.brandDescription} onChange={(e) => setFooterField("brandDescription", e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
-              </div>
               <div className="grid gap-3 sm:grid-cols-3">
                 <div>
                   <label className="block text-xs font-medium text-slate-500 mb-1">Email</label>
@@ -746,6 +779,53 @@ export function PageManagerForm({
             </div>
           </section>
 
+          {/* Section Labels */}
+          <section className="rounded-2xl border border-slate-200 bg-white p-6">
+            <h3 className="text-sm font-bold text-slate-900 mb-4">Section Labels</h3>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">Trusted Badge</label>
+                <input value={footer.trustedBadge} onChange={(e) => setFooterField("trustedBadge", e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">Associated Heading</label>
+                <input value={footer.associatedHeading} onChange={(e) => setFooterField("associatedHeading", e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">Activities Heading</label>
+                <input value={footer.activitiesHeading} onChange={(e) => setFooterField("activitiesHeading", e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">Company Heading</label>
+                <input value={footer.companyHeading} onChange={(e) => setFooterField("companyHeading", e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">Useful Links Heading</label>
+                <input value={footer.usefulLinksHeading} onChange={(e) => setFooterField("usefulLinksHeading", e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">Recommended Label</label>
+                <input value={footer.recommendedLabel} onChange={(e) => setFooterField("recommendedLabel", e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">Follow Us Label</label>
+                <input value={footer.followUsLabel} onChange={(e) => setFooterField("followUsLabel", e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">Card 1 Title</label>
+                <input value={footer.card1Title} onChange={(e) => setFooterField("card1Title", e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">Card 2 Title</label>
+                <input value={footer.card2Title} onChange={(e) => setFooterField("card2Title", e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">Card 3 Title</label>
+                <input value={footer.card3Title} onChange={(e) => setFooterField("card3Title", e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+              </div>
+            </div>
+          </section>
+
           {/* Social Links */}
           <section className="rounded-2xl border border-slate-200 bg-white p-6">
             <h3 className="text-sm font-bold text-slate-900 mb-4">Social Links</h3>
@@ -758,6 +838,197 @@ export function PageManagerForm({
                   }} placeholder="https://..." className="flex-1 rounded border border-slate-200 px-2 py-1.5 text-sm" />
                 </div>
               ))}
+            </div>
+          </section>
+
+          {/* Partners */}
+          <section className="rounded-2xl border border-slate-200 bg-white p-6">
+            <h3 className="text-sm font-bold text-slate-900 mb-4">Partners / Association Logos</h3>
+            <p className="mb-3 text-xs text-slate-400">Logos of organizations you're associated with</p>
+            <div className="space-y-4">
+              {(footer.partners || []).map((p: any, i: number) => (
+                <div key={i} className="flex items-start gap-2 rounded-lg border border-slate-100 bg-slate-50/50 p-3">
+                  <div className="flex-1 space-y-2">
+                    <input value={p.name || ""} onChange={(e) => {
+                      const next = [...footer.partners]; next[i] = { ...next[i], name: e.target.value }; setFooterField("partners", next);
+                    }} placeholder="Name (e.g. NTB)" className="w-full rounded border border-slate-200 px-2 py-1.5 text-sm" />
+                    <ImageUpload ref={(el) => { imageRefs.current[`footer-partner-${i}`] = el; }}
+                      value={p.src || ""} onChange={(id) => {
+                        const next = [...footer.partners]; next[i] = { ...next[i], src: id }; setFooterField("partners", next);
+                      }} label="Logo" folder="footer/partners" />
+                  </div>
+                  <button type="button" onClick={() => {
+                    setFooterField("partners", footer.partners.filter((_: any, j: number) => j !== i));
+                  }} className="mt-1 rounded p-1.5 text-red-400 hover:bg-red-50"><Trash2 className="h-4 w-4" /></button>
+                </div>
+              ))}
+              <button type="button" onClick={() => setFooterField("partners", [...(footer.partners || []), { name: "", src: "" }])}
+                className="inline-flex items-center gap-1 rounded-lg border border-dashed border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-500 hover:border-slate-400 hover:text-slate-700">
+                <Plus className="h-3.5 w-3.5" /> Add Partner
+              </button>
+            </div>
+          </section>
+
+          {/* Company & Useful Links */}
+          <section className="rounded-2xl border border-slate-200 bg-white p-6">
+            <h3 className="text-sm font-bold text-slate-900 mb-4">Navigation Links</h3>
+            <div className="grid gap-6 sm:grid-cols-2">
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-2">Company Links</label>
+                <div className="space-y-2">
+                  {(footer.companyLinks || []).map((link: any, i: number) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <input value={link.label || ""} onChange={(e) => {
+                        const next = [...footer.companyLinks]; next[i] = { ...next[i], label: e.target.value }; setFooterField("companyLinks", next);
+                      }} placeholder="Label" className="w-28 rounded border border-slate-200 px-2 py-1.5 text-sm" />
+                      <input value={link.href || ""} onChange={(e) => {
+                        const next = [...footer.companyLinks]; next[i] = { ...next[i], href: e.target.value }; setFooterField("companyLinks", next);
+                      }} placeholder="/page-path" className="flex-1 rounded border border-slate-200 px-2 py-1.5 text-sm" />
+                      <button type="button" onClick={() => {
+                        setFooterField("companyLinks", footer.companyLinks.filter((_: any, j: number) => j !== i));
+                      }} className="rounded p-1.5 text-red-400 hover:bg-red-50"><Trash2 className="h-4 w-4" /></button>
+                    </div>
+                  ))}
+                  <button type="button" onClick={() => setFooterField("companyLinks", [...(footer.companyLinks || []), { label: "", href: "" }])}
+                    className="inline-flex items-center gap-1 rounded-lg border border-dashed border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-500 hover:border-slate-400 hover:text-slate-700">
+                    <Plus className="h-3.5 w-3.5" /> Add Link
+                  </button>
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-2">Useful Links</label>
+                <div className="space-y-2">
+                  {(footer.usefulLinks || []).map((link: any, i: number) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <input value={link.label || ""} onChange={(e) => {
+                        const next = [...footer.usefulLinks]; next[i] = { ...next[i], label: e.target.value }; setFooterField("usefulLinks", next);
+                      }} placeholder="Label" className="w-28 rounded border border-slate-200 px-2 py-1.5 text-sm" />
+                      <input value={link.href || ""} onChange={(e) => {
+                        const next = [...footer.usefulLinks]; next[i] = { ...next[i], href: e.target.value }; setFooterField("usefulLinks", next);
+                      }} placeholder="/page-path" className="flex-1 rounded border border-slate-200 px-2 py-1.5 text-sm" />
+                      <button type="button" onClick={() => {
+                        setFooterField("usefulLinks", footer.usefulLinks.filter((_: any, j: number) => j !== i));
+                      }} className="rounded p-1.5 text-red-400 hover:bg-red-50"><Trash2 className="h-4 w-4" /></button>
+                    </div>
+                  ))}
+                  <button type="button" onClick={() => setFooterField("usefulLinks", [...(footer.usefulLinks || []), { label: "", href: "" }])}
+                    className="inline-flex items-center gap-1 rounded-lg border border-dashed border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-500 hover:border-slate-400 hover:text-slate-700">
+                    <Plus className="h-3.5 w-3.5" /> Add Link
+                  </button>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* Recommended On */}
+          <section className="rounded-2xl border border-slate-200 bg-white p-6">
+            <h3 className="text-sm font-bold text-slate-900 mb-4">Recommended On Logos</h3>
+            <p className="mb-3 text-xs text-slate-400">Logos of sites that recommend you</p>
+            <div className="space-y-4">
+              {(footer.recommendedOn || []).map((item: any, i: number) => (
+                <div key={i} className="flex items-start gap-2 rounded-lg border border-slate-100 bg-slate-50/50 p-3">
+                  <div className="flex-1 space-y-2">
+                    <input value={item.name || ""} onChange={(e) => {
+                      const next = [...footer.recommendedOn]; next[i] = { ...next[i], name: e.target.value }; setFooterField("recommendedOn", next);
+                    }} placeholder="Company name" className="w-full rounded border border-slate-200 px-2 py-1.5 text-sm" />
+                    <ImageUpload ref={(el) => { imageRefs.current[`footer-recommended-${i}`] = el; }}
+                      value={item.src || ""} onChange={(id) => {
+                        const next = [...footer.recommendedOn]; next[i] = { ...next[i], src: id }; setFooterField("recommendedOn", next);
+                      }} label="Logo" folder="footer/recommended" />
+                  </div>
+                  <button type="button" onClick={() => {
+                    setFooterField("recommendedOn", footer.recommendedOn.filter((_: any, j: number) => j !== i));
+                  }} className="mt-1 rounded p-1.5 text-red-400 hover:bg-red-50"><Trash2 className="h-4 w-4" /></button>
+                </div>
+              ))}
+              <button type="button" onClick={() => setFooterField("recommendedOn", [...(footer.recommendedOn || []), { name: "", src: "" }])}
+                className="inline-flex items-center gap-1 rounded-lg border border-dashed border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-500 hover:border-slate-400 hover:text-slate-700">
+                <Plus className="h-3.5 w-3.5" /> Add Logo
+              </button>
+            </div>
+          </section>
+
+          {/* Representative */}
+          <section className="rounded-2xl border border-slate-200 bg-white p-6">
+            <h3 className="text-sm font-bold text-slate-900 mb-4">Representative</h3>
+            <p className="mb-3 text-xs text-slate-400">The person visitors can contact</p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">Name</label>
+                <input value={footer.representative?.name || ""} onChange={(e) => setFooterField("representative", { ...footer.representative, name: e.target.value })} placeholder="e.g. Aarav Sharma" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">Title</label>
+                <input value={footer.representative?.title || ""} onChange={(e) => setFooterField("representative", { ...footer.representative, title: e.target.value })} placeholder="e.g. Trip Consultant" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">Phone</label>
+                <input value={footer.representative?.phone || ""} onChange={(e) => setFooterField("representative", { ...footer.representative, phone: e.target.value })} placeholder="+977-..." className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">WhatsApp Number (without +)</label>
+                <input value={footer.representative?.whatsapp || ""} onChange={(e) => setFooterField("representative", { ...footer.representative, whatsapp: e.target.value })} placeholder="977XXXXXXXXX" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-medium text-slate-500 mb-1">Avatar</label>
+                <ImageUpload ref={(el) => { imageRefs.current["footer-rep-avatar"] = el; }}
+                  value={footer.representative?.avatar || ""} onChange={(id) => {
+                    setFooterField("representative", { ...footer.representative, avatar: id });
+                  }} label="Avatar" folder="footer/representative" />
+              </div>
+            </div>
+          </section>
+
+          {/* Recognitions */}
+          <section className="rounded-2xl border border-slate-200 bg-white p-6">
+            <h3 className="text-sm font-bold text-slate-900 mb-4">Recognition Badges</h3>
+            <p className="mb-3 text-xs text-slate-400">Award badges displayed in the footer</p>
+            <div className="space-y-4">
+              {(footer.recognitions || []).map((badge: any, i: number) => (
+                <div key={i} className="flex items-start gap-2 rounded-lg border border-slate-100 bg-slate-50/50 p-3">
+                  <div className="flex-1 space-y-2">
+                    <input value={badge.name || ""} onChange={(e) => {
+                      const next = [...footer.recognitions]; next[i] = { ...next[i], name: e.target.value }; setFooterField("recognitions", next);
+                    }} placeholder="Badge name" className="w-full rounded border border-slate-200 px-2 py-1.5 text-sm" />
+                    <ImageUpload ref={(el) => { imageRefs.current[`footer-recognition-${i}`] = el; }}
+                      value={badge.src || ""} onChange={(id) => {
+                        const next = [...footer.recognitions]; next[i] = { ...next[i], src: id }; setFooterField("recognitions", next);
+                      }} label="Badge Image" folder="footer/recognitions" />
+                  </div>
+                  <button type="button" onClick={() => {
+                    setFooterField("recognitions", footer.recognitions.filter((_: any, j: number) => j !== i));
+                  }} className="mt-1 rounded p-1.5 text-red-400 hover:bg-red-50"><Trash2 className="h-4 w-4" /></button>
+                </div>
+              ))}
+              <button type="button" onClick={() => setFooterField("recognitions", [...(footer.recognitions || []), { name: "", src: "" }])}
+                className="inline-flex items-center gap-1 rounded-lg border border-dashed border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-500 hover:border-slate-400 hover:text-slate-700">
+                <Plus className="h-3.5 w-3.5" /> Add Badge
+              </button>
+            </div>
+          </section>
+
+          {/* Bottom Links */}
+          <section className="rounded-2xl border border-slate-200 bg-white p-6">
+            <h3 className="text-sm font-bold text-slate-900 mb-4">Bottom Bar Links</h3>
+            <p className="mb-3 text-xs text-slate-400">Links shown next to the copyright</p>
+            <div className="space-y-2">
+              {(footer.bottomLinks || []).map((link: any, i: number) => (
+                <div key={i} className="flex items-center gap-2">
+                  <input value={link.label || ""} onChange={(e) => {
+                    const next = [...footer.bottomLinks]; next[i] = { ...next[i], label: e.target.value }; setFooterField("bottomLinks", next);
+                  }} placeholder="Label" className="w-28 rounded border border-slate-200 px-2 py-1.5 text-sm" />
+                  <input value={link.href || ""} onChange={(e) => {
+                    const next = [...footer.bottomLinks]; next[i] = { ...next[i], href: e.target.value }; setFooterField("bottomLinks", next);
+                  }} placeholder="/page-path" className="flex-1 rounded border border-slate-200 px-2 py-1.5 text-sm" />
+                  <button type="button" onClick={() => {
+                    setFooterField("bottomLinks", footer.bottomLinks.filter((_: any, j: number) => j !== i));
+                  }} className="rounded p-1.5 text-red-400 hover:bg-red-50"><Trash2 className="h-4 w-4" /></button>
+                </div>
+              ))}
+              <button type="button" onClick={() => setFooterField("bottomLinks", [...(footer.bottomLinks || []), { label: "", href: "" }])}
+                className="inline-flex items-center gap-1 rounded-lg border border-dashed border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-500 hover:border-slate-400 hover:text-slate-700">
+                <Plus className="h-3.5 w-3.5" /> Add Link
+              </button>
             </div>
           </section>
         </div>

@@ -47,7 +47,10 @@ export interface ItineraryData {
 export interface InExData {
   heading?: string;
   description?: string;
-  items: { type: "included" | "excluded"; text: string }[];
+  /** Rich text HTML content for what's included */
+  inclusions: string;
+  /** Rich text HTML content for what's excluded */
+  exclusions: string;
 }
 
 export interface PricingData {
@@ -90,14 +93,12 @@ export interface SeoData {
   metaTitle: string;
   metaDescription: string;
   keywords: string;
-  ogImage: string;
+  tags: string;
 }
 
 export interface CustomData {
   heading: string;
   content: string; // rich text HTML
-  imageId?: string;
-  imageAlt?: string;
 }
 
 // ─── A single section ───────────────────────────────────────────────
@@ -178,15 +179,25 @@ export function createDefaultSection(type: SectionType, trek?: any): TrekSection
       };
     }
     case "inEx": {
-      const incItems = parseStringArray(trek?.inclusions).map((t: string) => ({ type: "included" as const, text: t }));
-      const excItems = parseStringArray(trek?.exclusions).map((t: string) => ({ type: "excluded" as const, text: t }));
+      // Handle legacy data: if inclusions/exclusions is a JSON array string, convert to simple HTML list
+      let incHtml = trek?.inclusions || "";
+      if (incHtml && isJsonArrayString(incHtml)) {
+        const arr = parseStringArray(incHtml);
+        incHtml = arr.length > 0 ? `<ul class="list-disc pl-5 space-y-1">${arr.map((t: string) => `<li>${t}</li>`).join("")}</ul>` : "";
+      }
+      let excHtml = trek?.exclusions || "";
+      if (excHtml && isJsonArrayString(excHtml)) {
+        const arr = parseStringArray(excHtml);
+        excHtml = arr.length > 0 ? `<ul class="list-disc pl-5 space-y-1">${arr.map((t: string) => `<li>${t}</li>`).join("")}</ul>` : "";
+      }
       return {
         ...base,
         label: "Inclusions & Exclusions",
         data: {
           heading: meta.heading || "Inclusions & Exclusions",
           description: meta.description || "",
-          items: [...incItems, ...excItems],
+          inclusions: incHtml,
+          exclusions: excHtml,
         } as InExData,
       };
     }
@@ -258,7 +269,7 @@ export function createDefaultSection(type: SectionType, trek?: any): TrekSection
           metaTitle: trek?.metaTitle || "",
           metaDescription: trek?.metaDescription || "",
           keywords: trek?.keywords || "",
-          ogImage: trek?.ogImage || "",
+          tags: (trek as any)?.tags || "",
         } as SeoData,
       };
     case "custom":
@@ -289,4 +300,9 @@ function parseJsonArray(val: string | undefined | null | any[]): any[] {
   } catch {
     return [];
   }
+}
+
+function isJsonArrayString(val: string): boolean {
+  const trimmed = val.trim();
+  return trimmed.startsWith("[") && trimmed.endsWith("]");
 }

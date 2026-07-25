@@ -85,14 +85,6 @@ export const Categories: CollectionConfig = {
         position: "sidebar",
       },
     },
-    {
-      name: "ogImage",
-      type: "upload",
-      relationTo: "media",
-      label: "OG Image",
-      admin: {
-        position: "sidebar",
-      },
-    },
+
   ],
 };

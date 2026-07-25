@@ -44,7 +44,7 @@ export async function createTrek(formData: FormData) {
     metaTitle: formData.get("metaTitle") as string || null,
     metaDescription: formData.get("metaDescription") as string || null,
     keywords: formData.get("keywords") as string || null,
-    ogImage: formData.get("ogImage") as string || null,
+    tags: formData.get("tags") as string || null,
     // Map fields
     geoJsonUrl: formData.get("geoJsonUrl") as string || null,
     geoJsonData: formData.get("geoJsonData") as string || null,
@@ -120,7 +120,7 @@ export async function updateTrek(id: string, formData: FormData) {
     metaTitle: formData.get("metaTitle") as string || null,
     metaDescription: formData.get("metaDescription") as string || null,
     keywords: formData.get("keywords") as string || null,
-    ogImage: formData.get("ogImage") as string || null,
+    tags: formData.get("tags") as string || null,
     // Map fields
     geoJsonUrl: formData.get("geoJsonUrl") as string || null,
     geoJsonData: formData.get("geoJsonData") as string || null,
@@ -150,16 +150,26 @@ export async function updateTrek(id: string, formData: FormData) {
   // Fetch current trek to compare images
   const currentTrek = await prisma.trek.findUnique({
     where: { id },
-    select: { heroImage: true, ogImage: true },
+    select: { heroImage: true, geoJsonUrl: true },
   });
+
+  // Helper to extract Cloudinary public_id from a URL
+  function extractPublicId(url: string): string | null {
+    // Cloudinary URL includes the file extension, but the public_id does NOT
+    const match = url.match(/\/v\d+\/(.+?)(?:\.[^/.]+)?$/);
+    return match ? match[1] : null;
+  }
 
   // Delete old heroImage if changed
   if (currentTrek?.heroImage && currentTrek.heroImage !== data.heroImage) {
     deleteFile(currentTrek.heroImage).catch(() => {});
   }
-  // Delete old ogImage if changed
-  if (currentTrek?.ogImage && currentTrek.ogImage !== data.ogImage) {
-    deleteFile(currentTrek.ogImage).catch(() => {});
+  // Delete old geoJsonUrl file from Cloudinary if changed/removed
+  if (currentTrek?.geoJsonUrl && currentTrek.geoJsonUrl !== data.geoJsonUrl) {
+    const oldPubId = extractPublicId(currentTrek.geoJsonUrl);
+    if (oldPubId) {
+      deleteFile(oldPubId, { resourceType: "raw" }).catch(() => {});
+    }
   }
 
   // Find gallery images to delete (ones in DB but not in new gallery)
@@ -212,12 +222,12 @@ export async function deleteTrek(id: string) {
 
   const trek = await prisma.trek.findUnique({
     where: { id },
-    select: { slug: true, heroImage: true, ogImage: true, staticMapImage: true },
+    select: { slug: true, heroImage: true, staticMapImage: true },
   });
 
   // Delete Cloudinary images
   if (trek) {
-    const imagesToDelete = [trek.heroImage, trek.ogImage, trek.staticMapImage].filter(Boolean) as string[];
+    const imagesToDelete = [trek.heroImage, trek.staticMapImage].filter(Boolean) as string[];
     await Promise.allSettled(imagesToDelete.map((pubId) => deleteFile(pubId)));
 
     // Also delete gallery images

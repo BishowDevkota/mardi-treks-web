@@ -59,6 +59,7 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
   }, [content]);
 
   const editor = useEditor({
+    immediatelyRender: true,
     extensions: [
       StarterKit.configure({
         heading: { levels: [1, 2, 3] },
@@ -104,7 +105,7 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
     },
     editorProps: {
       attributes: {
-        class: "prose prose-sm max-w-none min-h-[300px] px-4 py-3 focus:outline-none",
+        class: "prose prose-xs max-w-none min-h-[300px] px-4 py-3 focus:outline-none",
       },
     },
   });
@@ -112,35 +113,46 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
   // Expose processPendingImages to parent forms
   useImperativeHandle(ref, () => ({
     async processPendingImages() {
-      if (!editor) return "";
-      const pending = pendingImagesRef.current;
-      const entries = Object.entries(pending);
-      if (entries.length === 0) return editor.getHTML();
+      try {
+        // Editor might be null (SSR) or destroyed (component unmounted), bail early
+        if (!editor || editor.isDestroyed) return "";
 
-      let html = editor.getHTML();
-      for (const [dataUrl, file] of entries) {
-        try {
-          const fd = new FormData();
-          fd.set("file", file);
-          fd.set("folder", "mardi-treks/content");
-          const res = await fetch("/api/upload", { method: "POST", body: fd });
-          const data = await res.json();
-          const cloudinaryUrl = data.publicId
-            ? `https://res.cloudinary.com/dk7ggjvlw/image/upload/${data.publicId}`
-            : data.url;
-
-          if (cloudinaryUrl) {
-            html = html.replaceAll(dataUrl, cloudinaryUrl);
-          }
-        } catch (err) {
-          console.error("Failed to upload pending editor image", err);
+        const pending = pendingImagesRef.current || {};
+        const entries = Object.entries(pending);
+        if (entries.length === 0) {
+          return editor.getHTML() || "";
         }
-      }
 
-      // Update editor content with Cloudinary URLs (triggers onUpdate → onChange)
-      editor.commands.setContent(html);
-      pendingImagesRef.current = {};
-      return html;
+        let html = editor.getHTML() || "";
+        for (const [dataUrl, file] of entries) {
+          try {
+            const fd = new FormData();
+            fd.set("file", file);
+            fd.set("folder", "mardi-treks/content");
+            const res = await fetch("/api/upload", { method: "POST", body: fd });
+            const data = await res.json();
+            const cloudinaryUrl = data.publicId
+              ? `https://res.cloudinary.com/dk7ggjvlw/image/upload/${data.publicId}`
+              : data.url;
+
+            if (cloudinaryUrl) {
+              html = html.replaceAll(dataUrl, cloudinaryUrl);
+            }
+          } catch (err) {
+            console.error("Failed to upload pending editor image", err);
+          }
+        }
+
+        // Update editor content with Cloudinary URLs (triggers onUpdate → onChange)
+        if (!editor.isDestroyed) {
+          editor.commands.setContent(html);
+        }
+        pendingImagesRef.current = {};
+        return html;
+      } catch (err) {
+        console.error("processPendingImages failed:", err);
+        return "";
+      }
     },
   }), [editor, onChange]);
 

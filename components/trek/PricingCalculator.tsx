@@ -3,7 +3,7 @@
 import { useState, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
-import { Minus, Plus, Users, Calendar, ChevronDown, ChevronUp, Package } from "lucide-react";
+import { Minus, Plus, Users, Calendar, ChevronDown, ChevronUp, Package, Tag } from "lucide-react";
 
 interface PricingTier {
   groupSize: string;
@@ -113,12 +113,24 @@ export function PricingCalculator({
   pricingTiers,
   addons = [],
   availableDates = [],
-  maxGroupSize = 20,
+  maxGroupSize: maxGroupSizeProp = 20,
 }: PricingCalculatorProps) {
   const [travelers, setTravelers] = useState(1);
   const [startDate, setStartDate] = useState("");
   const [showGroupPricing, setShowGroupPricing] = useState(false);
   const [addonQtys, setAddonQtys] = useState<number[]>(addons.map(() => 0));
+
+  // Derive the max group size from pricing tiers so the counter always matches
+  // the highest tier range, regardless of what's stored in the DB.
+  const maxGroupSize = useMemo(() => {
+    if (pricingTiers.length > 0) {
+      const tierMax = Math.max(
+        ...pricingTiers.map((t) => parseTierRange(t.groupSize).max)
+      );
+      return Math.max(tierMax, maxGroupSizeProp);
+    }
+    return maxGroupSizeProp;
+  }, [pricingTiers, maxGroupSizeProp]);
 
   const pricePerPerson = useMemo(
     () => getPriceForGroupSize(pricingTiers, travelers),
@@ -134,8 +146,41 @@ export function PricingCalculator({
 
   const grandTotal = trekTotal + addonTotals.reduce((sum, t) => sum + t, 0);
 
+  // Find the tier with the lowest price per person for the "best value" message
+  const minPriceTier = useMemo(() => {
+    if (pricingTiers.length === 0) return null;
+    let min = pricingTiers[0];
+    for (const tier of pricingTiers) {
+      if (tier.pricePerPerson < min.pricePerPerson) {
+        min = tier;
+      }
+    }
+    return min;
+  }, [pricingTiers]);
+
+  const minTierMinGroup = useMemo(() => {
+    if (!minPriceTier) return 0;
+    return parseTierRange(minPriceTier.groupSize).min;
+  }, [minPriceTier]);
+
   return (
     <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+      {/* Min price banner — moved to the top and made the clear visual entry point */}
+      {minPriceTier && (
+        <div
+          className="flex flex-wrap items-baseline justify-center gap-x-2.5 gap-y-0.5 px-4 py-4 text-center"
+          style={{ backgroundColor: "#B45309" }}
+        >
+          <span className="flex items-center gap-1.5 text-xl font-extrabold text-white tracking-tight tabular-nums">
+            <Tag className="h-5 w-5 shrink-0 self-center" fill="white" />
+            From ${minPriceTier.pricePerPerson.toLocaleString()}/person
+          </span>
+          <span className="text-sm font-semibold text-white/90">
+            for groups of {minTierMinGroup}+
+          </span>
+        </div>
+      )}
+
       <div className="p-5 space-y-4">
         {/* Travelers + Start Date — merged row */}
         <div className="grid grid-cols-2 gap-3">
@@ -205,8 +250,13 @@ export function PricingCalculator({
             <span style={{ color: "var(--color-text)" }}>
               Trek ({travelers} &times; ${pricePerPerson})
             </span>
-            <span className="font-semibold tabular-nums" style={{ color: "var(--color-foreground)" }}>
-              ${trekTotal.toLocaleString()}
+            <span className="flex items-center gap-2">
+              <span className="text-xs text-slate-400 line-through tabular-nums">
+                ${(Math.round(trekTotal * 1.1)).toLocaleString()}
+              </span>
+              <span className="font-semibold tabular-nums" style={{ color: "var(--color-foreground)" }}>
+                ${trekTotal.toLocaleString()}
+              </span>
             </span>
           </div>
           {addonTotals.map((total, i) =>
@@ -215,8 +265,13 @@ export function PricingCalculator({
                 <span style={{ color: "var(--color-text)" }}>
                   {addons[i].title} &times; {addonQtys[i]}
                 </span>
-                <span className="font-semibold tabular-nums" style={{ color: "var(--color-foreground)" }}>
-                  +${total.toLocaleString()}
+                <span className="flex items-center gap-1.5">
+                  <span className="text-xs text-slate-400 line-through tabular-nums">
+                    +${(Math.round(total * 1.1)).toLocaleString()}
+                  </span>
+                  <span className="font-semibold tabular-nums" style={{ color: "var(--color-foreground)" }}>
+                    +${total.toLocaleString()}
+                  </span>
                 </span>
               </div>
             ) : null
@@ -225,8 +280,13 @@ export function PricingCalculator({
             <span className="text-base font-bold" style={{ color: "var(--color-foreground)" }}>
               Total
             </span>
-            <span className="text-xl font-bold tabular-nums" style={{ color: "var(--color-primary)" }}>
-              ${grandTotal.toLocaleString()}
+            <span className="flex items-center gap-2">
+              <span className="text-sm text-slate-400 line-through tabular-nums">
+                ${(Math.round(grandTotal * 1.1)).toLocaleString()}
+              </span>
+              <span className="text-xl font-bold tabular-nums" style={{ color: "var(--color-primary)" }}>
+                ${grandTotal.toLocaleString()}
+              </span>
             </span>
           </div>
         </div>
@@ -258,12 +318,17 @@ export function PricingCalculator({
                       }`}
                       style={{ borderColor: isActive ? "var(--color-primary-light)" : "var(--color-border)" }}
                     >
-                      <span style={{ color: "var(--color-text)" }}>{tier.groupSize}</span>
-                      <span
-                        className={`font-semibold ${isActive ? "text-teal-700" : ""}`}
-                        style={{ color: isActive ? "var(--color-primary)" : "var(--color-foreground)" }}
-                      >
-                        ${tier.pricePerPerson.toLocaleString()}/pp
+                      <span style={{ color: "var(--color-text)" }}>{tier.groupSize} pax</span>
+                      <span className="flex items-center gap-1.5">
+                        <span className="text-slate-400 line-through">
+                          ${(Math.round(tier.pricePerPerson * 1.1)).toLocaleString()}
+                        </span>
+                        <span
+                          className={`font-semibold ${isActive ? "text-teal-700" : ""}`}
+                          style={{ color: isActive ? "var(--color-primary)" : "var(--color-foreground)" }}
+                        >
+                          ${tier.pricePerPerson.toLocaleString()}/pp
+                        </span>
                       </span>
                     </div>
                   );
@@ -293,7 +358,8 @@ export function PricingCalculator({
                   <div className="flex-1 min-w-0">
                     <AddonTitle title={addon.title} description={addon.description} />
                     <p className="text-[11px]" style={{ color: "var(--color-text-muted)" }}>
-                      ${addon.pricePerUnit}/{addon.unit}
+                      <span className="text-slate-400 line-through">${(Math.round(addon.pricePerUnit * 1.1)).toLocaleString()}</span>
+                      &nbsp;${addon.pricePerUnit}/{addon.unit}
                     </p>
                   </div>
                   <div className="flex items-center gap-1.5 shrink-0">
@@ -320,11 +386,16 @@ export function PricingCalculator({
                       <Plus className="h-3 w-3" />
                     </button>
                   </div>
-                  <span
-                    className="w-14 text-right text-sm font-semibold tabular-nums shrink-0"
-                    style={{ color: "var(--color-primary)" }}
-                  >
-                    ${addonTotals[i].toLocaleString()}
+                  <span className="flex items-center gap-1 shrink-0">
+                    <span className="text-xs text-slate-400 line-through tabular-nums">
+                      ${(Math.round(addonTotals[i] * 1.1)).toLocaleString()}
+                    </span>
+                    <span
+                      className="w-14 text-right text-sm font-semibold tabular-nums"
+                      style={{ color: "var(--color-primary)" }}
+                    >
+                      ${addonTotals[i].toLocaleString()}
+                    </span>
                   </span>
                 </div>
               ))}
@@ -343,6 +414,7 @@ export function PricingCalculator({
           style={{ backgroundColor: "var(--color-primary)" }}
         >
           Book Now &mdash; ${grandTotal.toLocaleString()}
+          <span className="text-sm text-slate-300 line-through ml-1">${(Math.round(grandTotal * 1.1)).toLocaleString()}</span>
         </Link>
 
         <p className="text-center text-xs" style={{ color: "var(--color-text-muted)" }}>

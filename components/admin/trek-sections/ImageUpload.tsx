@@ -61,6 +61,12 @@ export const ImageUpload = forwardRef<ImageUploadHandle, ImageUploadProps>(
       fd.set("folder", folder || "mardi-treks");
 
       const res = await fetch("/api/upload", { method: "POST", body: fd });
+
+      if (!res.ok) {
+        const errorBody = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+        throw new Error(errorBody.error || `Upload failed (HTTP ${res.status})`);
+      }
+
       const data = await res.json();
 
       let newId = "";
@@ -81,7 +87,7 @@ export const ImageUpload = forwardRef<ImageUploadHandle, ImageUploadProps>(
 
       return newId;
     } catch (err) {
-      console.error("Upload failed", err);
+      console.error("Upload failed:", err instanceof Error ? err.message : err);
       return null;
     } finally {
       setUploading(false);

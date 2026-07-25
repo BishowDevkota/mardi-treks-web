@@ -128,7 +128,9 @@ export function Header({
     const selectedIds = categoryDropdownTreks?.[slug];
     if (!selectedIds || selectedIds.length === 0) return [];
 
-    const catTreks = (dropdownTreks || []).filter((t) => selectedIds.includes(t.id));
+    // Preserve the order from selectedIds
+    const trekMap = new Map((dropdownTreks || []).map((t) => [t.id, t]));
+    const catTreks = selectedIds.map((id) => trekMap.get(id)).filter(Boolean) as DropdownTrek[];
     const catRegions = (allRegions || []).filter((r) => r.categoryId === categories?.find((c) => c.slug === slug)?.id);
 
     const grouped: Record<string, DropdownTrek[]> = {};
@@ -213,15 +215,13 @@ export function Header({
               }
             }}
           >
-            <button
-              onClick={(e) => {
-                e.preventDefault();
-                setHoveredDropdown(hoveredDropdown === item.href ? null : item.href);
-              }}
+            <Link
+              href={item.href}
+              onClick={() => setHoveredDropdown(null)}
               onKeyDown={(e) => {
                 if (e.key === "Escape") {
                   setHoveredDropdown(null);
-                  // Focus the trigger button
+                  // Focus the trigger link
                   (e.currentTarget as HTMLElement).focus();
                 }
                 if (e.key === "ArrowDown" && isHovered) {
@@ -249,7 +249,7 @@ export function Header({
                   isActive ? "scale-x-100" : "scale-x-0 group-hover:scale-x-100"
                 }`}
               />
-            </button>
+            </Link>
 
             <div
               data-dropdown-container="true"

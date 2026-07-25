@@ -1,4 +1,5 @@
 import { LoadingLogo } from "@/components/LoadingLogo";
+import { Fakts } from "@/components/loading/Fakts";
 
 export default function MarketingLoading() {
   return (
@@ -28,6 +29,11 @@ export default function MarketingLoading() {
           <span className="mt-1.5 text-xs font-medium tracking-widest text-text-muted animate-pulse" style={{ animationDuration: "1.5s" }}>
             LOADING
           </span>
+        </div>
+
+        {/* Fakts just below the loading content */}
+        <div className="mt-10 max-w-sm px-6">
+          <Fakts />
         </div>
       </div>
     </div>

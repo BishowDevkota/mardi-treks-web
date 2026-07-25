@@ -135,26 +135,6 @@ export const Products: CollectionConfig = {
       label: "Overview / Description",
     },
 
-    // ── Highlights ──────────────────────────────────────────────
-    {
-      name: "highlights",
-      type: "array",
-      label: "Trip Highlights",
-      fields: [
-        {
-          name: "icon",
-          type: "text",
-          required: true,
-          admin: { description: "Emoji icon (e.g. 🏔️)" },
-        },
-        {
-          name: "text",
-          type: "text",
-          required: true,
-        },
-      ],
-    },
-
     // ── Day-by-day Itinerary ────────────────────────────────────
     {
       name: "itinerary",
@@ -429,15 +409,6 @@ export const Products: CollectionConfig = {
       type: "textarea",
       label: "Meta Description",
       maxLength: 160,
-      admin: {
-        position: "sidebar",
-      },
-    },
-    {
-      name: "ogImage",
-      type: "upload",
-      relationTo: "media",
-      label: "OG Image",
       admin: {
         position: "sidebar",
       },

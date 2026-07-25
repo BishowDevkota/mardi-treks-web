@@ -312,9 +312,11 @@ function TooltipContent({
           {formatAltitude(point.altitude)}
         </div>
         {point.description && (
-          <p className="mt-1 text-[11px] leading-snug" style={{ color: "var(--color-text-muted)" }}>
-            {point.description}
-          </p>
+          <div
+            className="mt-1 text-[11px] leading-snug [&_p]:m-0 [&_p]:inline"
+            style={{ color: "var(--color-text-muted)" }}
+            dangerouslySetInnerHTML={{ __html: point.description }}
+          />
         )}
       </div>
       <div

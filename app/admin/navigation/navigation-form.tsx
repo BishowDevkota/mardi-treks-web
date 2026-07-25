@@ -73,6 +73,10 @@ export function NavigationForm({
   const [expandedRegions, setExpandedRegions] = useState<Record<string, boolean>>({});
   const [savingRegions, setSavingRegions] = useState(false);
 
+  // Top bar content state — lifted from TopBarEditor so we can explicitly
+  // pass it through FormData, avoiding reliance on the hidden input's DOM value.
+  const [topBarContent, setTopBarContent] = useState(initialTopBarContent || "");
+
   // Initialize editable regions per category
   const [editableRegions, setEditableRegions] = useState<Record<string, CategoryRegion[]>>(() => {
     const initial: Record<string, CategoryRegion[]> = {};
@@ -139,6 +143,16 @@ export function NavigationForm({
     }
   }
 
+  function moveTrekInCategory(categorySlug: string, index: number, direction: "up" | "down") {
+    setSelectedTreks((prev) => {
+      const current = [...(prev[categorySlug] || [])];
+      const newIndex = direction === "up" ? index - 1 : index + 1;
+      if (newIndex < 0 || newIndex >= current.length) return prev;
+      [current[index], current[newIndex]] = [current[newIndex], current[index]];
+      return { ...prev, [categorySlug]: current };
+    });
+  }
+
   // ── Region management ────────────────────────────────────────────
   function addRegion(categorySlug: string) {
     const cat = treksByCategory.find((c) => c.slug === categorySlug);
@@ -198,6 +212,7 @@ export function NavigationForm({
     const fd = new FormData(form);
     fd.set("navigation", JSON.stringify(navItems));
     fd.set("categoryDropdownTreks", JSON.stringify(selectedTreks));
+    fd.set("topBarContent", topBarContent);
     fd.set("logo", uploadedId || logoPublicId);
     fd.set("previousLogo", logo); // pass the original logo for Cloudinary cleanup
     try {
@@ -264,7 +279,7 @@ export function NavigationForm({
           </div>
         </div>
         <div>
-          <TopBarEditor initialContent={initialTopBarContent || ""} />
+          <TopBarEditor initialContent={initialTopBarContent || ""} onChange={setTopBarContent} />
           <input id="topBarContentInput" type="hidden" name="topBarContent" defaultValue={initialTopBarContent || ""} />
         </div>
       </section>
@@ -369,6 +384,14 @@ export function NavigationForm({
               const allSelected = cat.treks.length > 0 && selected.length === cat.treks.length;
               const someSelected = selected.length > 0 && !allSelected;
 
+              // Ordered selected treks
+              const orderedSelected = selected
+                .map((id) => cat.treks.find((t) => t.id === id))
+                .filter(Boolean) as TrekItem[];
+
+              // Unselected treks
+              const unselectedTreks = cat.treks.filter((t) => !selected.includes(t.id));
+
               return (
                 <div
                   key={cat.slug}
@@ -387,48 +410,96 @@ export function NavigationForm({
                     )}
                     <span className="text-lg">{cat.icon || "📁"}</span>
                     <span className="flex-1 text-sm font-semibold text-slate-900">{cat.name}</span>
-                    <span className="text-xs text-slate-400">({cat.treks.length} treks)</span>
-
-                    {/* Select all toggle */}
-                    {cat.treks.length > 0 && (
-                      <label
-                        onClick={(e) => e.stopPropagation()}
-                        className="flex items-center gap-1.5 text-xs text-slate-500 cursor-pointer"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={allSelected}
-                          ref={(el) => {
-                            if (el) el.indeterminate = someSelected;
-                          }}
-                          onChange={() => toggleAllTreks(cat.slug)}
-                          className="h-4 w-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500"
-                        />
-                        {allSelected ? "All selected" : someSelected ? `${selected.length} selected` : "Select all"}
-                      </label>
-                    )}
+                    <span className="text-xs text-slate-400">
+                      {cat.treks.length} treks · {selected.length} in dropdown
+                    </span>
                   </button>
 
-                  {/* Trek List */}
                   {isExpanded && (
-                    <div className="divide-y divide-slate-100 border-t border-slate-200">
-                      {cat.treks.length === 0 ? (
-                        <p className="px-4 py-4 text-xs text-slate-400">
-                          No published treks in this category.
-                        </p>
-                      ) : (
-                        cat.treks.map((trek) => {
-                          const isSelected = selected.includes(trek.id);
-                          return (
+                    <div className="border-t border-slate-200">
+                      {/* ── Ordered Selected Treks ── */}
+                      {orderedSelected.length > 0 && (
+                        <div className="divide-y divide-slate-100">
+                          <div className="flex items-center gap-2 bg-teal-50/60 px-4 py-2">
+                            <span className="text-xs font-semibold text-teal-700">
+                              📌 Ordered ({orderedSelected.length})
+                            </span>
+                          </div>
+                          {orderedSelected.map((trek, idx) => (
+                            <div
+                              key={trek.id}
+                              className="flex items-center gap-2 px-4 py-2.5 bg-teal-50/30"
+                            >
+                              {/* Up / Down arrows */}
+                              <div className="flex flex-col gap-0.5 shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={() => moveTrekInCategory(cat.slug, idx, "up")}
+                                  disabled={idx === 0}
+                                  className="flex h-4 w-4 items-center justify-center rounded text-slate-400 hover:bg-slate-200 hover:text-slate-600 disabled:opacity-20 disabled:cursor-not-allowed"
+                                >▲</button>
+                                <button
+                                  type="button"
+                                  onClick={() => moveTrekInCategory(cat.slug, idx, "down")}
+                                  disabled={idx === orderedSelected.length - 1}
+                                  className="flex h-4 w-4 items-center justify-center rounded text-slate-400 hover:bg-slate-200 hover:text-slate-600 disabled:opacity-20 disabled:cursor-not-allowed"
+                                >▼</button>
+                              </div>
+
+                              {/* Order number badge */}
+                              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-teal-100 text-[11px] font-bold text-teal-700">
+                                {idx + 1}
+                              </div>
+
+                              {/* Trek info */}
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium text-slate-900 truncate">
+                                  {trek.title}
+                                </p>
+                                <p className="text-xs text-slate-400">
+                                  {trek.duration} days · ${trek.price}
+                                </p>
+                              </div>
+
+                              {/* Deselect (remove from dropdown) */}
+                              <button
+                                type="button"
+                                onClick={() => toggleTrekSelection(cat.slug, trek.id)}
+                                className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-500"
+                                title="Remove from dropdown"
+                              >
+                                <X className="h-4 w-4" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* ── Unselected / Available Treks ── */}
+                      {unselectedTreks.length > 0 && (
+                        <div className="divide-y divide-slate-100">
+                          <div className="flex items-center gap-2 px-4 py-2">
+                            <span className="text-xs font-medium text-slate-400">
+                              Available treks ({unselectedTreks.length})
+                            </span>
+                            {orderedSelected.length > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => toggleAllTreks(cat.slug)}
+                                className="ml-auto text-xs text-teal-600 hover:text-teal-700 font-medium"
+                              >
+                                Select all
+                              </button>
+                            )}
+                          </div>
+                          {unselectedTreks.map((trek) => (
                             <label
                               key={trek.id}
-                              className={`flex items-center gap-3 px-4 py-2.5 transition-colors cursor-pointer ${
-                                isSelected ? "bg-teal-50/50" : "hover:bg-slate-50"
-                              }`}
+                              className="flex items-center gap-3 px-4 py-2.5 hover:bg-slate-50 cursor-pointer transition-colors"
                             >
                               <input
                                 type="checkbox"
-                                checked={isSelected}
+                                checked={false}
                                 onChange={() => toggleTrekSelection(cat.slug, trek.id)}
                                 className="h-4 w-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500"
                               />
@@ -440,14 +511,28 @@ export function NavigationForm({
                                   {trek.duration} days · ${trek.price}
                                 </p>
                               </div>
-                              {isSelected && (
-                                <span className="inline-flex items-center rounded-full bg-teal-100 px-2 py-0.5 text-[10px] font-semibold text-teal-700">
-                                  In dropdown
-                                </span>
-                              )}
+                              <span className="text-[10px] text-slate-400">Add</span>
                             </label>
-                          );
-                        })
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Empty states */}
+                      {orderedSelected.length === 0 && unselectedTreks.length === 0 && (
+                        <p className="px-4 py-4 text-xs text-slate-400 text-center">
+                          No published treks in this category.
+                        </p>
+                      )}
+                      {orderedSelected.length === 0 && unselectedTreks.length > 0 && (
+                        <div className="flex items-center justify-center gap-2 px-4 py-2 border-t border-slate-100">
+                          <button
+                            type="button"
+                            onClick={() => toggleAllTreks(cat.slug)}
+                            className="text-xs font-medium text-teal-600 hover:text-teal-700"
+                          >
+                            Add all {unselectedTreks.length} treks to dropdown
+                          </button>
+                        </div>
                       )}
                     </div>
                   )}
@@ -591,7 +676,7 @@ export function NavigationForm({
 }
 
 // ── Top Bar Rich Text Editor ────────────────────────────────────────
-function TopBarEditor({ initialContent }: { initialContent: string }) {
+function TopBarEditor({ initialContent, onChange }: { initialContent: string; onChange: (html: string) => void }) {
   const [mounted, setMounted] = useState(false);
   const editor = useEditor({
     extensions: [StarterKit, Link.configure({ openOnClick: false })],
@@ -603,6 +688,7 @@ function TopBarEditor({ initialContent }: { initialContent: string }) {
       const html = editor.getHTML();
       const input = document.getElementById("topBarContentInput") as HTMLInputElement;
       if (input) input.value = html;
+      onChange(html);
     },
   });
 

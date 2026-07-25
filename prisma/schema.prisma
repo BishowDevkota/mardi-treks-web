@@ -86,7 +86,6 @@ model Category {
   heroImage       String?
   metaTitle       String?
   metaDescription String?
-  ogImage         String?
   status          String   @default("published")
   sort            Int      @default(0)
   createdAt       DateTime @default(now())
@@ -149,7 +148,6 @@ model Trek {
   // Relationships
   category       Category?          @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   regionRef      CategoryRegion?    @relation(fields: [regionId], references: [id], onDelete: SetNull)
-  highlights     TrekHighlight[]
   itinerary      ItineraryDay[]
   pricingTiers   PricingTier[]
   availableDates AvailableDate[]
@@ -161,7 +159,7 @@ model Trek {
   metaTitle       String?
   metaDescription String?
   keywords        String?
-  ogImage         String?
+  tags            String?
 
   // Map
   geoJsonUrl     String?
@@ -190,18 +188,6 @@ model Trek {
   publishedAt DateTime?
 
   @@map("treks")
-}
-
-model TrekHighlight {
-  id     String @id @default(cuid())
-  trekId String
-  icon   String
-  text   String
-  sort   Int    @default(0)
-
-  trek Trek @relation(fields: [trekId], references: [id], onDelete: Cascade)
-
-  @@map("trek_highlights")
 }
 
 model ItineraryDay {

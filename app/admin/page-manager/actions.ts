@@ -172,12 +172,7 @@ export async function savePageContent(formData: FormData) {
         description: formData.get("about_seo_description") as string,
         keywords: formData.get("about_seo_keywords") as string || "",
       },
-      whyChooseUs: {
-        heading: formData.get("about_why_heading") as string,
-        subtitle: formData.get("about_why_subtitle") as string,
-        items: JSON.parse(formData.get("about_why_items") as string || "[]"),
-        bgImage: formData.get("about_why_bg") as string,
-      },
+      // WhyChooseUs removed — the About page reads it from Home settings
       team: JSON.parse(formData.get("about_team") as string || "[]"),
       gallery: JSON.parse(formData.get("about_gallery") as string || "[]"),
     };
@@ -218,14 +213,30 @@ export async function savePageContent(formData: FormData) {
   }
 
   // ── Footer (only when the Footer tab was visible) ──
-  if (formData.has("footer_brand_description")) {
+  if (formData.has("footer_email")) {
     pageContent.footer = {
-      brandDescription: formData.get("footer_brand_description") as string,
       email: formData.get("footer_email") as string,
       phone: formData.get("footer_phone") as string,
       address: formData.get("footer_address") as string,
       socialLinks: JSON.parse(formData.get("footer_social_links") as string || "[]"),
       copyright: formData.get("footer_copyright") as string,
+      trustedBadge: formData.get("footer_trusted_badge") as string || "Trusted & Certified",
+      associatedHeading: formData.get("footer_associated_heading") as string || "We're Associated With",
+      partners: JSON.parse(formData.get("footer_partners") as string || "[]"),
+      activitiesHeading: formData.get("footer_activities_heading") as string || "Activities",
+      companyHeading: formData.get("footer_company_heading") as string || "Company",
+      companyLinks: JSON.parse(formData.get("footer_company_links") as string || "[]"),
+      usefulLinksHeading: formData.get("footer_useful_links_heading") as string || "Useful Links",
+      usefulLinks: JSON.parse(formData.get("footer_useful_links") as string || "[]"),
+      recommendedLabel: formData.get("footer_recommended_label") as string || "Recommended On:",
+      recommendedOn: JSON.parse(formData.get("footer_recommended_on") as string || "[]"),
+      followUsLabel: formData.get("footer_follow_us_label") as string || "Follow Us On:",
+      card1Title: formData.get("footer_card1_title") as string || "Mardi Treks",
+      card2Title: formData.get("footer_card2_title") as string || "Speak with a Representative",
+      representative: JSON.parse(formData.get("footer_representative") as string || "{}"),
+      card3Title: formData.get("footer_card3_title") as string || "Recognitions",
+      recognitions: JSON.parse(formData.get("footer_recognitions") as string || "[]"),
+      bottomLinks: JSON.parse(formData.get("footer_bottom_links") as string || "[]"),
     };
   }
 

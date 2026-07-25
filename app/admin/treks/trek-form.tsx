@@ -30,13 +30,17 @@ export function TrekForm({ mode, trek, categories }: { mode: "create" | "edit"; 
   const [showAddMenu, setShowAddMenu] = useState(false);
 
   // ── Image upload refs (deferred Cloudinary upload on save) ────────
+  // Cleared before each render to avoid accumulating duplicates from React 19 callback refs
   const imageUploadRefs = useRef<{ key: string; handle: ImageUploadHandle }[]>([]);
+  imageUploadRefs.current = [];
   const registerImageUpload = useCallback((key: string, handle: ImageUploadHandle) => {
     imageUploadRefs.current.push({ key, handle });
   }, []);
 
   // ── RichTextEditor refs (deferred image upload) ───────────────────
+  // Cleared before each render to avoid accumulating duplicates from React 19 callback refs
   const editorRefs = useRef<{ key: string; handle: RichTextEditorHandle }[]>([]);
+  editorRefs.current = [];
   const registerRichTextEditor = useCallback((key: string, handle: RichTextEditorHandle) => {
     editorRefs.current.push({ key, handle });
   }, []);
@@ -44,7 +48,7 @@ export function TrekForm({ mode, trek, categories }: { mode: "create" | "edit"; 
   // ── Sections state ────────────────────────────────────────────────
   const [sections, setSections] = useState<TrekSection[]>(() => {
     // Always include these default sections in order
-    const defaults: TrekSection["type"][] = ["details", "overview", "map", "seo"];
+    const defaults: TrekSection["type"][] = ["details", "seo", "overview", "map"];
     const existing = defaults.map((t) => createDefaultSection(t, trek));
 
     // Restore non-default sections from trek data if editing
@@ -58,7 +62,7 @@ export function TrekForm({ mode, trek, categories }: { mode: "create" | "edit"; 
         const hasData = (arr: any[]) => arr.length > 0;
         let shouldInclude = false;
         if (t === "itinerary") shouldInclude = hasData(def.data.items);
-        else if (t === "inEx") shouldInclude = hasData(def.data.items);
+        else if (t === "inEx") shouldInclude = def.data.inclusions?.trim()?.length > 0 || def.data.exclusions?.trim()?.length > 0;
         else if (t === "pricing") shouldInclude = hasData(def.data.items);
         else if (t === "addons") shouldInclude = hasData(def.data.items);
         else if (t === "faqs") shouldInclude = hasData(def.data.items);
@@ -110,12 +114,15 @@ export function TrekForm({ mode, trek, categories }: { mode: "create" | "edit"; 
   }, []);
 
   const removeSection = useCallback((id: string) => {
-    setSections((prev) => prev.filter((s) => s.id !== id));
+    setSections((prev) => prev.filter((s) => s.id !== id && s.type !== "details" && s.type !== "seo"));
   }, []);
 
   const moveUp = useCallback((index: number) => {
     if (index === 0) return;
     setSections((prev) => {
+      // Don't move above "details" (#1) or "seo" (#2)
+      const above = prev[index - 1];
+      if (above?.type === "details" || above?.type === "seo") return prev;
       const next = [...prev];
       [next[index - 1], next[index]] = [next[index], next[index - 1]];
       return next;
@@ -125,6 +132,9 @@ export function TrekForm({ mode, trek, categories }: { mode: "create" | "edit"; 
   const moveDown = useCallback((index: number) => {
     setSections((prev) => {
       if (index >= prev.length - 1) return prev;
+      // Don't move "details" or "seo" down
+      const current = prev[index];
+      if (current?.type === "details" || current?.type === "seo") return prev;
       const next = [...prev];
       [next[index], next[index + 1]] = [next[index + 1], next[index]];
       return next;
@@ -133,10 +143,10 @@ export function TrekForm({ mode, trek, categories }: { mode: "create" | "edit"; 
 
   const addSection = useCallback((type: TrekSection["type"]) => {
     const section = createDefaultSection(type);
-    // Insert before SEO (which should be last)
+    // Insert after SEO (which should be at position 2)
     setSections((prev) => {
       const seoIdx = prev.findIndex((s) => s.type === "seo");
-      const idx = seoIdx >= 0 ? seoIdx : prev.length;
+      const idx = seoIdx >= 0 ? seoIdx + 1 : prev.length;
       return [...prev.slice(0, idx), section, ...prev.slice(idx)];
     });
     setShowAddMenu(false);
@@ -149,23 +159,30 @@ export function TrekForm({ mode, trek, categories }: { mode: "create" | "edit"; 
     setError(null);
 
     // Upload any pending images to Cloudinary and capture returned IDs
-    const uploadResults = await Promise.all([
-      ...imageUploadRefs.current.map(async ({ key, handle }) => {
+    const imageResults = await Promise.allSettled(
+      imageUploadRefs.current.map(async ({ key, handle }) => {
         const id = await handle.save();
-        return { key, id };
-      }),
-      ...editorRefs.current.map(async ({ key, handle }) => {
+        return { key, id, isEditor: false as const };
+      })
+    );
+    const editorResults = await Promise.allSettled(
+      editorRefs.current.map(async ({ key, handle }) => {
         const html = await handle.processPendingImages();
         return { key, id: html, isEditor: true as const };
-      }),
-    ]);
+      })
+    );
     const uploadedMap: Record<string, string> = {};
     const editorResultMap: Record<string, string> = {};
-    for (const result of uploadResults) {
-      if ("isEditor" in result && result.isEditor) {
-        if (result.id) editorResultMap[result.key] = result.id;
-      } else if (result.id) {
-        uploadedMap[result.key] = result.id;
+    for (const result of [...imageResults, ...editorResults]) {
+      if (result.status === "fulfilled") {
+        const r = result.value;
+        if (r.isEditor) {
+          if (r.id) editorResultMap[r.key] = r.id;
+        } else if (r.id) {
+          uploadedMap[r.key] = r.id;
+        }
+      } else {
+        console.error("Upload failed:", result.reason);
       }
     }
 
@@ -257,10 +274,12 @@ export function TrekForm({ mode, trek, categories }: { mode: "create" | "edit"; 
       };
     });
     fd.set("itinerary", JSON.stringify(patchedItinerary));
-    // Inclusions & Exclusions from the merged inEx section
-    const inExItems = inEx.items || [];
-    fd.set("inclusions", JSON.stringify(inExItems.filter((i: any) => i.type === "included").map((i: any) => i.text)));
-    fd.set("exclusions", JSON.stringify(inExItems.filter((i: any) => i.type === "excluded").map((i: any) => i.text)));
+    // Inclusions & Exclusions
+    const inExSection = sections.find((s) => s.type === "inEx");
+    const incHtml = inExSection ? (editorResultMap[`${inExSection.id}.inclusions`] || inEx.inclusions || "") : "";
+    const excHtml = inExSection ? (editorResultMap[`${inExSection.id}.exclusions`] || inEx.exclusions || "") : "";
+    fd.set("inclusions", incHtml);
+    fd.set("exclusions", excHtml);
     fd.set("pricingTiers", JSON.stringify(pricing.items));
     fd.set("addons", JSON.stringify(addons.items));
     fd.set("faqs", JSON.stringify(faqs.items));
@@ -268,7 +287,7 @@ export function TrekForm({ mode, trek, categories }: { mode: "create" | "edit"; 
     fd.set("metaTitle", seo.metaTitle || "");
     fd.set("metaDescription", seo.metaDescription || "");
     fd.set("keywords", seo.keywords || "");
-    fd.set("ogImage", img("seo", "ogImage"));
+    fd.set("tags", seo.tags || "");
     fd.set("centerLat", String(mapData.centerLat || 28.5));
     fd.set("centerLng", String(mapData.centerLng || 83.9));
     fd.set("zoom", String(mapData.zoom || 7));
@@ -297,12 +316,11 @@ export function TrekForm({ mode, trek, categories }: { mode: "create" | "edit"; 
     }
     fd.set("sectionData", JSON.stringify(sectionData));
 
-    // Custom sections — override imageId with uploaded values and content with editor-processed HTML
+    // Custom sections — override content with editor-processed HTML
     const patchedCustomSections = customSections.map((cs: any) => ({
       ...cs,
       data: {
         ...cs.data,
-        imageId: uploadedMap[`${cs.id}.customImage`] || cs.data?.imageId || "",
         content: editorResultMap[`${cs.id}.content`] || cs.data?.content || "",
       },
     }));
@@ -346,7 +364,9 @@ export function TrekForm({ mode, trek, categories }: { mode: "create" | "edit"; 
             </button>
             {showAddMenu && (
               <div className="absolute right-0 top-full z-20 mt-1 w-52 rounded-xl border border-slate-200 bg-white py-1 shadow-lg">
-                {ADDABLE_SECTION_TYPES.map((item) => (
+                {ADDABLE_SECTION_TYPES
+                  .filter((item) => item.type === "custom" || !sections.some((s) => s.type === item.type))
+                  .map((item) => (
                   <button key={item.type} type="button" onClick={() => addSection(item.type)}
                     className="flex w-full items-center gap-3 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50">
                     <span>{item.icon}</span> {item.label}

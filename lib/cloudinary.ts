@@ -19,8 +19,10 @@ export async function uploadFile(
   });
 }
 
-export async function deleteFile(publicId: string) {
-  return cloudinary.uploader.destroy(publicId);
+export async function deleteFile(publicId: string, options?: { resourceType?: string }) {
+  return cloudinary.uploader.destroy(publicId, {
+    resource_type: options?.resourceType || "image",
+  });
 }
 
 export function getOptimizedUrl(publicId: string, options?: {

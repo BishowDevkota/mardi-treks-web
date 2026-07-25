@@ -9,7 +9,7 @@ export default async function EditTrekPage({ params }: { params: Promise<{ id: s
   const [trek, categories] = await Promise.all([
     prisma.trek.findUnique({
       where: { id },
-      include: { highlights: { orderBy: { sort: "asc" } }, itinerary: { orderBy: { dayNumber: "asc" } }, pricingTiers: true, availableDates: true, faqs: true, reviews: true, category: true, galleryImages: true },
+      include: { itinerary: { orderBy: { dayNumber: "asc" } }, pricingTiers: true, availableDates: true, faqs: true, reviews: true, category: true, galleryImages: true },
     }),
     prisma.category.findMany({
       where: { status: "published" },

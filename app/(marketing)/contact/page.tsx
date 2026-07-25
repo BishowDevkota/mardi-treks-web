@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
-import { Mail, Phone, MapPin } from "lucide-react";
+import { Mail, Phone, MapPin, Clock } from "lucide-react";
 import { ContactFormSection } from "@/components/home/ContactFormSection";
 import { PageHero } from "@/components/layout/PageHero";
 import { getCachedOrFetch, cacheKeys, CACHE_TTL } from "@/lib/redis";
@@ -32,12 +32,6 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-const contactDetails = [
-  { icon: Mail, title: "Email Us", info: "info@marditreks.com" },
-  { icon: Phone, title: "Call Us", info: "+977-1-2345678" },
-  { icon: MapPin, title: "Office", info: "Thamel, Kathmandu, Nepal" },
-];
-
 export default async function ContactPage() {
   const pc = await getPageContent();
   const contact = pc?.contact || {};
@@ -55,6 +49,18 @@ export default async function ContactPage() {
     CACHE_TTL.MODERATE
   );
 
+  // Fetch the same CMS contact info cards used on the home page
+  const homeSettings = await getCachedOrFetch(
+    cacheKeys.homeSettings,
+    () => prisma.homePageSettings.findUnique({
+      where: { id: "home-settings" },
+    }),
+    CACHE_TTL.LAYOUT
+  );
+  const contactInfoCards: { title: string; description: string }[] = (homeSettings as any)?.contactInfoCards
+    ? JSON.parse((homeSettings as any).contactInfoCards)
+    : [];
+
   return (
     <>
       <PageHero
@@ -65,17 +71,18 @@ export default async function ContactPage() {
         breadcrumbLabel="Contact"
       />
 
-      {/* Contact Form — full width, matches map/get-in-touch below */}
+      {/* Contact Form — uses same CMS data as home page left panel */}
       <ContactFormSection
         heading="Send us a message"
         description="Fill in the form below and we'll get back to you within 24 hours."
+        infoCards={contactInfoCards}
       />
 
-      {/* Map + Get in Touch — side by side */}
+      {/* Map + Contact Info — side by side */}
       <section className="pb-16">
         <div className="mx-auto max-w-7xl px-3 sm:px-4 lg:px-6">
           <div className="grid gap-10 lg:grid-cols-2">
-            {/* Map (left) — stretches to full height of grid row */}
+            {/* Map (left) */}
             <div className="h-full min-w-0">
               {mapIframe ? (
                 <div className="iframe-responsive-container h-full min-h-[400px] overflow-hidden rounded-2xl border border-border shadow-sm [&_iframe]:w-full [&_iframe]:max-w-full [&_iframe]:h-full [&_iframe]:min-h-[400px]" dangerouslySetInnerHTML={{ __html: sanitizeIframeHtml(mapIframe) }} />
@@ -91,7 +98,7 @@ export default async function ContactPage() {
               )}
             </div>
 
-            {/* Get in Touch (right) */}
+            {/* Contact Info (right) — uses same CMS data as home page */}
             <div className="flex h-full flex-col justify-center">
               <div
                 className="relative overflow-hidden rounded-2xl p-8"
@@ -119,8 +126,14 @@ export default async function ContactPage() {
                   </p>
 
                   <div className="mt-6 space-y-5">
-                    {contactDetails.map((item, i) => {
-                      const Icon = item.icon;
+                    {contactInfoCards.map((item, i) => {
+                      const iconMap: Record<string, any> = {
+                        "Email Us": Mail,
+                        "Call Us": Phone,
+                        "Office": MapPin,
+                        "Office Hours": Clock,
+                      };
+                      const Icon = iconMap[item.title] || MapPin;
                       return (
                         <div key={i} className="flex items-center gap-4 rounded-xl bg-white/10 p-4 backdrop-blur-sm transition-colors hover:bg-white/15">
                           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white/15">
@@ -128,7 +141,7 @@ export default async function ContactPage() {
                           </div>
                           <div>
                             <p className="text-xs font-semibold uppercase tracking-wide text-white/60">{item.title}</p>
-                            <p className="text-sm font-medium text-white">{item.info}</p>
+                            <p className="text-sm font-medium text-white">{item.description}</p>
                           </div>
                         </div>
                       );

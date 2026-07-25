@@ -318,8 +318,12 @@ export default async function TrekDetailPage({
   const availableDates = trek.availableDates || trekData[slug]?.availableDates || [];
   const faqs = trek.faqs || trekData[slug]?.faqs || [];
   const reviews = trek.reviews || trekData[slug]?.reviews || [];
-  const inclusions = (typeof trek.inclusions === "string" ? JSON.parse(trek.inclusions) : trek.inclusions) || [];
-  const exclusions = (typeof trek.exclusions === "string" ? JSON.parse(trek.exclusions) : trek.exclusions) || [];
+  const rawInclusions = (trek.inclusions as string) || "";
+  const rawExclusions = (trek.exclusions as string) || "";
+  const isLegacyInclusions = rawInclusions.trim().startsWith("[") && rawInclusions.trim().endsWith("]");
+  const isLegacyExclusions = rawExclusions.trim().startsWith("[") && rawExclusions.trim().endsWith("]");
+  const inclusions = isLegacyInclusions ? JSON.parse(rawInclusions) : rawInclusions;
+  const exclusions = isLegacyExclusions ? JSON.parse(rawExclusions) : rawExclusions;
   const waypoints = (typeof trek.waypoints === "string" ? JSON.parse(trek.waypoints) : trek.waypoints) || [];
 
   const difficultyColorMap: Record<string, string> = {
@@ -534,25 +538,41 @@ export default async function TrekDetailPage({
             <section className="grid gap-8 sm:grid-cols-2">
               <div>
                 <h2 className="text-xl font-bold text-foreground">Inclusions</h2>
-                <ul className="mt-4 space-y-2">
-                  {inclusions?.map((item: string, i: number) => (
-                    <li key={i} className="flex items-start gap-2 text-sm text-text">
-                      <Check className="mt-0.5 h-4 w-4 shrink-0 text-success" />
-                      {item}
-                    </li>
-                  ))}
-                </ul>
+                {Array.isArray(inclusions) ? (
+                  <ul className="mt-4 space-y-2">
+                    {inclusions?.map((item: string, i: number) => (
+                      <li key={i} className="flex items-start gap-2 text-sm text-text">
+                        <Check className="mt-0.5 h-4 w-4 shrink-0 text-success" />
+                        {item}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <div
+                    className="mt-4 text-sm leading-relaxed [&_ul]:list-none [&_li]:relative [&_li]:pl-6 [&_li]:before:content-['✓'] [&_li]:before:absolute [&_li]:before:left-0 [&_li]:before:text-emerald-500 [&_li]:before:font-bold"
+                    style={{ color: "var(--color-text)" }}
+                    dangerouslySetInnerHTML={{ __html: inclusions }}
+                  />
+                )}
               </div>
               <div>
                 <h2 className="text-xl font-bold text-foreground">Exclusions</h2>
-                <ul className="mt-4 space-y-2">
-                  {exclusions?.map((item: string, i: number) => (
-                    <li key={i} className="flex items-start gap-2 text-sm text-text">
-                      <XIcon className="mt-0.5 h-4 w-4 shrink-0 text-error" />
-                      {item}
-                    </li>
-                  ))}
-                </ul>
+                {Array.isArray(exclusions) ? (
+                  <ul className="mt-4 space-y-2">
+                    {exclusions?.map((item: string, i: number) => (
+                      <li key={i} className="flex items-start gap-2 text-sm text-text">
+                        <XIcon className="mt-0.5 h-4 w-4 shrink-0 text-error" />
+                        {item}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <div
+                    className="mt-4 text-sm leading-relaxed [&_ul]:list-none [&_li]:relative [&_li]:pl-6 [&_li]:before:content-['✗'] [&_li]:before:absolute [&_li]:before:left-0 [&_li]:before:text-red-400 [&_li]:before:font-bold"
+                    style={{ color: "var(--color-text)" }}
+                    dangerouslySetInnerHTML={{ __html: exclusions }}
+                  />
+                )}
               </div>
             </section>
 

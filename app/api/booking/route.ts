@@ -93,11 +93,22 @@ export async function POST(request: NextRequest) {
     const serverTrekDuration = trek.duration;
     const serverTrekTitle = trek.title;
 
-    // Validate group size doesn't exceed max group size
-    if (groupSize > trek.maxGroupSize) {
+    // Validate group size doesn't exceed max group size — derive from pricing tiers
+    // to keep in sync with the UI calculator and the admin-configured tiers.
+    const effectiveMaxGroupSize = trek.pricingTiers?.length
+      ? Math.max(
+          ...trek.pricingTiers.map((t) => {
+            const parts = t.groupSize.match(/(\d+)\s*-\s*(\d+)/);
+            if (parts) return parseInt(parts[2]);
+            const single = t.groupSize.match(/(\d+)/);
+            return single ? parseInt(single[1]) : 0;
+          })
+        )
+      : trek.maxGroupSize;
+    if (groupSize > effectiveMaxGroupSize) {
       return NextResponse.json(
         {
-          error: `Maximum ${trek.maxGroupSize} travelers allowed for this trek`,
+          error: `Maximum ${effectiveMaxGroupSize} travelers allowed for this trek`,
         },
         { status: 400 }
       );
